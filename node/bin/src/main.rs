@@ -5,9 +5,9 @@ use tokio::signal::unix::{SignalKind, signal};
 use tokio::sync::watch;
 use zksync_os_observability::PrometheusExporterConfig;
 use zksync_os_server::config::{
-    BatcherConfig, Config, GeneralConfig, GenesisConfig, L1SenderConfig, L1WatcherConfig,
-    LogConfig, MempoolConfig, ProverApiConfig, ProverInputGeneratorConfig, RpcConfig,
-    SequencerConfig, StateBackendConfig, StatusServerConfig, TxValidatorConfig,
+    BatchVerificationConfig, BatcherConfig, Config, GeneralConfig, GenesisConfig, L1SenderConfig,
+    L1WatcherConfig, LogConfig, MempoolConfig, ProverApiConfig, ProverInputGeneratorConfig,
+    RpcConfig, SequencerConfig, StateBackendConfig, StatusServerConfig, TxValidatorConfig,
 };
 use zksync_os_server::run;
 use zksync_os_server::sentry::init_sentry;
@@ -148,6 +148,9 @@ fn build_configs() -> Config {
     schema
         .insert(&LogConfig::DESCRIPTION, "log")
         .expect("Failed to insert log config");
+    schema
+        .insert(&BatchVerificationConfig::DESCRIPTION, "batch_verification")
+        .expect("Failed to insert batch verification config");
 
     let repo = ConfigRepository::new(&schema).with(Environment::prefixed(""));
 
@@ -229,6 +232,12 @@ fn build_configs() -> Config {
         .parse()
         .expect("Failed to parse log config");
 
+    let batch_verification_config = repo
+        .single::<BatchVerificationConfig>()
+        .expect("Failed to load batch verification config")
+        .parse()
+        .expect("Failed to parse batch verification config");
+
     if let Some(config_dir) = general_config.zkstack_cli_config_dir.clone() {
         // If set, then update the configs based off the values from the yaml files.
         // This is a temporary measure until we update zkstack cli (or create a new tool) to create
@@ -272,5 +281,6 @@ fn build_configs() -> Config {
         prover_api_config,
         status_server_config,
         log_config,
+        batch_verification_config,
     }
 }
