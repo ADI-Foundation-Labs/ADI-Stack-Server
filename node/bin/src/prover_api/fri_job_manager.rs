@@ -28,7 +28,7 @@ use tokio::sync::mpsc::error::TrySendError;
 use tokio::sync::{Mutex, mpsc};
 use zksync_os_l1_sender::batcher_metrics::BatchExecutionStage;
 use zksync_os_l1_sender::batcher_model::{
-    BatchEnvelope, FriProof, ProverInput, RealFriProof, SignedBatchEnvelope,
+    FriProof, ProverInput, RealFriProof, SignedBatchEnvelope,
 };
 use zksync_os_multivm::proving_run_execution_version;
 use zksync_os_observability::{
