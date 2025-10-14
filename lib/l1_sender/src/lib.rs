@@ -29,7 +29,7 @@ use secrecy::{ExposeSecret, SecretString};
 use std::collections::HashMap;
 use std::str::FromStr;
 use std::time::Duration;
-use tokio::sync::mpsc::Sender;
+use tokio::sync::{mpsc::Sender, watch};
 use zksync_os_observability::ComponentStateReporter;
 use zksync_os_pipeline::PeekableReceiver;
 
@@ -60,6 +60,7 @@ pub async fn run_l1_sender<Input: L1SenderCommand>(
     // == config ==
     mut provider: impl Provider + WalletProvider<Wallet = EthereumWallet> + 'static,
     config: L1SenderConfig<Input>,
+    stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
     let latency_tracker =
         ComponentStateReporter::global().handle_for(Input::NAME, L1SenderState::WaitingRecv);
@@ -82,7 +83,11 @@ pub async fn run_l1_sender<Input: L1SenderCommand>(
         // This method only returns `0` if the channel has been closed and there are no more items
         // in the queue.
         if received == 0 {
-            anyhow::bail!("inbound channel closed");
+            if stop_receiver.borrow() {
+                tracing::info!("Stopping L1 sender");
+                return Ok(());
+            }
+            anyhow::bail!("inbound channel closed unexpectedly");
         }
         latency_tracker.enter_state(L1SenderState::SendingToL1);
         let range = Input::display_range(&cmd_buffer); // Only for logging

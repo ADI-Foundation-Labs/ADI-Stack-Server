@@ -87,7 +87,7 @@ const REPOSITORY_DB_NAME: &str = "repository";
 
 #[allow(clippy::too_many_arguments)]
 pub async fn run<State: ReadStateHistory + WriteState + StateInitializer + Clone>(
-    _stop_receiver: watch::Receiver<bool>,
+    stop_receiver: watch::Receiver<bool>,
     config: Config,
 ) {
     let node_version: semver::Version = NODE_VERSION.parse().unwrap();
@@ -326,7 +326,7 @@ pub async fn run<State: ReadStateHistory + WriteState + StateInitializer + Clone
     tasks.spawn(
         run_status_server(
             config.status_server_config.address.clone(),
-            _stop_receiver.clone(),
+            stop_receiver.clone(),
         )
         .map(report_exit("Status server")),
     );
@@ -426,7 +426,7 @@ pub async fn run<State: ReadStateHistory + WriteState + StateInitializer + Clone
             finality_storage,
             chain_id,
             &genesis,
-            _stop_receiver.clone(),
+            stop_receiver.clone(),
         )
         .await;
     } else {
@@ -443,7 +443,7 @@ pub async fn run<State: ReadStateHistory + WriteState + StateInitializer + Clone
             starting_block,
             repositories,
             finality_storage,
-            _stop_receiver.clone(),
+            stop_receiver.clone(),
         )
         .await;
     };
@@ -505,7 +505,7 @@ async fn run_main_node_pipeline<
     finality: Finality,
     chain_id: u64,
     genesis: &Genesis,
-    _stop_receiver: watch::Receiver<bool>,
+    stop_receiver: watch::Receiver<bool>,
 ) {
     let last_committed_batch_info = if node_state_on_startup.l1_state.last_committed_batch == 0 {
         let genesis_block = repositories
@@ -590,7 +590,7 @@ async fn run_main_node_pipeline<
         .rocks_db_path
         .join(PRIORITY_TREE_DB_NAME);
 
-    Pipeline::new()
+    Pipeline::new(stop_receiver.clone())
         .pipe(MainNodeCommandSource {
             block_replay_storage: block_replay_storage.clone(),
             starting_block,
@@ -681,9 +681,9 @@ async fn run_en_pipeline<
     starting_block: u64,
     repositories: RepositoryManager,
     finality: Finality,
-    _stop_receiver: watch::Receiver<bool>,
+    stop_receiver: watch::Receiver<bool>,
 ) {
-    Pipeline::new()
+    Pipeline::new(stop_receiver.clone())
         .pipe(ExternalNodeCommandSource {
             starting_block,
             replay_download_address: config

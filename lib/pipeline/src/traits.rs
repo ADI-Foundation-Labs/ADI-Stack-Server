@@ -1,7 +1,7 @@
 use crate::peekable_receiver::PeekableReceiver;
 use anyhow::Result;
 use async_trait::async_trait;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, watch};
 
 /// A component that transforms messages in the pipeline.
 /// Examples: ProverInputGenerator, Batcher, L1 senders
@@ -26,5 +26,6 @@ pub trait PipelineComponent: Send + 'static {
         self,
         input: PeekableReceiver<Self::Input>,
         output: mpsc::Sender<Self::Output>,
+        stop_receiver: watch::Receiver<bool>,
     ) -> Result<()>;
 }

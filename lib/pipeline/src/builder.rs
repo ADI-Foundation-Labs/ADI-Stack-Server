@@ -3,7 +3,7 @@ use crate::peekable_receiver::PeekableReceiver;
 use anyhow::Result;
 use futures::FutureExt;
 use futures::future::BoxFuture;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, watch};
 
 /// A named pipeline task: component name and its spawnable task function
 type PipelineTask = (&'static str, BoxFuture<'static, Result<()>>);
@@ -12,20 +12,23 @@ type PipelineTask = (&'static str, BoxFuture<'static, Result<()>>);
 pub struct Pipeline<Output: Send + 'static> {
     tasks: Vec<PipelineTask>,
     receiver: PeekableReceiver<Output>,
+    stop_receiver: watch::Receiver<bool>,
 }
 
-impl Default for Pipeline<()> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+// todo: uncomment?
+// impl Default for Pipeline<()> {
+//     fn default() -> Self {
+//         Self::new()
+//     }
+// }
 
 impl Pipeline<()> {
-    pub fn new() -> Self {
+    pub fn new(stop_receiver: watch::Receiver<bool>) -> Self {
         let (_sender, receiver) = mpsc::channel(1);
         Self {
             tasks: vec![],
             receiver: PeekableReceiver::new(receiver),
+            stop_receiver,
         }
     }
 
@@ -53,15 +56,17 @@ impl<Output: Send + 'static> Pipeline<Output> {
     {
         let (output_sender, output_receiver) = mpsc::channel(C::OUTPUT_BUFFER_SIZE);
         let input_receiver = self.receiver;
-
+        let stop_receiver = self.stop_receiver.clone();
+    
         self.tasks.push((
             C::NAME,
-            async move { component.run(input_receiver, output_sender).await }.boxed(),
+            async move { component.run(input_receiver, output_sender, stop_receiver).await }.boxed(),
         ));
 
         Pipeline {
             tasks: self.tasks,
             receiver: PeekableReceiver::new(output_receiver),
+            stop_receiver: self.stop_receiver,
         }
     }
 
@@ -75,15 +80,17 @@ impl<Output: Send + 'static> Pipeline<Output> {
     {
         let (output_sender, output_receiver) = mpsc::channel(C::OUTPUT_BUFFER_SIZE);
         let input_receiver = self.receiver.prepend(prepend);
+        let stop_receiver = self.stop_receiver.clone();
 
         self.tasks.push((
             C::NAME,
-            async move { component.run(input_receiver, output_sender).await }.boxed(),
+            async move { component.run(input_receiver, output_sender, stop_receiver).await }.boxed(),
         ));
 
         Pipeline {
             tasks: self.tasks,
             receiver: PeekableReceiver::new(output_receiver),
+            stop_receiver: self.stop_receiver,
         }
     }
 }

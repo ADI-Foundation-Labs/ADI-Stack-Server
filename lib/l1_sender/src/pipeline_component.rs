@@ -6,7 +6,7 @@ use alloy::network::EthereumWallet;
 use alloy::primitives::Address;
 use alloy::providers::{Provider, WalletProvider};
 use async_trait::async_trait;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, watch};
 use zksync_os_pipeline::{PeekableReceiver, PipelineComponent};
 
 /// Generic L1 Sender pipeline component
@@ -33,6 +33,7 @@ where
         self,
         input: PeekableReceiver<Self::Input>,
         output: mpsc::Sender<Self::Output>,
+        stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
         run_l1_sender(input, output, self.to_address, self.provider, self.config).await
     }
