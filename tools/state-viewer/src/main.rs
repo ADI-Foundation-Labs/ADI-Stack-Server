@@ -40,6 +40,13 @@ use zksync_os_types::{ZkEnvelope, ZkReceiptEnvelope, ZkTransaction, ZkTxType};
 type RocksDb = DBWithThreadMode<SingleThreaded>;
 
 const DEFAULT_LIMIT: usize = 256;
+const DB_ORDER: [DbKind; 5] = [
+    DbKind::BlockReplayWal,
+    DbKind::Preimages,
+    DbKind::Repository,
+    DbKind::State,
+    DbKind::Tree,
+];
 
 #[derive(Parser)]
 #[command(author, version, about = "Inspect ZKsync OS RocksDB databases", long_about = None)]
@@ -55,7 +62,7 @@ struct Args {
     limit: usize,
 }
 
-#[derive(Clone, Copy, ValueEnum)]
+#[derive(Clone, Copy, ValueEnum, Debug, PartialEq, Eq)]
 enum DbKind {
     #[value(alias = "block-replay")]
     BlockReplayWal,
@@ -67,15 +74,7 @@ enum DbKind {
 
 fn main() -> Result<()> {
     let args = Args::parse();
-    let schema: Box<dyn Schema> = match args.db {
-        DbKind::BlockReplayWal => Box::new(BlockReplaySchema),
-        DbKind::Preimages => Box::new(PreimagesSchema),
-        DbKind::Repository => Box::new(RepositorySchema),
-        DbKind::State => Box::new(StateSchema),
-        DbKind::Tree => Box::new(TreeSchema),
-    };
-
-    let mut app = App::new(schema, args.data_dir, args.limit)?;
+    let mut app = App::new(args.data_dir, args.limit, args.db)?;
 
     enable_raw_mode().context("enabling raw mode")?;
     let mut stdout = stdout();
@@ -113,19 +112,21 @@ fn run_app(
 }
 
 struct App {
+    base_path: PathBuf,
+    limit: usize,
+    kind_index: usize,
     schema: Box<dyn Schema>,
     db: RocksDb,
     cf_names: Vec<String>,
     selected_cf: usize,
     entries: Vec<Entry>,
     selected_entry: usize,
-    limit: usize,
     db_path: PathBuf,
     status: Option<String>,
 }
 
 impl App {
-    fn new(schema: Box<dyn Schema>, base_path: PathBuf, limit: usize) -> Result<Self> {
+    fn new(base_path: PathBuf, limit: usize, initial_kind: DbKind) -> Result<Self> {
         if !base_path.exists() {
             return Err(anyhow!(
                 "Base directory `{}` does not exist",
@@ -133,38 +134,23 @@ impl App {
             ));
         }
 
-        let db_path = schema.db_path(&base_path);
-        if !db_path.exists() {
-            return Err(anyhow!(
-                "Database directory `{}` does not exist",
-                db_path.display()
-            ));
-        }
-
-        let mut options = Options::default();
-        options.create_if_missing(false);
-        let cf_descriptors: Vec<_> = schema
-            .column_families()
+        let kind_index = DB_ORDER
             .iter()
-            .map(|name| ColumnFamilyDescriptor::new(*name, Options::default()))
-            .collect();
+            .position(|&k| k == initial_kind)
+            .ok_or_else(|| anyhow!("Unsupported database kind {:?}", initial_kind))?;
 
-        let db = RocksDb::open_cf_descriptors(&options, &db_path, cf_descriptors)
-            .with_context(|| format!("opening RocksDB at {}", db_path.display()))?;
-        let cf_names = schema
-            .column_families()
-            .iter()
-            .map(|name| name.to_string())
-            .collect::<Vec<_>>();
+        let (schema, db, cf_names, db_path) = open_components(&base_path, initial_kind)?;
 
         let mut app = Self {
+            base_path,
+            limit: max(1, limit),
+            kind_index,
             schema,
             db,
             cf_names,
             selected_cf: 0,
             entries: Vec::new(),
             selected_entry: 0,
-            limit: max(1, limit),
             db_path,
             status: None,
         };
@@ -193,7 +179,7 @@ impl App {
                 Span::raw(self.db_path.display().to_string()),
             ]),
             Line::from(
-                "Controls: ←/→ CF • ↑/↓ move • PgUp/PgDn page • g/G start/end • r reload • q exit",
+                "Controls: Tab/Shift-Tab DB • ←/→ CF • ↑/↓ move • PgUp/PgDn page • g/G start/end • r reload • q exit",
             ),
             Line::from(self.status.clone().unwrap_or_default()),
         ];
@@ -267,6 +253,12 @@ impl App {
         match key.code {
             KeyCode::Char('q') | KeyCode::Esc => return Ok(true),
             KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => return Ok(true),
+            KeyCode::Tab => self.switch_db(1)?,
+            KeyCode::BackTab => self.switch_db(-1)?,
+            KeyCode::Char(']') if key.modifiers.is_empty() => self.switch_db(1)?,
+            KeyCode::Char('[') if key.modifiers.is_empty() => self.switch_db(-1)?,
+            KeyCode::Char('n') if key.modifiers.is_empty() => self.switch_db(1)?,
+            KeyCode::Char('p') if key.modifiers.is_empty() => self.switch_db(-1)?,
             KeyCode::Left => self.prev_cf()?,
             KeyCode::Right => self.next_cf()?,
             KeyCode::Up => self.move_selection(-1),
@@ -355,6 +347,40 @@ impl App {
         ));
         Ok(())
     }
+
+    fn switch_db(&mut self, delta: isize) -> Result<()> {
+        let len = DB_ORDER.len() as isize;
+        if len == 0 {
+            return Ok(());
+        }
+        let mut idx = self.kind_index as isize + delta;
+        idx = ((idx % len) + len) % len;
+        self.set_kind(idx as usize)?;
+        self.reload_entries()?;
+        self.status = Some(format!(
+            "Switched to {} database ({} column families)",
+            self.schema.name(),
+            self.cf_names.len()
+        ));
+        Ok(())
+    }
+
+    fn set_kind(&mut self, new_index: usize) -> Result<()> {
+        let kind = DB_ORDER
+            .get(new_index)
+            .copied()
+            .ok_or_else(|| anyhow!("Invalid database index {new_index}"))?;
+        let (schema, db, cf_names, db_path) = open_components(&self.base_path, kind)?;
+        self.schema = schema;
+        self.db = db;
+        self.cf_names = cf_names;
+        self.selected_cf = 0;
+        self.entries.clear();
+        self.selected_entry = 0;
+        self.db_path = db_path;
+        self.kind_index = new_index;
+        Ok(())
+    }
 }
 
 struct Entry {
@@ -434,7 +460,10 @@ impl Schema for BlockReplaySchema {
             }
             "last_processed_l1_tx_id" => {
                 let block = decode_u64(key)?;
-                let l1_id = decode_u64(value)?;
+                let (l1_id, _) = bincode::serde::decode_from_slice::<u64, _>(
+                    value,
+                    bincode::config::standard(),
+                )?;
                 let summary = format!("block {block}: next L1 priority id {l1_id}");
                 let detail = format!("Block #{block}\nLast processed L1 tx id: {l1_id}");
                 Ok(Entry::new(summary, detail))
@@ -498,15 +527,15 @@ struct PreimagesSchema;
 
 impl Schema for PreimagesSchema {
     fn name(&self) -> &'static str {
-        "preimages"
+        "preimages_full_diffs"
     }
 
     fn db_path(&self, base: &Path) -> PathBuf {
-        base.join("preimages")
+        base.join("preimages_full_diffs")
     }
 
     fn column_families(&self) -> &'static [&'static str] {
-        &["storage", "meta"]
+        &["storage"]
     }
 
     fn format_entry(&self, cf: &str, key: &[u8], value: &[u8]) -> Result<Entry> {
@@ -523,13 +552,6 @@ impl Schema for PreimagesSchema {
                 );
                 Ok(Entry::new(summary, detail))
             }
-            "meta" => {
-                let key_str = String::from_utf8_lossy(key);
-                let block = decode_u64(value)?;
-                let summary = format!("{key_str} → {block}");
-                let detail = format!("Metadata key `{key_str}`\nLatest block: {block}");
-                Ok(Entry::new(summary, detail))
-            }
             other => Err(anyhow!("Unsupported column family `{other}`")),
         }
     }
@@ -539,30 +561,32 @@ struct StateSchema;
 
 impl Schema for StateSchema {
     fn name(&self) -> &'static str {
-        "state"
+        "state_full_diffs"
     }
 
     fn db_path(&self, base: &Path) -> PathBuf {
-        base.join("state")
+        base.join("state_full_diffs")
     }
 
     fn column_families(&self) -> &'static [&'static str] {
-        &["storage", "meta"]
+        &["data", "meta"]
     }
 
     fn format_entry(&self, cf: &str, key: &[u8], value: &[u8]) -> Result<Entry> {
         match cf {
-            "storage" => {
-                let key_b256 = decode_b256(key, "storage key")?;
+            "data" => {
+                let key_b256 = decode_b256(&key[0..32], "storage key")?;
+                let block = decode_u64(&key[32..40])?;
                 let value_b256 = decode_b256(value, "storage value")?;
                 let summary = format!(
-                    "{} → {}",
+                    "{} (block #{block}) → {}",
                     format_b256(key_b256, 12),
                     format_b256(value_b256, 12)
                 );
                 let detail = format!(
-                    "Key: {}\nValue (B256): {}\nValue (U256): {}\n",
+                    "Key: {}\nBlock: {}\nValue (B256): {}\nValue (U256): {}\n",
                     format_b256(key_b256, 0),
+                    block,
                     format_b256(value_b256, 0),
                     U256::from_be_bytes(value_b256.0)
                 );
@@ -792,6 +816,48 @@ impl Schema for TreeSchema {
             other => Err(anyhow!("Unsupported column family `{other}`")),
         }
     }
+}
+
+fn schema_for_kind(kind: DbKind) -> Box<dyn Schema> {
+    match kind {
+        DbKind::BlockReplayWal => Box::new(BlockReplaySchema),
+        DbKind::Preimages => Box::new(PreimagesSchema),
+        DbKind::Repository => Box::new(RepositorySchema),
+        DbKind::State => Box::new(StateSchema),
+        DbKind::Tree => Box::new(TreeSchema),
+    }
+}
+
+fn open_components(
+    base_path: &Path,
+    kind: DbKind,
+) -> Result<(Box<dyn Schema>, RocksDb, Vec<String>, PathBuf)> {
+    let schema = schema_for_kind(kind);
+    let db_path = schema.db_path(base_path);
+    if !db_path.exists() {
+        return Err(anyhow!(
+            "Database directory `{}` does not exist",
+            db_path.display()
+        ));
+    }
+
+    let mut options = Options::default();
+    options.create_if_missing(false);
+    let cf_descriptors: Vec<_> = schema
+        .column_families()
+        .iter()
+        .map(|name| ColumnFamilyDescriptor::new(*name, Options::default()))
+        .collect();
+
+    let db = RocksDb::open_cf_descriptors(&options, &db_path, cf_descriptors)
+        .with_context(|| format!("opening RocksDB at {}", db_path.display()))?;
+    let cf_names = schema
+        .column_families()
+        .iter()
+        .map(|name| name.to_string())
+        .collect::<Vec<_>>();
+
+    Ok((schema, db, cf_names, db_path))
 }
 
 struct TxCounts {
