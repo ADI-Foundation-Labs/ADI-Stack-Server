@@ -1,4 +1,3 @@
-use crate::batch_verification_transport::{BatchVerificationRequestError, BatchVerificationServer};
 use crate::config::BatchVerificationConfig;
 use async_trait::async_trait;
 use dashmap::DashMap;
@@ -9,13 +8,13 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 use tokio::sync::mpsc::{self, Sender};
 use tokio::time::Instant;
-use zksync_os_batch_verification::{
-    BatchVerificationResponse, BatchVerificationResult, SignatureSet,
-};
+use zksync_os_batch_verification::{BatchVerificationRequestError, BatchVerificationServer};
+use zksync_os_batch_verification::{BatchVerificationResponse, BatchVerificationResult};
 use zksync_os_l1_sender::batcher_model::{
     BatchForSigning, BatchSignatureData, SignedBatchEnvelope,
 };
 use zksync_os_pipeline::{PeekableReceiver, PipelineComponent};
+use zksync_os_types::BatchSignatureSet;
 
 fn report_exit<T, E: std::fmt::Debug>(name: &'static str) -> impl Fn(Result<T, E>) {
     move |result| match result {
@@ -223,7 +222,7 @@ impl BatchVerifier {
     async fn verify_batch<E: Send + Sync>(
         &self,
         batch_envelope: &BatchForSigning<E>,
-    ) -> Result<SignatureSet, BatchVerificationError> {
+    ) -> Result<BatchSignatureSet, BatchVerificationError> {
         let request_id = self.request_id_counter.fetch_add(1, Ordering::SeqCst);
 
         tracing::info!(
@@ -245,7 +244,7 @@ impl BatchVerifier {
             .await?;
 
         // Collect responses with timeout
-        let mut responses = SignatureSet::new();
+        let mut responses = BatchSignatureSet::new();
         let deadline = Instant::now() + self.config.request_timeout;
 
         loop {

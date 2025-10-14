@@ -12,6 +12,9 @@ pub use verification_response::BatchVerificationResponseCodec;
 pub use verification_response::BatchVerificationResponseDecoder;
 pub use verification_response::BatchVerificationResult;
 
-mod signature;
-pub use signature::Signature;
-pub use signature::SignatureSet;
+mod verification_server;
+pub use verification_server::BatchVerificationRequestError;
+pub use verification_server::BatchVerificationServer;
+
+mod verification_client;
+pub use verification_client::BatchVerificationClient;
