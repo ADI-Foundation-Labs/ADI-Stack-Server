@@ -8057,6 +8057,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "revm-inspectors"
+version = "0.30.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e9b329afcc0f9fd5adfa2c6349a7435a8558e82bcae203142103a9a95e2a63b6"
+dependencies = [
+ "alloy-primitives",
+ "alloy-rpc-types-eth",
+ "alloy-rpc-types-trace",
+ "alloy-sol-types",
+ "anstyle",
+ "colorchoice",
+ "revm",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.12",
+]
+
+[[package]]
 name = "revm-interpreter"
 version = "25.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8081,6 +8099,7 @@ dependencies = [
  "ark-serialize 0.5.0",
  "arrayref",
  "aurora-engine-modexp",
+ "blst",
  "c-kzg",
  "cfg-if",
  "k256",
@@ -11381,6 +11400,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync-revm"
+version = "0.1.0"
+dependencies = [
+ "auto_impl",
+ "revm",
+]
+
+[[package]]
 name = "zksync_bellman"
 version = "0.32.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -11490,6 +11517,7 @@ dependencies = [
  "reth-revm",
  "reth-storage-api",
  "reth-trie-common",
+ "revm-inspectors",
  "ruint",
  "semver 1.0.26",
  "sentry",
@@ -11504,6 +11532,7 @@ dependencies = [
  "tracing",
  "vise",
  "zk_ee",
+ "zksync-revm",
  "zksync_os_api",
  "zksync_os_genesis",
  "zksync_os_interface",

@@ -138,6 +138,9 @@ reth-revm = { git = "https://github.com/paradigmxyz/reth", tag = "v1.7.0" }
 reth-storage-api = { git = "https://github.com/paradigmxyz/reth", tag = "v1.7.0" }
 reth-transaction-pool = { git = "https://github.com/paradigmxyz/reth", tag = "v1.7.0" }
 reth-execution-types = { git = "https://github.com/paradigmxyz/reth", tag = "v1.7.0" }
+# zksync-revm = { git = "https://github.com/vladbochok/zksync-revm" }
+zksync-revm = { path = "../zksync-revm" }
+revm-inspectors = { version = "0.30" }
 
 # "Local" dependencies
 zksync_os_contract_interface = { version = "=0.7.5-non-semver-compat", path = "lib/contract_interface" }
