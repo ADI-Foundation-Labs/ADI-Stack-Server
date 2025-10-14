@@ -4,6 +4,7 @@ use smart_config::metadata::TimeUnit;
 use smart_config::value::SecretString;
 use smart_config::{DescribeConfig, DeserializeConfig, Serde, de::Optional};
 use std::{path::PathBuf, time::Duration};
+pub use zksync_os_batch_verification::BatchVerificationConfig;
 use zksync_os_l1_sender::commands::commit::CommitCommand;
 use zksync_os_l1_sender::commands::execute::ExecuteCommand;
 use zksync_os_l1_sender::commands::prove::ProofCommand;
@@ -431,35 +432,6 @@ pub struct LogConfig {
     /// Whether to use color in logs.
     #[config(default_t = true)]
     pub use_color: bool,
-}
-
-#[derive(Clone, Debug, DescribeConfig, DeserializeConfig)]
-#[config(derive(Default))]
-pub struct BatchVerificationConfig {
-    /// If we are using batch verification
-    #[config(default_t = false)]
-    pub enabled: bool,
-    /// Batch verification server address to listen on.
-    #[config(default_t = "0.0.0.0:3072".into())]
-    pub address: String,
-    /// Threshold (number of needed signatures)
-    #[config(default_t = 1)]
-    pub threshold: usize,
-    /// Accepted signer pubkeys
-    #[config(default)]
-    pub accepted_signers: Vec<String>,
-    /// Iteration timeout
-    #[config(default_t = Duration::from_secs(5))]
-    pub request_timeout: Duration,
-    /// Retry delay between attempts
-    #[config(default_t = Duration::from_secs(1))]
-    pub retry_delay: Duration,
-    /// Total timeout
-    #[config(default_t = Duration::from_secs(300))]
-    pub total_timeout: Duration,
-    /// Signing key
-    #[config(default_t = "0x".into())]
-    pub signing_key: SecretString,
 }
 
 impl From<RpcConfig> for zksync_os_rpc::RpcConfig {

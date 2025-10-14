@@ -1,4 +1,6 @@
 use crate::config::BatchVerificationConfig;
+use crate::{BatchVerificationRequestError, BatchVerificationServer};
+use crate::{BatchVerificationResponse, BatchVerificationResult};
 use async_trait::async_trait;
 use dashmap::DashMap;
 use futures::FutureExt;
@@ -8,8 +10,6 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 use tokio::sync::mpsc::{self, Sender};
 use tokio::time::Instant;
-use zksync_os_batch_verification::{BatchVerificationRequestError, BatchVerificationServer};
-use zksync_os_batch_verification::{BatchVerificationResponse, BatchVerificationResult};
 use zksync_os_l1_sender::batcher_model::{
     BatchForSigning, BatchSignatureData, SignedBatchEnvelope,
 };
@@ -120,7 +120,7 @@ async fn run_batch_response_processor(
     Ok(())
 }
 
-pub struct BatchVerifier {
+struct BatchVerifier {
     config: BatchVerificationConfig,
     request_id_counter: AtomicU64,
     server: Arc<BatchVerificationServer>,

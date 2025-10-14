@@ -18,3 +18,9 @@ pub use verification_server::BatchVerificationServer;
 
 mod verification_client;
 pub use verification_client::BatchVerificationClient;
+
+mod config;
+pub use config::BatchVerificationConfig;
+
+mod server_verification_component;
+pub use server_verification_component::BatchVerificationPipelineStep;
