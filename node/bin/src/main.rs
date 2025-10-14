@@ -58,7 +58,7 @@ pub async fn main() {
                 // sleep to wait for other tasks to finish
                 tokio::time::sleep(GRACEFUL_SHUTDOWN_TIMEOUT).await;
             } else {
-                tracing::warn!("Main task unexpectedly exited")
+                tracing::error!("Main task unexpectedly exited")
             }
         },
         _ = handle_delayed_termination(stop_sender) => {},

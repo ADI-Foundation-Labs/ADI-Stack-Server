@@ -1,7 +1,7 @@
 use alloy::primitives::BlockNumber;
 use backon::{ConstantBuilder, Retryable};
 use futures::{SinkExt, StreamExt, stream::BoxStream};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::io::{AsyncBufRead, AsyncBufReadExt, BufReader};
 use tokio::net::ToSocketAddrs;
 use tokio::{
@@ -100,14 +100,19 @@ pub async fn replay_receiver(
     starting_block: BlockNumber,
     address: impl ToSocketAddrs,
 ) -> anyhow::Result<BoxStream<'static, BlockCommand>> {
+    let started_at = Instant::now();
     let mut socket = (|| TcpStream::connect(&address))
         .retry(
             ConstantBuilder::default()
                 .with_delay(Duration::from_secs(1))
                 .with_max_times(10),
         )
-        .notify(|err, dur| {
-            tracing::warn!(?err, ?dur, "retrying connection to main node");
+        .notify(|err, _| {
+            // todo: make it configurable
+            let deadline = Duration::from_secs(60);
+            if started_at.elapsed() > deadline {
+                tracing::warn!(?err, "Failing to connect to main node for more than {} seconds", deadline.as_secs());
+            }
         })
         .await?;
 

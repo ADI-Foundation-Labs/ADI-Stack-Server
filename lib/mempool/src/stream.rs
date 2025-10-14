@@ -61,7 +61,10 @@ impl Stream for BestTransactionsStream<'_> {
             match this.l1_transactions.poll_recv(cx) {
                 Poll::Ready(Some(tx)) => return Poll::Ready(Some(tx.into())),
                 Poll::Pending => {}
-                Poll::Ready(None) => todo!("channel closed"),
+                Poll::Ready(None) => {
+                    // todo: this is a temporary fix to avoid panic
+                    tracing::info!("L1 transactions channel closed");
+                }
             }
 
             if let Some(tx) = this.best_l2_transactions.next() {

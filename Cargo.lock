@@ -11707,6 +11707,7 @@ dependencies = [
  "reth-storage-api",
  "reth-transaction-pool",
  "tokio",
+ "tracing",
  "zksync_os_types",
 ]
 
