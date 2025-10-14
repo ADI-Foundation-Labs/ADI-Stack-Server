@@ -1,6 +1,5 @@
 use alloy::consensus::{EMPTY_OMMER_ROOT_HASH, Header};
 use alloy::eips::eip1559::INITIAL_BASE_FEE;
-use alloy::network::Ethereum;
 use alloy::primitives::{Address, B64, B256, Bloom, U256};
 use alloy::providers::{DynProvider, Provider};
 use alloy::rpc::types::Filter;
@@ -19,6 +18,7 @@ use zk_os_basic_system::system_implementation::flat_storage_model::{
 };
 use zksync_os_contract_interface::IL1GenesisUpgrade::GenesisUpgrade;
 use zksync_os_contract_interface::ZkChain;
+use zksync_os_interface::types::BlockContext;
 use zksync_os_types::L1UpgradeEnvelope;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -28,6 +28,10 @@ pub struct GenesisInput {
     pub initial_contracts: Vec<(Address, alloy::primitives::Bytes)>,
     /// Additional (not related to contract deployments) storage entries to add in genesis state.
     pub additional_storage: Vec<(B256, B256)>,
+    /// Execution version used for genesis.
+    pub execution_version: u32,
+    /// The expected root hash of the genesis state.
+    pub genesis_root: B256,
 }
 
 impl GenesisInput {
@@ -51,8 +55,7 @@ pub struct GenesisUpgradeTxInfo {
 #[derive(Clone)]
 pub struct Genesis {
     input_source: Arc<dyn GenesisInputSource>,
-    l1_provider: DynProvider<Ethereum>,
-    zk_chain_address: Address,
+    zk_chain: ZkChain<DynProvider>,
     state: OnceCell<GenesisState>,
     genesis_upgrade_tx: OnceCell<GenesisUpgradeTxInfo>,
 }
@@ -61,8 +64,7 @@ impl Debug for Genesis {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Genesis")
             .field("input_source", &self.input_source)
-            .field("l1_provider", &self.l1_provider)
-            .field("zk_chain_address", &self.zk_chain_address)
+            .field("zk_chain", &self.zk_chain.address())
             .field("state", &self.state.get())
             .field("genesis_upgrade_tx", &self.genesis_upgrade_tx.get())
             .finish()
@@ -70,15 +72,10 @@ impl Debug for Genesis {
 }
 
 impl Genesis {
-    pub fn new(
-        input_source: Arc<dyn GenesisInputSource>,
-        l1_provider: DynProvider<Ethereum>,
-        zk_chain_address: Address,
-    ) -> Self {
+    pub fn new(input_source: Arc<dyn GenesisInputSource>, zk_chain: ZkChain<DynProvider>) -> Self {
         Self {
             input_source,
-            l1_provider,
-            zk_chain_address,
+            zk_chain,
             state: OnceCell::new(),
             genesis_upgrade_tx: OnceCell::new(),
         }
@@ -93,7 +90,7 @@ impl Genesis {
 
     pub async fn genesis_upgrade_tx(&self) -> GenesisUpgradeTxInfo {
         self.genesis_upgrade_tx
-            .get_or_try_init(|| load_genesis_upgrade_tx(&self.l1_provider, self.zk_chain_address))
+            .get_or_try_init(|| load_genesis_upgrade_tx(self.zk_chain.clone()))
             .await
             .expect("Failed to load genesis upgrade transaction")
             .clone()
@@ -111,6 +108,10 @@ pub struct GenesisState {
     pub preimages: Vec<(B256, Vec<u8>)>,
     /// The header of the genesis block.
     pub header: Header,
+    /// Context of the genesis block.
+    pub context: BlockContext,
+    /// Expected genesis root (state commitment).
+    pub expected_genesis_root: B256,
 }
 
 async fn build_genesis(
@@ -182,21 +183,39 @@ async fn build_genesis(
         requests_hash: None,
     };
 
+    let context = BlockContext {
+        // todo: This shouldn't matter for genesis, right? maybe populate anyways
+        chain_id: 0,
+        block_number: 0,
+        block_hashes: Default::default(),
+        timestamp: 0,
+        eip1559_basefee: U256::from(header.base_fee_per_gas.unwrap()),
+        pubdata_price: U256::from(0),
+        native_price: U256::from(1),
+        coinbase: header.beneficiary,
+        gas_limit: 100_000_000,
+        pubdata_limit: 100_000_000,
+        mix_hash: U256::ZERO,
+        execution_version: genesis_input.execution_version,
+    };
+
     Ok(GenesisState {
         storage_logs: storage_logs.into_iter().collect(),
         preimages,
         header,
+        context,
+        expected_genesis_root: genesis_input.genesis_root,
     })
 }
 
 async fn load_genesis_upgrade_tx(
-    provider: &DynProvider<Ethereum>,
-    zk_chain_address: Address,
+    zk_chain: ZkChain<DynProvider>,
 ) -> anyhow::Result<GenesisUpgradeTxInfo> {
     const MAX_L1_BLOCKS_LOOKBEHIND: u64 = 100_000;
 
-    let zk_chain = ZkChain::new(zk_chain_address, provider.clone());
-    let current_l1_block = provider.get_block_number().await?;
+    let zk_chain_address = *zk_chain.address();
+    let provider = zk_chain.provider().clone();
+    let current_l1_block = zk_chain.provider().get_block_number().await?;
     // Find the block when the zk chain was deployed or fallback to [0; latest_block] in localhost case.
     let (from_block, to_block) = zksync_os_l1_watcher::util::find_l1_block_by_predicate(
             Arc::new(zk_chain),

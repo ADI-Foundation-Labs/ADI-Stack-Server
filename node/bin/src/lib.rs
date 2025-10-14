@@ -58,17 +58,16 @@ use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::sync::watch;
 use tokio::task::JoinSet;
+use zksync_os_contract_interface::l1_discovery::L1State;
 use zksync_os_genesis::{FileGenesisInputSource, Genesis, GenesisInputSource};
 use zksync_os_interface::types::BlockHashes;
 use zksync_os_l1_sender::batcher_model::{BatchEnvelope, FriProof};
 use zksync_os_l1_sender::commands::commit::CommitCommand;
 use zksync_os_l1_sender::commands::prove::ProofCommand;
-use zksync_os_l1_sender::l1_discovery::{L1State, get_l1_state};
 use zksync_os_l1_sender::pipeline_component::L1Sender;
 use zksync_os_l1_watcher::{L1CommitWatcher, L1ExecuteWatcher, L1TxWatcher};
 use zksync_os_mempool::RethPool;
 use zksync_os_merkle_tree::{MerkleTree, RocksDBWrapper};
-use zksync_os_multivm::LATEST_EXECUTION_VERSION;
 use zksync_os_object_store::ObjectStoreFactory;
 use zksync_os_observability::GENERAL_METRICS;
 use zksync_os_pipeline::Pipeline;
@@ -80,8 +79,7 @@ use zksync_os_status_server::run_status_server;
 use zksync_os_storage::in_memory::Finality;
 use zksync_os_storage::lazy::RepositoryManager;
 use zksync_os_storage_api::{
-    FinalityStatus, ReadFinality, ReadReplay, ReadRepository, ReadStateHistory, RepositoryBlock,
-    WriteState,
+    FinalityStatus, ReadFinality, ReadReplay, ReadRepository, ReadStateHistory, WriteState,
 };
 
 const BLOCK_REPLAY_WAL_DB_NAME: &str = "block_replay_wal";
@@ -160,38 +158,30 @@ pub async fn run<State: ReadStateHistory + WriteState + StateInitializer + Clone
             .unwrap(),
     );
 
-    tracing::info!("Initializing BlockReplayStorage");
-
-    let block_replay_storage = BlockReplayStorage::new(
-        config.general_config.rocks_db_path.clone(),
-        chain_id,
-        node_version.clone(),
-        LATEST_EXECUTION_VERSION,
-    );
-
     // This is the only place where we initialize L1 provider, every component shares the same
     // cloned provider.
     let l1_provider = build_node_l1_provider(&config.general_config.l1_rpc_url).await;
 
     tracing::info!("Reading L1 state");
-    let mut l1_state = get_l1_state(&l1_provider, bridgehub_address, chain_id)
-        .await
-        .expect("Failed to read L1 state");
-    if config.sequencer_config.is_main_node() {
-        // On a main node, we need to wait for the pending L1 transactions (commit/prove/execute) to be mined before proceeding.
-        l1_state = l1_state
-            .wait_to_finalize(&l1_provider, chain_id)
+    let l1_state = if config.sequencer_config.is_main_node() {
+        // On the main node, we need to wait for the pending L1 transactions (commit/prove/execute) to be mined before proceeding.
+        L1State::fetch_finalized(l1_provider.clone().erased(), bridgehub_address, chain_id)
             .await
-            .expect("failed to wait for L1 state finalization");
-    }
+            .expect("failed to fetch finalized L1 state")
+    } else {
+        L1State::fetch(l1_provider.clone().erased(), bridgehub_address, chain_id)
+            .await
+            .expect("failed to fetch L1 state")
+    };
     tracing::info!(?l1_state, "L1 state");
     l1_state.report_metrics();
 
-    let genesis = Genesis::new(
-        genesis_input_source.clone(),
-        l1_provider.clone().erased(),
-        l1_state.diamond_proxy,
-    );
+    let genesis = Genesis::new(genesis_input_source.clone(), l1_state.diamond_proxy.clone());
+
+    tracing::info!("Initializing BlockReplayStorage");
+
+    let block_replay_storage =
+        BlockReplayStorage::new(config.general_config.rocks_db_path.clone(), &genesis).await;
 
     tracing::info!("Initializing Tree RocksDB");
     let tree_db = TreeManager::load_or_initialize_tree(
@@ -288,8 +278,7 @@ pub async fn run<State: ReadStateHistory + WriteState + StateInitializer + Clone
     tasks.spawn(
         L1CommitWatcher::new(
             config.l1_watcher_config.clone().into(),
-            l1_provider.clone().erased(),
-            node_startup_state.l1_state.diamond_proxy,
+            node_startup_state.l1_state.diamond_proxy.clone(),
             finality_storage.clone(),
             batch_storage.clone(),
         )
@@ -302,8 +291,7 @@ pub async fn run<State: ReadStateHistory + WriteState + StateInitializer + Clone
     tasks.spawn(
         L1ExecuteWatcher::new(
             config.l1_watcher_config.clone().into(),
-            l1_provider.clone().erased(),
-            node_startup_state.l1_state.diamond_proxy,
+            node_startup_state.l1_state.diamond_proxy.clone(),
             finality_storage.clone(),
             batch_storage.clone(),
         )
@@ -326,8 +314,7 @@ pub async fn run<State: ReadStateHistory + WriteState + StateInitializer + Clone
     tasks.spawn(
         L1TxWatcher::new(
             config.l1_watcher_config.clone().into(),
-            l1_provider.clone().erased(),
-            node_startup_state.l1_state.diamond_proxy,
+            node_startup_state.l1_state.diamond_proxy.clone(),
             l1_transactions_sender,
             next_l1_priority_id,
         )
@@ -360,7 +347,7 @@ pub async fn run<State: ReadStateHistory + WriteState + StateInitializer + Clone
         run_jsonrpsee_server(
             config.rpc_config.clone().into(),
             chain_id,
-            node_startup_state.l1_state.bridgehub,
+            node_startup_state.l1_state.bridgehub_address(),
             rpc_storage,
             l2_mempool.clone(),
             genesis_input_source,
@@ -380,6 +367,7 @@ pub async fn run<State: ReadStateHistory + WriteState + StateInitializer + Clone
         .map(|record| record.block_context.block_hashes)
         .unwrap_or_else(|| block_hashes_for_first_block(&repositories));
 
+    let genesis = Arc::new(genesis);
     // todo: `BlockContextProvider` initialization and its dependencies
     // should be moved to `sequencer`
     let block_context_provider: BlockContextProvider<RethPool<ZkClient<State>>> =
@@ -393,8 +381,10 @@ pub async fn run<State: ReadStateHistory + WriteState + StateInitializer + Clone
             config.sequencer_config.block_gas_limit,
             config.sequencer_config.block_pubdata_limit_bytes,
             node_version,
-            genesis,
+            genesis.clone(),
             config.sequencer_config.fee_collector_address,
+            config.sequencer_config.base_fee_override,
+            config.sequencer_config.pubdata_price_override,
         );
 
     // ========== Start Sequencer ===========
@@ -423,14 +413,9 @@ pub async fn run<State: ReadStateHistory + WriteState + StateInitializer + Clone
 
     if config.sequencer_config.is_main_node() {
         // Main Node
-        let genesis_block = repositories
-            .get_block_by_number(0)
-            .expect("Failed to read genesis block from repositories")
-            .expect("Missing genesis block in repositories");
         run_main_node_pipeline(
             config,
             l1_provider.clone(),
-            genesis_block,
             batch_storage,
             node_startup_state,
             block_replay_storage,
@@ -442,6 +427,7 @@ pub async fn run<State: ReadStateHistory + WriteState + StateInitializer + Clone
             tree_db,
             finality_storage,
             chain_id,
+            &genesis,
             _stop_receiver.clone(),
         )
         .await;
@@ -509,7 +495,6 @@ async fn run_main_node_pipeline<
 >(
     config: Config,
     l1_provider: impl Provider + WalletProvider<Wallet = EthereumWallet> + Clone + 'static,
-    genesis_block: RepositoryBlock,
     batch_storage: ProofStorage,
     node_state_on_startup: NodeStateOnStartup,
     block_replay_storage: BlockReplayStorage,
@@ -521,13 +506,24 @@ async fn run_main_node_pipeline<
     tree: MerkleTree<RocksDBWrapper>,
     finality: Finality,
     chain_id: u64,
+    genesis: &Genesis,
     _stop_receiver: watch::Receiver<bool>,
 ) {
     let last_committed_batch_info = if node_state_on_startup.l1_state.last_committed_batch == 0 {
-        load_genesis_stored_batch_info(genesis_block, tree.clone()).await
+        let genesis_block = repositories
+            .get_block_by_number(0)
+            .expect("Failed to read genesis block from repositories")
+            .expect("Missing genesis block in repositories");
+        load_genesis_stored_batch_info(
+            genesis_block,
+            tree.clone(),
+            genesis.state().await.expected_genesis_root,
+        )
+        .await
+        .unwrap()
     } else {
         batch_storage
-            .get(node_state_on_startup.l1_state.last_committed_batch)
+            .get_batch_with_proof(node_state_on_startup.l1_state.last_committed_batch)
             .await
             .expect("Failed to get last committed block from proof storage")
             .expect("Committed batch is not present in proof storage")
@@ -565,6 +561,7 @@ async fn run_main_node_pipeline<
     };
 
     let (fri_proving_step, fri_job_manager) = FriProvingPipelineStep::new(
+        batch_storage.clone(),
         config.prover_api_config.job_timeout,
         config.prover_api_config.max_assigned_batch_range,
     );
@@ -624,7 +621,7 @@ async fn run_main_node_pipeline<
         })
         .pipe(Batcher {
             chain_id,
-            chain_address: node_state_on_startup.l1_state.diamond_proxy,
+            chain_address: node_state_on_startup.l1_state.diamond_proxy_address(),
             first_block_to_process: batcher_subsystem_first_block_to_process,
             last_persisted_block: node_state_on_startup.repositories_persisted_block,
             pubdata_limit_bytes: config.sequencer_config.block_pubdata_limit_bytes,
@@ -759,7 +756,7 @@ async fn get_committed_not_proven_batches(
     let mut batches_to_reschedule = Vec::new();
     while batch_to_prove <= l1_state.last_committed_batch {
         let batch_with_proof = proof_storage
-            .get(batch_to_prove)
+            .get_batch_with_proof(batch_to_prove)
             .await?
             .context("Failed to get batch")?;
         batches_to_reschedule.push(batch_with_proof);
@@ -776,7 +773,7 @@ async fn get_proven_not_executed_batches(
     let mut batches_to_reschedule = Vec::new();
     while batch_to_execute <= l1_state.last_proved_batch {
         let batch_with_proof = proof_storage
-            .get(batch_to_execute)
+            .get_batch_with_proof(batch_to_execute)
             .await?
             .context("Failed to get batch")?;
         batches_to_reschedule.push(batch_with_proof);
@@ -793,7 +790,7 @@ async fn commit_proof_execute_block_numbers(
         0
     } else {
         batch_storage
-            .get(l1_state.last_committed_batch)
+            .get_batch_with_proof(l1_state.last_committed_batch)
             .await
             .expect("Failed to get last committed block from proof storage")
             .map(|envelope| envelope.batch.last_block_number)
@@ -805,7 +802,7 @@ async fn commit_proof_execute_block_numbers(
         0
     } else {
         batch_storage
-            .get(l1_state.last_proved_batch)
+            .get_batch_with_proof(l1_state.last_proved_batch)
             .await
             .expect("Failed to get last proved block from proof storage")
             .map(|envelope| envelope.batch.last_block_number)
@@ -816,7 +813,7 @@ async fn commit_proof_execute_block_numbers(
         0
     } else {
         batch_storage
-            .get(l1_state.last_executed_batch)
+            .get_batch_with_proof(l1_state.last_executed_batch)
             .await
             .expect("Failed to get last proved block from execute storage")
             .map(|envelope| envelope.batch.last_block_number)

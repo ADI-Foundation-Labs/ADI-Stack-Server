@@ -1,9 +1,9 @@
 use crate::BLOCK_REPLAY_WAL_DB_NAME;
+use crate::metadata::NODE_VERSION;
 use alloy::primitives::{B256, BlockNumber};
 use futures::Stream;
 use futures::stream::{self, BoxStream, StreamExt};
 use pin_project::pin_project;
-use ruint::aliases::U256;
 use std::convert::TryInto;
 use std::path::PathBuf;
 use std::task::Poll;
@@ -12,6 +12,7 @@ use tokio::pin;
 use tokio::time::{Instant, Sleep};
 use vise::Unit;
 use vise::{Buckets, Histogram, Metrics};
+use zksync_os_genesis::Genesis;
 use zksync_os_interface::types::BlockContext;
 use zksync_os_rocksdb::RocksDB;
 use zksync_os_rocksdb::db::{NamedColumnFamily, WriteBatch};
@@ -70,12 +71,7 @@ impl BlockReplayStorage {
     /// Key under `Latest` CF for tracking the highest block number.
     const LATEST_KEY: &'static [u8] = b"latest_block";
 
-    pub fn new(
-        rocks_db_path: PathBuf,
-        chain_id: u64,
-        node_version: semver::Version,
-        execution_version: u32,
-    ) -> Self {
+    pub async fn new(rocks_db_path: PathBuf, genesis: &Genesis) -> Self {
         let db =
             RocksDB::<BlockReplayColumnFamily>::new(&rocks_db_path.join(BLOCK_REPLAY_WAL_DB_NAME))
                 .expect("Failed to open BlockReplayWAL")
@@ -83,29 +79,16 @@ impl BlockReplayStorage {
 
         let this = Self { db };
         if this.latest_block().is_none() {
+            let genesis_context = &genesis.state().await.context;
             tracing::info!(
                 "block replay DB is empty, assuming start of the chain; appending genesis"
             );
             this.append_replay_unchecked(ReplayRecord {
-                // todo: save real genesis here once we have genesis logic
-                block_context: BlockContext {
-                    chain_id,
-                    block_number: 0,
-                    block_hashes: Default::default(),
-                    timestamp: 0,
-                    eip1559_basefee: U256::from(0),
-                    pubdata_price: U256::from(0),
-                    native_price: U256::from(1),
-                    coinbase: Default::default(),
-                    gas_limit: 100_000_000,
-                    pubdata_limit: 100_000_000,
-                    mix_hash: Default::default(),
-                    execution_version,
-                },
+                block_context: *genesis_context,
                 starting_l1_priority_id: 0,
                 transactions: vec![],
                 previous_block_timestamp: 0,
-                node_version,
+                node_version: NODE_VERSION.parse().unwrap(),
                 block_output_hash: B256::ZERO,
             })
         }
@@ -236,18 +219,28 @@ impl ReadReplay for BlockReplayStorage {
 
     fn get_replay_record(&self, block_number: u64) -> Option<ReplayRecord> {
         let key = block_number.to_be_bytes();
-        let context_result = self
+        let Some(block_context) = self
             .db
             .get_cf(BlockReplayColumnFamily::Context, &key)
-            .expect("Failed to read from Context CF");
-        let last_processed_l1_tx_result = self
+            .expect("Failed to read from Context CF")
+        else {
+            // Writes are atomic, so if we can't read the context, we can't read the rest of the
+            // replay record anyway.
+            return None;
+        };
+
+        // Writes are atomic and, since block context was read successfully, the rest of the replay
+        // record should be present too. Hence, we can safely unwrap here.
+        let starting_l1_priority_id = self
             .db
             .get_cf(BlockReplayColumnFamily::StartingL1SerialId, &key)
-            .expect("Failed to read from LastProcessedL1TxId CF");
-        let txs_result = self
+            .expect("Failed to read from LastProcessedL1TxId CF")
+            .expect("StartingL1SerialId must be written atomically with Context");
+        let transactions = self
             .db
             .get_cf(BlockReplayColumnFamily::Txs, &key)
-            .expect("Failed to read from Txs CF");
+            .expect("Failed to read from Txs CF")
+            .expect("Txs must be written atomically with Context");
         // todo: save `previous_block_timestamp` as another column in the next breaking change to
         //       replay record format
         let previous_block_timestamp = if block_number == 0 {
@@ -260,54 +253,40 @@ impl ReadReplay for BlockReplayStorage {
                 .unwrap_or(0)
         };
 
-        let node_version_result = self
+        let node_version = self
             .db
             .get_cf(BlockReplayColumnFamily::NodeVersion, &key)
-            .expect("Failed to read from NodeVersion CF");
-        let block_output_hash_result = self
+            .expect("Failed to read from NodeVersion CF")
+            .expect("NodeVersion must be written atomically with Context");
+        let block_output_hash = self
             .db
             .get_cf(BlockReplayColumnFamily::BlockOutputHash, &key)
-            .expect("Failed to read from BlockOutputHash CF");
+            .expect("Failed to read from BlockOutputHash CF")
+            .expect("BlockOutputHash must be written atomically with Context");
 
-        match (
-            context_result,
-            last_processed_l1_tx_result,
-            txs_result,
-            block_output_hash_result,
-            node_version_result,
-        ) {
-            (
-                Some(bytes_context),
-                Some(bytes_starting_l1_tx),
-                Some(bytes_txs),
-                Some(bytes_block_output_hash),
-                Some(node_version),
-            ) => Some(ReplayRecord {
-                block_context: bincode::serde::decode_from_slice(
-                    &bytes_context,
-                    bincode::config::standard(),
-                )
-                .expect("Failed to deserialize context")
+        Some(ReplayRecord {
+            block_context: bincode::serde::decode_from_slice(
+                &block_context,
+                bincode::config::standard(),
+            )
+            .expect("Failed to deserialize context")
+            .0,
+            starting_l1_priority_id: bincode::serde::decode_from_slice(
+                &starting_l1_priority_id,
+                bincode::config::standard(),
+            )
+            .expect("Failed to deserialize context")
+            .0,
+            transactions: bincode::decode_from_slice(&transactions, bincode::config::standard())
+                .expect("Failed to deserialize transactions")
                 .0,
-                starting_l1_priority_id: bincode::serde::decode_from_slice(
-                    &bytes_starting_l1_tx,
-                    bincode::config::standard(),
-                )
-                .expect("Failed to deserialize context")
-                .0,
-                transactions: bincode::decode_from_slice(&bytes_txs, bincode::config::standard())
-                    .expect("Failed to deserialize transactions")
-                    .0,
-                previous_block_timestamp,
-                node_version: String::from_utf8(node_version)
-                    .expect("Failed to deserialize node version")
-                    .parse()
-                    .expect("Failed to parse node version"),
-                block_output_hash: B256::from_slice(&bytes_block_output_hash),
-            }),
-            (None, None, None, None, None) => None,
-            _ => panic!("Inconsistent state: Context and Txs must be written atomically"),
-        }
+            previous_block_timestamp,
+            node_version: String::from_utf8(node_version)
+                .expect("Failed to deserialize node version")
+                .parse()
+                .expect("Failed to parse node version"),
+            block_output_hash: B256::from_slice(&block_output_hash),
+        })
     }
 }
 
