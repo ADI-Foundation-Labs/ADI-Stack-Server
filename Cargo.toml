@@ -20,6 +20,7 @@ members = [
     "node/bin",
     "integration-tests",
     "tools/generate-deposit",
+    "tools/state-viewer",
     "lib/observability",
     "lib/object_store",
     "lib/state_full_diffs",
