@@ -54,7 +54,6 @@ impl<V: ViewState> OverriddenStateView<V> {
                 set_properties_nonce(&mut base, nonce);
             }
 
-            // Balance override (expects helper to exist in zk_os_api::helpers)
             if let Some(balance) = acc_override.balance {
                 use zk_os_api::helpers::set_properties_balance;
                 set_properties_balance(&mut base, balance);
@@ -94,9 +93,11 @@ impl<V: ViewState> ReadStorage for OverriddenStateView<V> {
         if let Some(val) = self.overrides.get(&key) {
             return Some(*val);
         }
+
         if let Some(val) = self.account_key_to_hash.get(&key) {
             return Some(*val);
         }
+
         self.inner.read(key)
     }
 }
@@ -106,6 +107,7 @@ impl<V: ViewState> PreimageSource for OverriddenStateView<V> {
         if let Some(bytes) = self.preimage_overrides.get(&hash) {
             return Some(bytes.clone());
         }
+
         self.inner.get_preimage(hash)
     }
 }
