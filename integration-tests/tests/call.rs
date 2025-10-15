@@ -23,14 +23,6 @@ async fn call_fail() -> anyhow::Result<()> {
     // Test that the node responds with proper errors when `eth_call` fails
     let tester = Tester::setup().await?;
 
-    // Override errors
-    tester
-        .l2_provider
-        .call(TransactionRequest::default())
-        .overrides(StateOverride::from_iter([]))
-        .expect_to_fail("state overrides are not supported in `eth_call`")
-        .await;
-
     // Tx type errors
     tester
         .l2_provider

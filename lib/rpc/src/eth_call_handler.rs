@@ -3,7 +3,6 @@ use crate::config::RpcConfig;
 use crate::result::RevertError;
 use crate::rpc_storage::ReadRpcStorage;
 use crate::sandbox::{call_trace_simulate, execute};
-use crate::state_override_view::{AccountViewOverride, OverriddenStateView};
 use alloy::consensus::transaction::Recovered;
 use alloy::consensus::{SignableTransaction, TxEip1559, TxEip2930, TxLegacy, TxType};
 use alloy::eips::BlockId;
@@ -19,7 +18,10 @@ use zksync_os_interface::{
     types::{BlockContext, ExecutionResult},
 };
 use zksync_os_storage_api::ViewState;
-use zksync_os_storage_api::{RepositoryError, StateError};
+use zksync_os_storage_api::{
+    RepositoryError, StateError,
+    state_override_view::{AccountViewOverride, OverriddenStateView},
+};
 use zksync_os_types::{
     L1_TX_MINIMAL_GAS_LIMIT, L1Envelope, L1PriorityTxType, L1Tx, L1TxType, L2Envelope,
     REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, UpgradeTxType, ZkEnvelope, ZkTransaction, ZkTxType,
