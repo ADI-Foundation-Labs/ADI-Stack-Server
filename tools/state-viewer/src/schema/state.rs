@@ -7,22 +7,81 @@ use super::{EntryField, EntryRecord, FieldCapabilities, FieldRole, FieldValue, S
 
 pub struct StateSchema;
 
+const DB_NAME: &str = "state_full_diffs";
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ColumnFamily {
+    Data,
+    Meta,
+}
+
+impl ColumnFamily {
+    const COUNT: usize = 2;
+
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::Data => "data",
+            Self::Meta => "meta",
+        }
+    }
+
+    fn parse(name: &str) -> Result<Self> {
+        match name {
+            name if name == Self::Data.as_str() => Ok(Self::Data),
+            name if name == Self::Meta.as_str() => Ok(Self::Meta),
+            other => Err(anyhow!("Unsupported column family `{other}`")),
+        }
+    }
+
+    fn matches(self, other: &str) -> bool {
+        other == self.as_str()
+    }
+}
+
+const COLUMN_FAMILY_NAMES: [&str; ColumnFamily::COUNT] =
+    [ColumnFamily::Data.as_str(), ColumnFamily::Meta.as_str()];
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Field {
+    StorageKey,
+    Block,
+    Value,
+    MetaKey,
+    BaseBlock,
+}
+
+impl Field {
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::StorageKey => "storage_key",
+            Self::Block => "block",
+            Self::Value => "value",
+            Self::MetaKey => "meta_key",
+            Self::BaseBlock => "base_block",
+        }
+    }
+
+    fn matches(self, other: &str) -> bool {
+        other.eq_ignore_ascii_case(self.as_str())
+    }
+}
+
 impl Schema for StateSchema {
     fn name(&self) -> &'static str {
-        "state_full_diffs"
+        DB_NAME
     }
 
     fn db_path(&self, base: &std::path::Path) -> std::path::PathBuf {
-        base.join("state_full_diffs")
+        base.join(DB_NAME)
     }
 
     fn column_families(&self) -> &'static [&'static str] {
-        &["data", "meta"]
+        &COLUMN_FAMILY_NAMES
     }
 
     fn decode_entry(&self, cf: &str, key: &[u8], value: &[u8]) -> Result<EntryRecord> {
-        match cf {
-            "data" => {
+        match ColumnFamily::parse(cf)? {
+            ColumnFamily::Data => {
                 let key_b256 = decode_b256(&key[..32], "storage key")?;
                 let block = decode_u64(&key[32..])?;
                 let value_b256 = decode_b256(value, "storage value")?;
@@ -41,13 +100,13 @@ impl Schema for StateSchema {
                 Ok(
                     EntryRecord::new(cf, key, value, summary, detail).with_fields([
                         EntryField::text(
-                            "storage_key",
+                            Field::StorageKey.as_str(),
                             format_b256(key_b256, 0),
                             FieldRole::Key,
                             FieldCapabilities::default().searchable().key_part(),
                         ),
                         EntryField::unsigned(
-                            "block",
+                            Field::Block.as_str(),
                             block as u128,
                             FieldRole::Key,
                             FieldCapabilities::default()
@@ -56,7 +115,7 @@ impl Schema for StateSchema {
                                 .key_part(),
                         ),
                         EntryField::text(
-                            "value",
+                            Field::Value.as_str(),
                             format_b256(value_b256, 0),
                             FieldRole::Value,
                             FieldCapabilities::default().searchable(),
@@ -64,7 +123,7 @@ impl Schema for StateSchema {
                     ]),
                 )
             }
-            "meta" => {
+            ColumnFamily::Meta => {
                 let key_str = String::from_utf8_lossy(key);
                 let base_block = decode_u64(value)?;
                 let summary = format!("{key_str} → {base_block}");
@@ -72,13 +131,13 @@ impl Schema for StateSchema {
                 Ok(
                     EntryRecord::new(cf, key, value, summary, detail).with_fields([
                         EntryField::text(
-                            "meta_key",
+                            Field::MetaKey.as_str(),
                             key_str.to_string(),
                             FieldRole::Key,
                             FieldCapabilities::default().searchable().key_part(),
                         ),
                         EntryField::unsigned(
-                            "base_block",
+                            Field::BaseBlock.as_str(),
                             base_block as u128,
                             FieldRole::Value,
                             FieldCapabilities::default()
@@ -89,7 +148,6 @@ impl Schema for StateSchema {
                     ]),
                 )
             }
-            other => Err(anyhow!("Unsupported column family `{other}`")),
         }
     }
 
@@ -100,7 +158,7 @@ impl Schema for StateSchema {
         field_name: &str,
         new_value: &FieldValue,
     ) -> Result<Vec<u8>> {
-        if cf == "meta" && field_name.eq_ignore_ascii_case("base_block") {
+        if ColumnFamily::Meta.matches(cf) && Field::BaseBlock.matches(field_name) {
             let number = match new_value {
                 FieldValue::Unsigned(value) => *value,
                 _ => return Err(anyhow!("Base block must be an unsigned integer")),

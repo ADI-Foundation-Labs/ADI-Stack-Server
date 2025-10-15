@@ -7,24 +7,76 @@ use super::{EntryField, EntryRecord, FieldCapabilities, FieldRole, Schema};
 
 pub struct TreeSchema;
 
+const DB_NAME: &str = "tree";
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ColumnFamily {
+    Default,
+    KeyIndices,
+}
+
+impl ColumnFamily {
+    const COUNT: usize = 2;
+
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::Default => "default",
+            Self::KeyIndices => "key_indices",
+        }
+    }
+
+    fn parse(name: &str) -> Result<Self> {
+        match name {
+            name if name == Self::Default.as_str() => Ok(Self::Default),
+            name if name == Self::KeyIndices.as_str() => Ok(Self::KeyIndices),
+            other => Err(anyhow!("Unsupported column family `{other}`")),
+        }
+    }
+}
+
+const COLUMN_FAMILY_NAMES: [&str; ColumnFamily::COUNT] = [
+    ColumnFamily::Default.as_str(),
+    ColumnFamily::KeyIndices.as_str(),
+];
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Field {
+    KeyHex,
+    ValueLen,
+    Hash,
+    Index,
+    Version,
+}
+
+impl Field {
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::KeyHex => "key_hex",
+            Self::ValueLen => "value_len",
+            Self::Hash => "hash",
+            Self::Index => "index",
+            Self::Version => "version",
+        }
+    }
+}
+
 impl Schema for TreeSchema {
     fn name(&self) -> &'static str {
-        "tree"
+        DB_NAME
     }
 
     fn db_path(&self, base: &std::path::Path) -> std::path::PathBuf {
-        base.join("tree")
+        base.join(DB_NAME)
     }
 
     fn column_families(&self) -> &'static [&'static str] {
-        &["default", "key_indices"]
+        &COLUMN_FAMILY_NAMES
     }
 
     fn decode_entry(&self, cf: &str, key: &[u8], value: &[u8]) -> Result<EntryRecord> {
-        match cf {
-            "default" => format_default_cf(cf, key, value),
-            "key_indices" => format_key_indices(cf, key, value),
-            other => Err(anyhow!("Unsupported column family `{other}`")),
+        match ColumnFamily::parse(cf)? {
+            ColumnFamily::Default => format_default_cf(cf, key, value),
+            ColumnFamily::KeyIndices => format_key_indices(cf, key, value),
         }
     }
 }
@@ -44,13 +96,13 @@ fn format_default_cf(cf: &str, key: &[u8], value: &[u8]) -> Result<EntryRecord> 
     Ok(
         EntryRecord::new(cf, key, value, summary, detail).with_fields([
             EntryField::text(
-                "key_hex",
+                Field::KeyHex.as_str(),
                 format_hex(key),
                 FieldRole::Key,
                 FieldCapabilities::default().searchable().key_part(),
             ),
             EntryField::unsigned(
-                "value_len",
+                Field::ValueLen.as_str(),
                 value.len() as u128,
                 FieldRole::Derived,
                 FieldCapabilities::default().sortable(),
@@ -78,19 +130,19 @@ fn format_key_indices(cf: &str, key: &[u8], value: &[u8]) -> Result<EntryRecord>
     Ok(
         EntryRecord::new(cf, key, value, summary, detail).with_fields([
             EntryField::text(
-                "hash",
+                Field::Hash.as_str(),
                 format_b256(hash, 0),
                 FieldRole::Key,
                 FieldCapabilities::default().searchable().key_part(),
             ),
             EntryField::unsigned(
-                "index",
+                Field::Index.as_str(),
                 index as u128,
                 FieldRole::Value,
                 FieldCapabilities::default().sortable().searchable(),
             ),
             EntryField::unsigned(
-                "version",
+                Field::Version.as_str(),
                 version as u128,
                 FieldRole::Value,
                 FieldCapabilities::default().sortable(),

@@ -10,35 +10,104 @@ use super::{EntryField, EntryRecord, FieldCapabilities, FieldRole, FieldValue, S
 
 pub struct BlockReplaySchema;
 
+const DB_NAME: &str = "block_replay_wal";
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ColumnFamily {
+    Context,
+    LastProcessedL1TxId,
+    Txs,
+    NodeVersion,
+    BlockOutputHash,
+    Latest,
+}
+
+impl ColumnFamily {
+    const COUNT: usize = 6;
+
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::Context => "context",
+            Self::LastProcessedL1TxId => "last_processed_l1_tx_id",
+            Self::Txs => "txs",
+            Self::NodeVersion => "node_version",
+            Self::BlockOutputHash => "block_output_hash",
+            Self::Latest => "latest",
+        }
+    }
+
+    fn parse(name: &str) -> Result<Self> {
+        match name {
+            name if name == Self::Context.as_str() => Ok(Self::Context),
+            name if name == Self::LastProcessedL1TxId.as_str() => Ok(Self::LastProcessedL1TxId),
+            name if name == Self::Txs.as_str() => Ok(Self::Txs),
+            name if name == Self::NodeVersion.as_str() => Ok(Self::NodeVersion),
+            name if name == Self::BlockOutputHash.as_str() => Ok(Self::BlockOutputHash),
+            name if name == Self::Latest.as_str() => Ok(Self::Latest),
+            other => Err(anyhow!("Unsupported column family `{other}`")),
+        }
+    }
+
+    fn matches(self, other: &str) -> bool {
+        other == self.as_str()
+    }
+}
+
+const COLUMN_FAMILY_NAMES: [&str; ColumnFamily::COUNT] = [
+    ColumnFamily::Context.as_str(),
+    ColumnFamily::LastProcessedL1TxId.as_str(),
+    ColumnFamily::Txs.as_str(),
+    ColumnFamily::NodeVersion.as_str(),
+    ColumnFamily::BlockOutputHash.as_str(),
+    ColumnFamily::Latest.as_str(),
+];
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Field {
+    Block,
+    LastL1TxId,
+    Version,
+    Hash,
+    MetaKey,
+}
+
+impl Field {
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::Block => "block",
+            Self::LastL1TxId => "last_l1_tx_id",
+            Self::Version => "version",
+            Self::Hash => "hash",
+            Self::MetaKey => "meta_key",
+        }
+    }
+
+    fn matches(self, other: &str) -> bool {
+        other.eq_ignore_ascii_case(self.as_str())
+    }
+}
+
 impl Schema for BlockReplaySchema {
     fn name(&self) -> &'static str {
-        "block_replay_wal"
+        DB_NAME
     }
 
     fn db_path(&self, base: &std::path::Path) -> std::path::PathBuf {
-        base.join("block_replay_wal")
+        base.join(DB_NAME)
     }
 
     fn column_families(&self) -> &'static [&'static str] {
-        &[
-            "context",
-            "last_processed_l1_tx_id",
-            "txs",
-            "node_version",
-            "block_output_hash",
-            "latest",
-        ]
+        &COLUMN_FAMILY_NAMES
     }
 
     fn decode_entry(&self, cf: &str, key: &[u8], value: &[u8]) -> Result<EntryRecord> {
-        match cf {
-            "context" => format_context(cf, key, value),
-            "last_processed_l1_tx_id" => format_last_l1_id(cf, key, value),
-            "txs" => format_txs(cf, key, value),
-            "node_version" => format_node_version(cf, key, value),
-            "block_output_hash" => format_block_output_hash(cf, key, value),
-            "latest" => format_latest(cf, key, value),
-            other => Err(anyhow!("Unsupported column family `{other}`")),
+        match ColumnFamily::parse(cf)? {
+            ColumnFamily::Context => format_context(cf, key, value),
+            ColumnFamily::LastProcessedL1TxId => format_last_l1_id(cf, key, value),
+            ColumnFamily::Txs => format_txs(cf, key, value),
+            ColumnFamily::NodeVersion => format_node_version(cf, key, value),
+            ColumnFamily::BlockOutputHash => format_block_output_hash(cf, key, value),
+            ColumnFamily::Latest => format_latest(cf, key, value),
         }
     }
 
@@ -49,7 +118,7 @@ impl Schema for BlockReplaySchema {
         field_name: &str,
         new_value: &FieldValue,
     ) -> Result<Vec<u8>> {
-        if cf == "latest" && field_name.eq_ignore_ascii_case("block") {
+        if ColumnFamily::Latest.matches(cf) && Field::Block.matches(field_name) {
             let block = match new_value {
                 FieldValue::Unsigned(value) => *value,
                 _ => return Err(anyhow!("Block number must be an unsigned integer")),
@@ -83,7 +152,7 @@ fn format_context(cf: &str, key: &[u8], value: &[u8]) -> Result<EntryRecord> {
     );
     Ok(
         EntryRecord::new(cf, key, value, summary, detail).with_field(EntryField::unsigned(
-            "block",
+            Field::Block.as_str(),
             block,
             FieldRole::Key,
             FieldCapabilities::default()
@@ -102,7 +171,7 @@ fn format_last_l1_id(cf: &str, key: &[u8], value: &[u8]) -> Result<EntryRecord> 
     Ok(
         EntryRecord::new(cf, key, value, summary, detail).with_fields([
             EntryField::unsigned(
-                "block",
+                Field::Block.as_str(),
                 block,
                 FieldRole::Key,
                 FieldCapabilities::default()
@@ -111,7 +180,7 @@ fn format_last_l1_id(cf: &str, key: &[u8], value: &[u8]) -> Result<EntryRecord> 
                     .key_part(),
             ),
             EntryField::unsigned(
-                "last_l1_tx_id",
+                Field::LastL1TxId.as_str(),
                 id,
                 FieldRole::Value,
                 FieldCapabilities::default().searchable(),
@@ -143,7 +212,7 @@ fn format_txs(cf: &str, key: &[u8], value: &[u8]) -> Result<EntryRecord> {
     }
     Ok(
         EntryRecord::new(cf, key, value, summary, detail).with_field(EntryField::unsigned(
-            "block",
+            Field::Block.as_str(),
             block,
             FieldRole::Key,
             FieldCapabilities::default()
@@ -162,7 +231,7 @@ fn format_node_version(cf: &str, key: &[u8], value: &[u8]) -> Result<EntryRecord
     Ok(
         EntryRecord::new(cf, key, value, summary, detail).with_fields([
             EntryField::unsigned(
-                "block",
+                Field::Block.as_str(),
                 block,
                 FieldRole::Key,
                 FieldCapabilities::default()
@@ -171,7 +240,7 @@ fn format_node_version(cf: &str, key: &[u8], value: &[u8]) -> Result<EntryRecord
                     .key_part(),
             ),
             EntryField::text(
-                "version",
+                Field::Version.as_str(),
                 version,
                 FieldRole::Value,
                 FieldCapabilities::default().searchable(),
@@ -191,7 +260,7 @@ fn format_block_output_hash(cf: &str, key: &[u8], value: &[u8]) -> Result<EntryR
     Ok(
         EntryRecord::new(cf, key, value, summary, detail).with_fields([
             EntryField::unsigned(
-                "block",
+                Field::Block.as_str(),
                 block,
                 FieldRole::Key,
                 FieldCapabilities::default()
@@ -200,7 +269,7 @@ fn format_block_output_hash(cf: &str, key: &[u8], value: &[u8]) -> Result<EntryR
                     .key_part(),
             ),
             EntryField::text(
-                "hash",
+                Field::Hash.as_str(),
                 format_b256(hash, 0),
                 FieldRole::Value,
                 FieldCapabilities::default().searchable(),
@@ -217,13 +286,13 @@ fn format_latest(cf: &str, key: &[u8], value: &[u8]) -> Result<EntryRecord> {
     Ok(
         EntryRecord::new(cf, key, value, summary, detail).with_fields([
             EntryField::text(
-                "meta_key",
+                Field::MetaKey.as_str(),
                 key_str.to_string(),
                 FieldRole::Key,
                 FieldCapabilities::default().searchable().key_part(),
             ),
             EntryField::unsigned(
-                "block",
+                Field::Block.as_str(),
                 block,
                 FieldRole::Value,
                 FieldCapabilities::default()

@@ -15,37 +15,167 @@ use super::{EntryField, EntryRecord, FieldCapabilities, FieldRole, FieldValue, S
 
 pub struct RepositorySchema;
 
+const DB_NAME: &str = "repository";
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ColumnFamily {
+    BlockData,
+    BlockNumberToHash,
+    Tx,
+    TxReceipt,
+    TxMeta,
+    InitiatorAndNonceToHash,
+    Meta,
+}
+
+impl ColumnFamily {
+    const COUNT: usize = 7;
+
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::BlockData => "block_data",
+            Self::BlockNumberToHash => "block_number_to_hash",
+            Self::Tx => "tx",
+            Self::TxReceipt => "tx_receipt",
+            Self::TxMeta => "tx_meta",
+            Self::InitiatorAndNonceToHash => "initiator_and_nonce_to_hash",
+            Self::Meta => "meta",
+        }
+    }
+
+    fn parse(name: &str) -> Result<Self> {
+        match name {
+            name if name == Self::BlockData.as_str() => Ok(Self::BlockData),
+            name if name == Self::BlockNumberToHash.as_str() => Ok(Self::BlockNumberToHash),
+            name if name == Self::Tx.as_str() => Ok(Self::Tx),
+            name if name == Self::TxReceipt.as_str() => Ok(Self::TxReceipt),
+            name if name == Self::TxMeta.as_str() => Ok(Self::TxMeta),
+            name if name == Self::InitiatorAndNonceToHash.as_str() => {
+                Ok(Self::InitiatorAndNonceToHash)
+            }
+            name if name == Self::Meta.as_str() => Ok(Self::Meta),
+            other => Err(anyhow!("Unsupported column family `{other}`")),
+        }
+    }
+}
+
+const COLUMN_FAMILY_NAMES: [&str; ColumnFamily::COUNT] = [
+    ColumnFamily::BlockData.as_str(),
+    ColumnFamily::BlockNumberToHash.as_str(),
+    ColumnFamily::Tx.as_str(),
+    ColumnFamily::TxReceipt.as_str(),
+    ColumnFamily::TxMeta.as_str(),
+    ColumnFamily::InitiatorAndNonceToHash.as_str(),
+    ColumnFamily::Meta.as_str(),
+];
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Field {
+    Hash,
+    Block,
+    Timestamp,
+    TxCount,
+    TxType,
+    Nonce,
+    Signer,
+    Status,
+    Logs,
+    TxIndex,
+    GasUsed,
+    EffectiveGasPrice,
+    LogsBefore,
+    ContractAddress,
+    MetaKey,
+    Initiator,
+}
+
+impl Field {
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::Hash => "hash",
+            Self::Block => "block",
+            Self::Timestamp => "timestamp",
+            Self::TxCount => "tx_count",
+            Self::TxType => "tx_type",
+            Self::Nonce => "nonce",
+            Self::Signer => "signer",
+            Self::Status => "status",
+            Self::Logs => "logs",
+            Self::TxIndex => "tx_index",
+            Self::GasUsed => "gas_used",
+            Self::EffectiveGasPrice => "effective_gas_price",
+            Self::LogsBefore => "logs_before",
+            Self::ContractAddress => "contract_address",
+            Self::MetaKey => "meta_key",
+            Self::Initiator => "initiator",
+        }
+    }
+
+    fn matches(self, other: &str) -> bool {
+        other.eq_ignore_ascii_case(self.as_str())
+    }
+
+    fn parse(name: &str) -> Option<Self> {
+        if Self::Hash.matches(name) {
+            Some(Self::Hash)
+        } else if Self::Block.matches(name) {
+            Some(Self::Block)
+        } else if Self::Timestamp.matches(name) {
+            Some(Self::Timestamp)
+        } else if Self::TxCount.matches(name) {
+            Some(Self::TxCount)
+        } else if Self::TxType.matches(name) {
+            Some(Self::TxType)
+        } else if Self::Nonce.matches(name) {
+            Some(Self::Nonce)
+        } else if Self::Signer.matches(name) {
+            Some(Self::Signer)
+        } else if Self::Status.matches(name) {
+            Some(Self::Status)
+        } else if Self::Logs.matches(name) {
+            Some(Self::Logs)
+        } else if Self::TxIndex.matches(name) {
+            Some(Self::TxIndex)
+        } else if Self::GasUsed.matches(name) {
+            Some(Self::GasUsed)
+        } else if Self::EffectiveGasPrice.matches(name) {
+            Some(Self::EffectiveGasPrice)
+        } else if Self::LogsBefore.matches(name) {
+            Some(Self::LogsBefore)
+        } else if Self::ContractAddress.matches(name) {
+            Some(Self::ContractAddress)
+        } else if Self::MetaKey.matches(name) {
+            Some(Self::MetaKey)
+        } else if Self::Initiator.matches(name) {
+            Some(Self::Initiator)
+        } else {
+            None
+        }
+    }
+}
+
 impl Schema for RepositorySchema {
     fn name(&self) -> &'static str {
-        "repository"
+        DB_NAME
     }
 
     fn db_path(&self, base: &std::path::Path) -> std::path::PathBuf {
-        base.join("repository")
+        base.join(DB_NAME)
     }
 
     fn column_families(&self) -> &'static [&'static str] {
-        &[
-            "block_data",
-            "block_number_to_hash",
-            "tx",
-            "tx_receipt",
-            "tx_meta",
-            "initiator_and_nonce_to_hash",
-            "meta",
-        ]
+        &COLUMN_FAMILY_NAMES
     }
 
     fn decode_entry(&self, cf: &str, key: &[u8], value: &[u8]) -> Result<EntryRecord> {
-        match cf {
-            "block_data" => format_block_data(cf, key, value),
-            "block_number_to_hash" => format_block_number_to_hash(cf, key, value),
-            "tx" => format_tx(cf, key, value),
-            "tx_receipt" => format_receipt(cf, key, value),
-            "tx_meta" => format_tx_meta(cf, key, value),
-            "initiator_and_nonce_to_hash" => format_initiator_nonce(cf, key, value),
-            "meta" => format_meta(cf, key, value),
-            other => Err(anyhow!("Unsupported column family `{other}`")),
+        match ColumnFamily::parse(cf)? {
+            ColumnFamily::BlockData => format_block_data(cf, key, value),
+            ColumnFamily::BlockNumberToHash => format_block_number_to_hash(cf, key, value),
+            ColumnFamily::Tx => format_tx(cf, key, value),
+            ColumnFamily::TxReceipt => format_receipt(cf, key, value),
+            ColumnFamily::TxMeta => format_tx_meta(cf, key, value),
+            ColumnFamily::InitiatorAndNonceToHash => format_initiator_nonce(cf, key, value),
+            ColumnFamily::Meta => format_meta(cf, key, value),
         }
     }
 
@@ -56,52 +186,65 @@ impl Schema for RepositorySchema {
         field_name: &str,
         new_value: &FieldValue,
     ) -> Result<Vec<u8>> {
-        if cf == "meta" && field_name.eq_ignore_ascii_case("block") {
-            let number = match new_value {
-                FieldValue::Unsigned(value) => *value,
-                _ => return Err(anyhow!("Metadata value must be an unsigned integer")),
-            };
-            let value_u64 =
-                u64::try_from(number).map_err(|_| anyhow!("Value {number} exceeds u64 range"))?;
-            Ok(value_u64.to_be_bytes().to_vec())
-        } else if cf == "tx_meta" {
-            let mut slice = entry.value();
-            let mut meta = TxMeta::decode(&mut slice)?;
-
-            match field_name.to_ascii_lowercase().as_str() {
-                "block" => {
-                    meta.block_number = convert_to_u64("block", new_value)?;
-                }
-                "timestamp" => {
-                    meta.block_timestamp = convert_to_u64("timestamp", new_value)?;
-                }
-                "tx_index" => {
-                    meta.tx_index_in_block = convert_to_u64("tx_index", new_value)?;
-                }
-                "gas_used" => {
-                    meta.gas_used = convert_to_u64("gas_used", new_value)?;
-                }
-                "logs_before" => {
-                    meta.number_of_logs_before_this_tx = convert_to_u64("logs_before", new_value)?;
-                }
-                "effective_gas_price" => {
-                    meta.effective_gas_price = convert_to_u128("effective_gas_price", new_value)?;
-                }
-                "contract_address" => {
-                    meta.contract_address = convert_to_address(new_value)?;
-                }
-                other => {
-                    return Err(anyhow!(
-                        "Editing not supported for field `{other}` in `{cf}`"
-                    ));
+        match ColumnFamily::parse(cf)? {
+            ColumnFamily::Meta => {
+                if Field::Block.matches(field_name) {
+                    let number = match new_value {
+                        FieldValue::Unsigned(value) => *value,
+                        _ => return Err(anyhow!("Metadata value must be an unsigned integer")),
+                    };
+                    let value_u64 = u64::try_from(number)
+                        .map_err(|_| anyhow!("Value {number} exceeds u64 range"))?;
+                    Ok(value_u64.to_be_bytes().to_vec())
+                } else {
+                    Err(anyhow!(
+                        "Editing not supported for field `{field_name}` in `{cf}`"
+                    ))
                 }
             }
+            ColumnFamily::TxMeta => {
+                let mut slice = entry.value();
+                let mut meta = TxMeta::decode(&mut slice)?;
 
-            let mut encoded = Vec::new();
-            meta.encode(&mut encoded);
-            Ok(encoded)
-        } else {
-            Err(anyhow!("Editing not supported for column family `{cf}`"))
+                let field = Field::parse(field_name).ok_or_else(|| {
+                    anyhow!("Editing not supported for field `{field_name}` in `{cf}`")
+                })?;
+
+                match field {
+                    Field::Block => {
+                        meta.block_number = convert_to_u64(field.as_str(), new_value)?;
+                    }
+                    Field::Timestamp => {
+                        meta.block_timestamp = convert_to_u64(field.as_str(), new_value)?;
+                    }
+                    Field::TxIndex => {
+                        meta.tx_index_in_block = convert_to_u64(field.as_str(), new_value)?;
+                    }
+                    Field::GasUsed => {
+                        meta.gas_used = convert_to_u64(field.as_str(), new_value)?;
+                    }
+                    Field::LogsBefore => {
+                        meta.number_of_logs_before_this_tx =
+                            convert_to_u64(field.as_str(), new_value)?;
+                    }
+                    Field::EffectiveGasPrice => {
+                        meta.effective_gas_price = convert_to_u128(field.as_str(), new_value)?;
+                    }
+                    Field::ContractAddress => {
+                        meta.contract_address = convert_to_address(new_value)?;
+                    }
+                    _ => {
+                        return Err(anyhow!(
+                            "Editing not supported for field `{field_name}` in `{cf}`"
+                        ));
+                    }
+                }
+
+                let mut encoded = Vec::new();
+                meta.encode(&mut encoded);
+                Ok(encoded)
+            }
+            _ => Err(anyhow!("Editing not supported for column family `{cf}`")),
         }
     }
 }
@@ -182,25 +325,25 @@ fn format_block_data(cf: &str, key: &[u8], value: &[u8]) -> Result<EntryRecord> 
     Ok(
         EntryRecord::new(cf, key, value, summary, detail).with_fields([
             EntryField::text(
-                "hash",
+                Field::Hash.as_str(),
                 format_b256(hash, 0),
                 FieldRole::Key,
                 FieldCapabilities::default().searchable().key_part(),
             ),
             EntryField::unsigned(
-                "block",
+                Field::Block.as_str(),
                 header.number as u128,
                 FieldRole::Value,
                 FieldCapabilities::default().sortable().searchable(),
             ),
             EntryField::unsigned(
-                "timestamp",
+                Field::Timestamp.as_str(),
                 header.timestamp as u128,
                 FieldRole::Value,
                 FieldCapabilities::default().sortable().searchable(),
             ),
             EntryField::unsigned(
-                "tx_count",
+                Field::TxCount.as_str(),
                 tx_count as u128,
                 FieldRole::Derived,
                 FieldCapabilities::default().sortable(),
@@ -217,7 +360,7 @@ fn format_block_number_to_hash(cf: &str, key: &[u8], value: &[u8]) -> Result<Ent
     Ok(
         EntryRecord::new(cf, key, value, summary, detail).with_fields([
             EntryField::unsigned(
-                "block",
+                Field::Block.as_str(),
                 number as u128,
                 FieldRole::Key,
                 FieldCapabilities::default()
@@ -226,7 +369,7 @@ fn format_block_number_to_hash(cf: &str, key: &[u8], value: &[u8]) -> Result<Ent
                     .key_part(),
             ),
             EntryField::text(
-                "hash",
+                Field::Hash.as_str(),
                 format_b256(hash, 0),
                 FieldRole::Value,
                 FieldCapabilities::default().searchable(),
@@ -272,13 +415,13 @@ fn format_tx(cf: &str, key: &[u8], value: &[u8]) -> Result<EntryRecord> {
     }
 
     let mut entry = EntryRecord::new(cf, key, value, summary, detail).with_field(EntryField::text(
-        "hash",
+        Field::Hash.as_str(),
         format_b256(hash, 0),
         FieldRole::Key,
         FieldCapabilities::default().searchable().key_part(),
     ));
     entry.add_field(EntryField::text(
-        "tx_type",
+        Field::TxType.as_str(),
         format!("{:?}", envelope.tx_type()),
         FieldRole::Derived,
         FieldCapabilities::default().searchable(),
@@ -286,13 +429,13 @@ fn format_tx(cf: &str, key: &[u8], value: &[u8]) -> Result<EntryRecord> {
     if let Some(tx) = recovered.as_ref() {
         let (_, signer) = tx.clone().into_parts();
         entry.add_field(EntryField::unsigned(
-            "nonce",
+            Field::Nonce.as_str(),
             tx.nonce() as u128,
             FieldRole::Value,
             FieldCapabilities::default().sortable().searchable(),
         ));
         entry.add_field(EntryField::text(
-            "signer",
+            Field::Signer.as_str(),
             format_address(signer),
             FieldRole::Value,
             FieldCapabilities::default().searchable(),
@@ -323,19 +466,19 @@ fn format_receipt(cf: &str, key: &[u8], value: &[u8]) -> Result<EntryRecord> {
     Ok(
         EntryRecord::new(cf, key, value, summary, detail).with_fields([
             EntryField::text(
-                "hash",
+                Field::Hash.as_str(),
                 format_b256(hash, 0),
                 FieldRole::Key,
                 FieldCapabilities::default().searchable().key_part(),
             ),
             EntryField::boolean(
-                "status",
+                Field::Status.as_str(),
                 receipt.status(),
                 FieldRole::Value,
                 FieldCapabilities::default().searchable(),
             ),
             EntryField::unsigned(
-                "logs",
+                Field::Logs.as_str(),
                 receipt.logs().len() as u128,
                 FieldRole::Derived,
                 FieldCapabilities::default().sortable(),
@@ -369,13 +512,13 @@ fn format_tx_meta(cf: &str, key: &[u8], value: &[u8]) -> Result<EntryRecord> {
     Ok(
         EntryRecord::new(cf, key, value, summary, detail).with_fields([
             EntryField::text(
-                "hash",
+                Field::Hash.as_str(),
                 format_b256(hash, 0),
                 FieldRole::Key,
                 FieldCapabilities::default().searchable().key_part(),
             ),
             EntryField::unsigned(
-                "block",
+                Field::Block.as_str(),
                 meta.block_number as u128,
                 FieldRole::Value,
                 FieldCapabilities::default()
@@ -384,37 +527,37 @@ fn format_tx_meta(cf: &str, key: &[u8], value: &[u8]) -> Result<EntryRecord> {
                     .editable(),
             ),
             EntryField::unsigned(
-                "timestamp",
+                Field::Timestamp.as_str(),
                 meta.block_timestamp as u128,
                 FieldRole::Value,
                 FieldCapabilities::default().sortable().editable(),
             ),
             EntryField::unsigned(
-                "tx_index",
+                Field::TxIndex.as_str(),
                 meta.tx_index_in_block as u128,
                 FieldRole::Value,
                 FieldCapabilities::default().sortable().editable(),
             ),
             EntryField::unsigned(
-                "gas_used",
+                Field::GasUsed.as_str(),
                 meta.gas_used as u128,
                 FieldRole::Value,
                 FieldCapabilities::default().sortable().editable(),
             ),
             EntryField::unsigned(
-                "effective_gas_price",
+                Field::EffectiveGasPrice.as_str(),
                 meta.effective_gas_price,
                 FieldRole::Value,
                 FieldCapabilities::default().sortable().editable(),
             ),
             EntryField::unsigned(
-                "logs_before",
+                Field::LogsBefore.as_str(),
                 meta.number_of_logs_before_this_tx as u128,
                 FieldRole::Value,
                 FieldCapabilities::default().sortable().editable(),
             ),
             EntryField::text(
-                "contract_address",
+                Field::ContractAddress.as_str(),
                 meta.contract_address
                     .map_or_else(|| "none".into(), format_address),
                 FieldRole::Value,
@@ -445,13 +588,13 @@ fn format_initiator_nonce(cf: &str, key: &[u8], value: &[u8]) -> Result<EntryRec
     Ok(
         EntryRecord::new(cf, key, value, summary, detail).with_fields([
             EntryField::text(
-                "initiator",
+                Field::Initiator.as_str(),
                 format_address(address),
                 FieldRole::Key,
                 FieldCapabilities::default().searchable().key_part(),
             ),
             EntryField::unsigned(
-                "nonce",
+                Field::Nonce.as_str(),
                 nonce as u128,
                 FieldRole::Key,
                 FieldCapabilities::default()
@@ -460,7 +603,7 @@ fn format_initiator_nonce(cf: &str, key: &[u8], value: &[u8]) -> Result<EntryRec
                     .key_part(),
             ),
             EntryField::text(
-                "hash",
+                Field::Hash.as_str(),
                 format_b256(hash, 0),
                 FieldRole::Value,
                 FieldCapabilities::default().searchable(),
@@ -477,13 +620,13 @@ fn format_meta(cf: &str, key: &[u8], value: &[u8]) -> Result<EntryRecord> {
     Ok(
         EntryRecord::new(cf, key, value, summary, detail).with_fields([
             EntryField::text(
-                "meta_key",
+                Field::MetaKey.as_str(),
                 key_str.to_string(),
                 FieldRole::Key,
                 FieldCapabilities::default().searchable().key_part(),
             ),
             EntryField::unsigned(
-                "block",
+                Field::Block.as_str(),
                 number as u128,
                 FieldRole::Value,
                 FieldCapabilities::default()
