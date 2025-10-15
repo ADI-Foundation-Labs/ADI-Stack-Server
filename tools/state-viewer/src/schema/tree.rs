@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 
 use super::utils::{
     decode_b256, decode_u64_pair, ensure_len, format_b256, format_hex, short_hex, truncate_hex,

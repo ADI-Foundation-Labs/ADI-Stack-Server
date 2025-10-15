@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 
 use super::utils::{ascii_preview, decode_b256, format_b256, truncate_hex};
 use super::{EntryField, EntryRecord, FieldCapabilities, FieldRole, Schema};

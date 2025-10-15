@@ -4,7 +4,7 @@ use alloy::consensus::Block;
 use alloy::eips::Decodable2718 as _;
 use alloy::primitives::Address;
 use alloy::rlp::{Decodable, Encodable};
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use zksync_os_storage_api::{RepositoryBlock, TxMeta};
 use zksync_os_types::{ZkEnvelope, ZkReceiptEnvelope};
 
@@ -507,7 +507,8 @@ fn format_tx_meta(cf: &str, key: &[u8], value: &[u8]) -> Result<EntryRecord> {
         meta.effective_gas_price,
         meta.tx_index_in_block,
         meta.number_of_logs_before_this_tx,
-        meta.contract_address.map_or_else(|| "none".into(), format_address)
+        meta.contract_address
+            .map_or_else(|| "none".into(), format_address)
     );
     Ok(
         EntryRecord::new(cf, key, value, summary, detail).with_fields([

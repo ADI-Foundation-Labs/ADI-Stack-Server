@@ -9,12 +9,12 @@ use anyhow::Result;
 use app::App;
 use clap::Parser;
 use crossterm::{
+    ExecutableCommand as _,
     event::{self, Event},
     execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
-    ExecutableCommand as _,
+    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
-use ratatui::{backend::CrosstermBackend, Terminal};
+use ratatui::{Terminal, backend::CrosstermBackend};
 use schema::DbKind;
 
 #[derive(Parser)]
@@ -57,12 +57,11 @@ fn run_app(
     loop {
         terminal.draw(|frame| ui::draw(app, frame))?;
 
-        if event::poll(std::time::Duration::from_millis(200))? {
-            if let Event::Key(key) = event::read()? {
-                if app.handle_key(key)? {
-                    break;
-                }
-            }
+        if event::poll(std::time::Duration::from_millis(200))?
+            && let Event::Key(key) = event::read()?
+            && app.handle_key(key)?
+        {
+            break;
         }
     }
     Ok(())

@@ -5,11 +5,11 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
-use crate::db::{open_components, DbStore};
-use crate::schema::{DbKind, EntryField, EntryRecord, FieldKind, FieldValue, Schema, DB_KINDS};
+use crate::db::{DbStore, open_components};
+use crate::schema::{DB_KINDS, DbKind, EntryField, EntryRecord, FieldKind, FieldValue, Schema};
 
 #[derive(Debug, Default)]
 enum Mode {
@@ -620,14 +620,13 @@ impl App {
 
         let mut matches = Vec::new();
         for (key, value) in self.db.scan_all(cf)? {
-            if let Ok(entry) = self.schema.decode_entry(cf, &key, &value) {
-                if entry
+            if let Ok(entry) = self.schema.decode_entry(cf, &key, &value)
+                && entry
                     .field_value(&canonical_field)
                     .map(|field_value| field_value.eq_value(&search_value))
                     .unwrap_or(false)
-                {
-                    matches.push(entry);
-                }
+            {
+                matches.push(entry);
             }
         }
 
@@ -748,13 +747,13 @@ impl App {
     fn reload_entries_preserving_filter(&mut self) -> Result<()> {
         let filter = self.search_filter.clone();
         self.reload_entries()?;
-        if let Some(filter) = filter {
-            if let Some(selected_cf) = self.selected_cf_name() {
-                if selected_cf.eq_ignore_ascii_case(&filter.cf) {
-                    self.execute_search(&filter.cf, &filter.raw_input)?;
-                }
-            }
+        if let Some(filter) = filter
+            && let Some(selected_cf) = self.selected_cf_name()
+            && selected_cf.eq_ignore_ascii_case(&filter.cf)
+        {
+            self.execute_search(&filter.cf, &filter.raw_input)?;
         }
+
         Ok(())
     }
 

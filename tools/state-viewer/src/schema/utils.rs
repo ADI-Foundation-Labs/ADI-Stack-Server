@@ -3,7 +3,7 @@ use alloy::{
     primitives::{Address, B256},
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 
 pub(super) fn ensure_len(bytes: &[u8], expected: usize, what: &str) -> Result<()> {
     if bytes.len() != expected {

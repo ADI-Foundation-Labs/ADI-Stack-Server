@@ -1,5 +1,5 @@
 use alloy::primitives::U256;
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use std::convert::TryFrom;
 
 use super::utils::{decode_b256, decode_u64, format_b256};

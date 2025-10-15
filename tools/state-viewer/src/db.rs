@@ -1,11 +1,11 @@
 use std::path::{Path, PathBuf};
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use zksync_os_rocksdb::rocksdb::{
     ColumnFamily, ColumnFamilyDescriptor, DBWithThreadMode, IteratorMode, Options, SingleThreaded,
 };
 
-use crate::schema::{schema_for_kind, DbKind, Schema};
+use crate::schema::{DbKind, Schema, schema_for_kind};
 
 pub type RocksDb = DBWithThreadMode<SingleThreaded>;
 

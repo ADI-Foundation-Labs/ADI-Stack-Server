@@ -1,6 +1,6 @@
 use std::{convert::TryFrom, fmt::Write as _};
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use bincode::config::standard;
 use zksync_os_interface::types::BlockContext;
 use zksync_os_types::{ZkTransaction, ZkTxType};
