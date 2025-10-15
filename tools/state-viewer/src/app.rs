@@ -837,10 +837,6 @@ impl App {
         self.selected_entry().map(|idx| &self.entries[idx])
     }
 
-    pub fn selected_entry_record_mut(&mut self) -> Option<&mut EntryRecord> {
-        self.selected_entry().map(move |idx| &mut self.entries[idx])
-    }
-
     pub fn limit(&self) -> usize {
         self.limit
     }

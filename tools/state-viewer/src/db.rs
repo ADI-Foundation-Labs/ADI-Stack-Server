@@ -45,15 +45,6 @@ impl DbStore {
         Ok(entries)
     }
 
-    pub fn get(&self, cf_name: &str, key: &[u8]) -> Result<Option<Vec<u8>>> {
-        let cf = self.cf_handle(cf_name)?;
-        let result = self
-            .db
-            .get_cf(cf, key)
-            .with_context(|| format!("fetching key from column family `{cf_name}`"))?;
-        Ok(result.map(|value| value.to_vec()))
-    }
-
     pub fn put(&self, cf_name: &str, key: &[u8], value: &[u8]) -> Result<()> {
         let cf = self.cf_handle(cf_name)?;
         self.db
@@ -70,14 +61,6 @@ impl DbStore {
         Ok(())
     }
 
-    pub fn inner(&self) -> &RocksDb {
-        &self.db
-    }
-
-    pub fn into_inner(self) -> RocksDb {
-        self.db
-    }
-
     fn cf_handle(&self, cf_name: &str) -> Result<&ColumnFamily> {
         self.db
             .cf_handle(cf_name)
@@ -86,6 +69,7 @@ impl DbStore {
 }
 
 /// Opens the RocksDB instance and materializes the schema metadata for the provided database kind.
+#[allow(clippy::type_complexity)]
 pub fn open_components(
     base_path: &Path,
     kind: DbKind,

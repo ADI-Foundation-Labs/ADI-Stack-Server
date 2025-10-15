@@ -19,8 +19,8 @@ pub fn draw(app: &App, frame: &mut Frame<'_>) {
         .split(frame.size());
 
     let header_lines = build_header_lines(app);
-    let header = Paragraph::new(header_lines)
-        .block(TuiBlock::default().title("Info").borders(Borders::ALL));
+    let header =
+        Paragraph::new(header_lines).block(TuiBlock::default().title("Info").borders(Borders::ALL));
     frame.render_widget(header, layout[0]);
 
     let body_layout = Layout::default()
@@ -111,11 +111,7 @@ fn render_entries(app: &App, frame: &mut Frame<'_>, area: ratatui::layout::Rect)
     );
 
     let list = List::new(items)
-        .block(
-            TuiBlock::default()
-                .title(title)
-                .borders(Borders::ALL),
-        )
+        .block(TuiBlock::default().title(title).borders(Borders::ALL))
         .highlight_style(Style::default().add_modifier(Modifier::REVERSED));
 
     frame.render_stateful_widget(list, area, &mut state);
@@ -144,11 +140,7 @@ fn render_details(app: &App, frame: &mut Frame<'_>, area: ratatui::layout::Rect)
         lines.push(Line::from("Enter to confirm • Esc cancels"));
 
         let block = Paragraph::new(lines)
-            .block(
-                TuiBlock::default()
-                    .title("Input")
-                    .borders(Borders::ALL),
-            )
+            .block(TuiBlock::default().title("Input").borders(Borders::ALL))
             .wrap(Wrap { trim: false });
         frame.render_widget(block, area);
     } else if let Some(confirm) = app.confirm_state() {
@@ -161,11 +153,7 @@ fn render_details(app: &App, frame: &mut Frame<'_>, area: ratatui::layout::Rect)
             Line::from("Press y to confirm • n/Esc cancels"),
         ];
         let block = Paragraph::new(lines)
-            .block(
-                TuiBlock::default()
-                    .title("Confirm")
-                    .borders(Borders::ALL),
-            )
+            .block(TuiBlock::default().title("Confirm").borders(Borders::ALL))
             .wrap(Wrap { trim: false });
         frame.render_widget(block, area);
     } else {

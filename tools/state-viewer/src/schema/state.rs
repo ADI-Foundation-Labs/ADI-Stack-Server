@@ -1,6 +1,6 @@
 use alloy::primitives::U256;
-use std::convert::TryFrom;
 use anyhow::{anyhow, Result};
+use std::convert::TryFrom;
 
 use super::utils::{decode_b256, decode_u64, format_b256};
 use super::{EntryField, EntryRecord, FieldCapabilities, FieldRole, FieldValue, Schema};

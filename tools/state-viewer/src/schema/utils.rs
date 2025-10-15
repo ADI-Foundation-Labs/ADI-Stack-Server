@@ -16,17 +16,6 @@ pub(super) fn ensure_len(bytes: &[u8], expected: usize, what: &str) -> Result<()
     }
 }
 
-pub(super) fn ensure_len_min(bytes: &[u8], expected: usize, what: &str) -> Result<()> {
-    if bytes.len() < expected {
-        Err(anyhow!(
-            "Invalid {what} length: expected at least {expected}, got {}",
-            bytes.len()
-        ))
-    } else {
-        Ok(())
-    }
-}
-
 pub(super) fn decode_u64(value: &[u8]) -> Result<u64> {
     ensure_len(value, 8, "u64")?;
     let mut arr = [0u8; 8];

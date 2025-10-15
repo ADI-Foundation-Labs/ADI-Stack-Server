@@ -87,9 +87,7 @@ fn format_key_indices(cf: &str, key: &[u8], value: &[u8]) -> Result<EntryRecord>
                 "index",
                 index as u128,
                 FieldRole::Value,
-                FieldCapabilities::default()
-                    .sortable()
-                    .searchable(),
+                FieldCapabilities::default().sortable().searchable(),
             ),
             EntryField::unsigned(
                 "version",

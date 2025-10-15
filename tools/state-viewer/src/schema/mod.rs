@@ -59,7 +59,7 @@ pub trait Schema: Send + Sync {
 
 #[derive(Clone, Debug)]
 pub struct EntryRecord {
-    cf: String,
+    _cf: String,
     key: Vec<u8>,
     value: Vec<u8>,
     summary: String,
@@ -77,7 +77,7 @@ impl EntryRecord {
         detail: impl Into<String>,
     ) -> Self {
         Self {
-            cf: cf.into(),
+            _cf: cf.into(),
             key: key.to_vec(),
             value: value.to_vec(),
             summary: summary.into(),
@@ -108,20 +108,12 @@ impl EntryRecord {
         &self.detail
     }
 
-    pub fn cf(&self) -> &str {
-        &self.cf
-    }
-
     pub fn key(&self) -> &[u8] {
         &self.key
     }
 
     pub fn value(&self) -> &[u8] {
         &self.value
-    }
-
-    pub fn is_error(&self) -> bool {
-        self.is_error
     }
 
     pub fn fields(&self) -> &[EntryField] {
@@ -134,18 +126,8 @@ impl EntryRecord {
             .find(|field| field.name.eq_ignore_ascii_case(name))
     }
 
-    pub fn field_mut(&mut self, name: &str) -> Option<&mut EntryField> {
-        self.fields
-            .iter_mut()
-            .find(|field| field.name.eq_ignore_ascii_case(name))
-    }
-
     pub fn field_value(&self, name: &str) -> Option<&FieldValue> {
         self.field(name).map(|field| &field.value)
-    }
-
-    pub fn into_inner(self) -> (String, Vec<u8>, Vec<u8>) {
-        (self.cf, self.key, self.value)
     }
 
     pub fn add_field(&mut self, field: EntryField) {
@@ -173,7 +155,7 @@ pub struct EntryField {
     pub name: String,
     pub kind: FieldKind,
     pub value: FieldValue,
-    pub role: FieldRole,
+    pub _role: FieldRole,
     pub capabilities: FieldCapabilities,
 }
 
@@ -189,7 +171,7 @@ impl EntryField {
             name: name.into(),
             kind,
             value,
-            role,
+            _role: role,
             capabilities,
         }
     }
@@ -206,10 +188,6 @@ impl EntryField {
         &self.value
     }
 
-    pub fn role(&self) -> FieldRole {
-        self.role
-    }
-
     pub fn capabilities(&self) -> &FieldCapabilities {
         &self.capabilities
     }
@@ -224,21 +202,6 @@ impl EntryField {
             name,
             FieldKind::Unsigned,
             FieldValue::Unsigned(value.into()),
-            role,
-            capabilities,
-        )
-    }
-
-    pub fn signed(
-        name: impl Into<String>,
-        value: impl Into<i128>,
-        role: FieldRole,
-        capabilities: FieldCapabilities,
-    ) -> Self {
-        Self::new(
-            name,
-            FieldKind::Signed,
-            FieldValue::Signed(value.into()),
             role,
             capabilities,
         )
@@ -269,21 +232,6 @@ impl EntryField {
             name,
             FieldKind::Boolean,
             FieldValue::Boolean(value),
-            role,
-            capabilities,
-        )
-    }
-
-    pub fn bytes(
-        name: impl Into<String>,
-        value: Vec<u8>,
-        role: FieldRole,
-        capabilities: FieldCapabilities,
-    ) -> Self {
-        Self::new(
-            name,
-            FieldKind::Bytes,
-            FieldValue::Bytes(value),
             role,
             capabilities,
         )
@@ -346,13 +294,6 @@ pub enum FieldValue {
 }
 
 impl FieldValue {
-    pub fn as_u128(&self) -> Option<u128> {
-        match self {
-            FieldValue::Unsigned(value) => Some(*value),
-            _ => None,
-        }
-    }
-
     pub fn cmp(&self, other: &Self) -> Option<Ordering> {
         match (self, other) {
             (FieldValue::Unsigned(a), FieldValue::Unsigned(b)) => Some(a.cmp(b)),

@@ -3,7 +3,7 @@ use std::{convert::TryFrom, fmt::Write as _};
 use alloy::consensus::Block;
 use alloy::eips::Decodable2718 as _;
 use alloy::primitives::Address;
-use alloy::rlp::Decodable;
+use alloy::rlp::{Decodable, Encodable};
 use anyhow::{anyhow, Context, Result};
 use zksync_os_storage_api::{RepositoryBlock, TxMeta};
 use zksync_os_types::{ZkEnvelope, ZkReceiptEnvelope};
@@ -52,7 +52,7 @@ impl Schema for RepositorySchema {
     fn update_value(
         &self,
         cf: &str,
-        _entry: &EntryRecord,
+        entry: &EntryRecord,
         field_name: &str,
         new_value: &FieldValue,
     ) -> Result<Vec<u8>> {
@@ -61,12 +61,99 @@ impl Schema for RepositorySchema {
                 FieldValue::Unsigned(value) => *value,
                 _ => return Err(anyhow!("Metadata value must be an unsigned integer")),
             };
-            let value_u64 = u64::try_from(number)
-                .map_err(|_| anyhow!("Value {number} exceeds u64 range"))?;
+            let value_u64 =
+                u64::try_from(number).map_err(|_| anyhow!("Value {number} exceeds u64 range"))?;
             Ok(value_u64.to_be_bytes().to_vec())
+        } else if cf == "tx_meta" {
+            let mut slice = entry.value();
+            let mut meta = TxMeta::decode(&mut slice)?;
+
+            match field_name.to_ascii_lowercase().as_str() {
+                "block" => {
+                    meta.block_number = convert_to_u64("block", new_value)?;
+                }
+                "timestamp" => {
+                    meta.block_timestamp = convert_to_u64("timestamp", new_value)?;
+                }
+                "tx_index" => {
+                    meta.tx_index_in_block = convert_to_u64("tx_index", new_value)?;
+                }
+                "gas_used" => {
+                    meta.gas_used = convert_to_u64("gas_used", new_value)?;
+                }
+                "logs_before" => {
+                    meta.number_of_logs_before_this_tx = convert_to_u64("logs_before", new_value)?;
+                }
+                "effective_gas_price" => {
+                    meta.effective_gas_price = convert_to_u128("effective_gas_price", new_value)?;
+                }
+                "contract_address" => {
+                    meta.contract_address = convert_to_address(new_value)?;
+                }
+                other => {
+                    return Err(anyhow!(
+                        "Editing not supported for field `{other}` in `{cf}`"
+                    ));
+                }
+            }
+
+            let mut encoded = Vec::new();
+            meta.encode(&mut encoded);
+            Ok(encoded)
         } else {
             Err(anyhow!("Editing not supported for column family `{cf}`"))
         }
+    }
+}
+
+fn convert_to_u64(field: &str, value: &FieldValue) -> Result<u64> {
+    let raw = match value {
+        FieldValue::Unsigned(number) => *number,
+        _ => return Err(anyhow!("`{field}` expects an unsigned integer value")),
+    };
+    u64::try_from(raw).map_err(|_| anyhow!("`{field}` value {raw} exceeds u64 range"))
+}
+
+fn convert_to_u128(field: &str, value: &FieldValue) -> Result<u128> {
+    match value {
+        FieldValue::Unsigned(number) => Ok(*number),
+        _ => Err(anyhow!("`{field}` expects an unsigned integer value")),
+    }
+}
+
+fn convert_to_address(value: &FieldValue) -> Result<Option<Address>> {
+    match value {
+        FieldValue::Text(text) => {
+            let trimmed = text.trim();
+            if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("none") {
+                Ok(None)
+            } else {
+                let without_prefix = trimmed.strip_prefix("0x").unwrap_or(trimmed);
+                let bytes = hex::decode(without_prefix)
+                    .map_err(|err| anyhow!("Invalid address `{trimmed}`: {err}"))?;
+                if bytes.len() != 20 {
+                    return Err(anyhow!(
+                        "Address `{trimmed}` must be exactly 20 bytes (40 hex characters)"
+                    ));
+                }
+                Ok(Some(Address::from_slice(&bytes)))
+            }
+        }
+        FieldValue::Bytes(bytes) => {
+            if bytes.is_empty() {
+                Ok(None)
+            } else if bytes.len() == 20 {
+                Ok(Some(Address::from_slice(bytes)))
+            } else {
+                Err(anyhow!(
+                    "Contract address byte value must be 20 bytes, got {}",
+                    bytes.len()
+                ))
+            }
+        }
+        _ => Err(anyhow!(
+            "Contract address must be provided as a hex string or raw bytes"
+        )),
     }
 }
 
@@ -104,9 +191,7 @@ fn format_block_data(cf: &str, key: &[u8], value: &[u8]) -> Result<EntryRecord> 
                 "block",
                 header.number as u128,
                 FieldRole::Value,
-                FieldCapabilities::default()
-                    .sortable()
-                    .searchable(),
+                FieldCapabilities::default().sortable().searchable(),
             ),
             EntryField::unsigned(
                 "timestamp",
@@ -186,14 +271,12 @@ fn format_tx(cf: &str, key: &[u8], value: &[u8]) -> Result<EntryRecord> {
         }
     }
 
-    let mut entry = EntryRecord::new(cf, key, value, summary, detail).with_field(
-        EntryField::text(
-            "hash",
-            format_b256(hash, 0),
-            FieldRole::Key,
-            FieldCapabilities::default().searchable().key_part(),
-        ),
-    );
+    let mut entry = EntryRecord::new(cf, key, value, summary, detail).with_field(EntryField::text(
+        "hash",
+        format_b256(hash, 0),
+        FieldRole::Key,
+        FieldCapabilities::default().searchable().key_part(),
+    ));
     entry.add_field(EntryField::text(
         "tx_type",
         format!("{:?}", envelope.tx_type()),
@@ -297,19 +380,45 @@ fn format_tx_meta(cf: &str, key: &[u8], value: &[u8]) -> Result<EntryRecord> {
                 FieldRole::Value,
                 FieldCapabilities::default()
                     .sortable()
-                    .searchable(),
+                    .searchable()
+                    .editable(),
             ),
             EntryField::unsigned(
                 "timestamp",
                 meta.block_timestamp as u128,
                 FieldRole::Value,
-                FieldCapabilities::default().sortable(),
+                FieldCapabilities::default().sortable().editable(),
             ),
             EntryField::unsigned(
                 "tx_index",
                 meta.tx_index_in_block as u128,
                 FieldRole::Value,
-                FieldCapabilities::default().sortable(),
+                FieldCapabilities::default().sortable().editable(),
+            ),
+            EntryField::unsigned(
+                "gas_used",
+                meta.gas_used as u128,
+                FieldRole::Value,
+                FieldCapabilities::default().sortable().editable(),
+            ),
+            EntryField::unsigned(
+                "effective_gas_price",
+                meta.effective_gas_price,
+                FieldRole::Value,
+                FieldCapabilities::default().sortable().editable(),
+            ),
+            EntryField::unsigned(
+                "logs_before",
+                meta.number_of_logs_before_this_tx as u128,
+                FieldRole::Value,
+                FieldCapabilities::default().sortable().editable(),
+            ),
+            EntryField::text(
+                "contract_address",
+                meta.contract_address
+                    .map_or_else(|| "none".into(), format_address),
+                FieldRole::Value,
+                FieldCapabilities::default().searchable().editable(),
             ),
         ]),
     )
