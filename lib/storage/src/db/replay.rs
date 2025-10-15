@@ -1,13 +1,7 @@
 use alloy::primitives::{B256, BlockNumber};
-use futures::Stream;
-use futures::stream::{self, BoxStream, StreamExt};
-use pin_project::pin_project;
 use std::convert::TryInto;
 use std::path::Path;
-use std::task::Poll;
 use std::time::Duration;
-use tokio::pin;
-use tokio::time::{Instant, Sleep};
 use vise::Unit;
 use vise::{Buckets, Histogram, Metrics};
 use zksync_os_genesis::Genesis;
@@ -74,7 +68,7 @@ impl BlockReplayStorage {
             .with_sync_writes();
 
         let this = Self { db };
-        if this.latest_block().is_none() {
+        if this.latest_record().is_none() {
             let genesis_context = &genesis.state().await.context;
             tracing::info!(
                 "block replay DB is empty, assuming start of the chain; appending genesis"
@@ -132,71 +126,6 @@ impl BlockReplayStorage {
         );
 
         self.db.write(batch).expect("Failed to write to WAL");
-    }
-
-    /// Returns the greatest block number that has been appended, or None if empty.
-    pub fn latest_block(&self) -> Option<u64> {
-        self.db
-            .get_cf(BlockReplayColumnFamily::Latest, Self::LATEST_KEY)
-            .expect("Cannot read from DB")
-            .map(|bytes| {
-                assert_eq!(bytes.len(), 8);
-                let arr: [u8; 8] = bytes.as_slice().try_into().unwrap();
-                u64::from_be_bytes(arr)
-            })
-    }
-
-    /// Streams all replay records with block_number ≥ `start`, in ascending block order. Finishes
-    /// when after reaching the latest stored record.
-    pub fn stream_from(&self, start: u64) -> BoxStream<ReplayRecord> {
-        let latest = self.latest_block().unwrap_or(0);
-        let stream = stream::iter(start..=latest).filter_map(move |block_num| {
-            let record = self.get_replay_record(block_num);
-            match record {
-                Some(record) => futures::future::ready(Some(record)),
-                None => futures::future::ready(None),
-            }
-        });
-        Box::pin(stream)
-    }
-
-    /// Streams all replay records with block_number ≥ `start`, in ascending block order. On reaching
-    /// the latest stored record continuously waits for new records to appear.
-    pub fn stream_from_forever(&self, start: BlockNumber) -> BoxStream<ReplayRecord> {
-        #[pin_project]
-        struct BlockStream {
-            replays: BlockReplayStorage,
-            current_block: BlockNumber,
-            #[pin]
-            sleep: Sleep,
-        }
-        impl Stream for BlockStream {
-            type Item = ReplayRecord;
-
-            fn poll_next(
-                self: std::pin::Pin<&mut Self>,
-                cx: &mut std::task::Context<'_>,
-            ) -> Poll<Option<Self::Item>> {
-                let mut this = self.project();
-                if let Some(record) = this.replays.get_replay_record(*this.current_block) {
-                    *this.current_block += 1;
-                    Poll::Ready(Some(record))
-                } else {
-                    // TODO: would be nice to be woken up only when the next block is available
-                    this.sleep
-                        .as_mut()
-                        .reset(Instant::now() + Duration::from_millis(50));
-                    assert_eq!(this.sleep.poll(cx), Poll::Pending);
-                    Poll::Pending
-                }
-            }
-        }
-
-        Box::pin(BlockStream {
-            replays: self.clone(),
-            current_block: start,
-            sleep: tokio::time::sleep(Duration::from_millis(50)),
-        })
     }
 }
 
@@ -284,6 +213,17 @@ impl ReadReplay for BlockReplayStorage {
             block_output_hash: B256::from_slice(&block_output_hash),
         })
     }
+
+    fn latest_record(&self) -> Option<BlockNumber> {
+        self.db
+            .get_cf(BlockReplayColumnFamily::Latest, Self::LATEST_KEY)
+            .expect("Cannot read from DB")
+            .map(|bytes| {
+                assert_eq!(bytes.len(), 8);
+                let arr: [u8; 8] = bytes.as_slice().try_into().unwrap();
+                u64::from_be_bytes(arr)
+            })
+    }
 }
 
 impl WriteReplay for BlockReplayStorage {
@@ -291,12 +231,12 @@ impl WriteReplay for BlockReplayStorage {
         let latency_observer = BLOCK_REPLAY_ROCKS_DB_METRICS.get_latency.start();
         assert!(!record.transactions.is_empty());
 
-        let current_latest_block = self.latest_block().unwrap_or(0);
+        let current_latest_record = self.latest_record().unwrap_or(0);
 
-        if record.block_context.block_number <= current_latest_block {
+        if record.block_context.block_number <= current_latest_record {
             tracing::debug!(
-                "Not appending block {}: already exists in WAL",
-                record.block_context.block_number
+                block_number = record.block_context.block_number,
+                "not appending block: already exists in WAL",
             );
             return;
         }

@@ -24,6 +24,5 @@ tokio.workspace = true
 tracing.workspace = true
 vise.workspace = true
 futures.workspace = true
-pin-project.workspace = true
 bincode.workspace = true
 semver.workspace = true
