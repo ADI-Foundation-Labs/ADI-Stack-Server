@@ -73,7 +73,8 @@ use zksync_os_storage::db::BlockReplayStorage;
 use zksync_os_storage::in_memory::Finality;
 use zksync_os_storage::lazy::RepositoryManager;
 use zksync_os_storage_api::{
-    FinalityStatus, ReadFinality, ReadReplay, ReadRepository, ReadStateHistory, WriteState,
+    FinalityStatus, ReadFinality, ReadReplay, ReadRepository, ReadStateHistory, WriteReplay,
+    WriteState,
 };
 
 const BLOCK_REPLAY_WAL_DB_NAME: &str = "block_replay_wal";
@@ -466,7 +467,7 @@ async fn run_main_node_pipeline<
     l1_provider: impl Provider + WalletProvider<Wallet = EthereumWallet> + Clone + 'static,
     batch_storage: ProofStorage,
     node_state_on_startup: NodeStateOnStartup,
-    block_replay_storage: BlockReplayStorage,
+    block_replay_storage: impl WriteReplay + Clone,
     tasks: &mut JoinSet<()>,
     state: State,
     starting_block: u64,
@@ -644,7 +645,7 @@ async fn run_en_pipeline<
     config: Config,
     batch_storage: ProofStorage,
     node_state_on_startup: NodeStateOnStartup,
-    block_replay_storage: BlockReplayStorage,
+    block_replay_storage: impl WriteReplay + Clone,
     tasks: &mut JoinSet<()>,
     block_context_provider: BlockContextProvider<RethPool<ZkClient<State>>>,
     state: State,

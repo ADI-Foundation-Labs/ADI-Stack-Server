@@ -10,12 +10,10 @@ use tokio::{
 };
 use tokio_util::codec::{self, FramedRead, FramedWrite, LengthDelimitedCodec};
 use zksync_os_sequencer::model::blocks::BlockCommand;
-use zksync_os_storage_api::{REPLAY_WIRE_FORMAT_VERSION, ReadReplayExt, ReplayRecord};
-
-use zksync_os_storage::db::BlockReplayStorage;
+use zksync_os_storage_api::{REPLAY_WIRE_FORMAT_VERSION, ReadReplay, ReadReplayExt, ReplayRecord};
 
 pub async fn replay_server(
-    block_replays: BlockReplayStorage,
+    block_replays: impl ReadReplay + Clone,
     address: impl ToSocketAddrs,
 ) -> anyhow::Result<()> {
     let listener = TcpListener::bind(address).await?;
