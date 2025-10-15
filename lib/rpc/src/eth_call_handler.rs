@@ -3,11 +3,12 @@ use crate::config::RpcConfig;
 use crate::result::RevertError;
 use crate::rpc_storage::ReadRpcStorage;
 use crate::sandbox::{call_trace_simulate, execute};
+use crate::state_override_view::{AccountViewOverride, OverriddenStateView};
 use alloy::consensus::transaction::Recovered;
 use alloy::consensus::{SignableTransaction, TxEip1559, TxEip2930, TxLegacy, TxType};
 use alloy::eips::BlockId;
 use alloy::network::TransactionBuilder;
-use alloy::primitives::{Address, B256, Bytes, Signature, TxKind, U256};
+use alloy::primitives::{Address, B256, Bytes, Signature, TxKind, U256, ruint::aliases::B160};
 use alloy::rpc::types::state::StateOverride;
 use alloy::rpc::types::trace::geth::{CallConfig, GethTrace};
 use alloy::rpc::types::{BlockOverrides, TransactionRequest};
@@ -184,14 +185,11 @@ impl<RpcStorage: ReadRpcStorage> EthCallHandler<RpcStorage> {
 
     fn prepare_execution_env(
         &self,
-        request: TransactionRequest,
+        mut request: TransactionRequest,
         block: Option<BlockId>,
         state_overrides: Option<StateOverride>,
         block_overrides: Option<Box<BlockOverrides>>,
     ) -> Result<ExecutionEnv, EthCallError> {
-        if state_overrides.is_some() {
-            return Err(EthCallError::StateOverridesNotSupported);
-        }
         if block_overrides.is_some() {
             return Err(EthCallError::BlockOverridesNotSupported);
         }
@@ -205,7 +203,18 @@ impl<RpcStorage: ReadRpcStorage> EthCallHandler<RpcStorage> {
             .replay_storage()
             .get_context(block_number)
             .ok_or(EthCallError::BlockNotFound(block_id))?;
+
+        // If nonce is not provided and override supplies one for `from`, apply it.
+        if request.nonce.is_none()
+            && let Some(so) = &state_overrides
+            && let Some(from) = request.from
+            && let Some(acc) = so.get(&from)
+            && let Some(n) = acc.nonce
+        {
+            request.nonce = Some(n);
+        }
         let transaction = self.create_tx_from_request(request, &block_context)?;
+
         Ok(ExecutionEnv {
             transaction,
             block_context,
@@ -220,16 +229,35 @@ impl<RpcStorage: ReadRpcStorage> EthCallHandler<RpcStorage> {
         block_overrides: Option<Box<BlockOverrides>>,
     ) -> Result<Bytes, EthCallError> {
         let execution_env =
-            self.prepare_execution_env(request, block, state_overrides, block_overrides)?;
+            self.prepare_execution_env(request, block, state_overrides.clone(), block_overrides)?;
         let storage_view = self
             .storage
             .state_view_at(execution_env.block_context.block_number)?;
 
-        let res = execute(
-            execution_env.transaction,
-            execution_env.block_context,
-            storage_view,
-        )
+        let res = if let Some(state_overrides) = state_overrides {
+            let (slot_overrides, account_overrides) = parse_state_overrides(state_overrides);
+            if slot_overrides.is_empty() && account_overrides.is_empty() {
+                execute(
+                    execution_env.transaction,
+                    execution_env.block_context,
+                    storage_view,
+                )
+            } else {
+                let wrapped =
+                    OverriddenStateView::new(storage_view, slot_overrides, account_overrides);
+                execute(
+                    execution_env.transaction,
+                    execution_env.block_context,
+                    wrapped,
+                )
+            }
+        } else {
+            execute(
+                execution_env.transaction,
+                execution_env.block_context,
+                storage_view,
+            )
+        }
         .map_err(EthCallError::ForwardSubsystemError)?
         .map_err(EthCallError::InvalidTransaction)?;
 
@@ -253,17 +281,38 @@ impl<RpcStorage: ReadRpcStorage> EthCallHandler<RpcStorage> {
         block_overrides: Option<Box<BlockOverrides>>,
     ) -> Result<GethTrace, EthCallError> {
         let execution_env =
-            self.prepare_execution_env(request, block, state_overrides, block_overrides)?;
+            self.prepare_execution_env(request, block, state_overrides.clone(), block_overrides)?;
         let storage_view = self
             .storage
             .state_view_at(execution_env.block_context.block_number)?;
 
-        call_trace_simulate(
-            execution_env.transaction,
-            execution_env.block_context,
-            storage_view,
-            call_config,
-        )
+        if let Some(state_overrides) = state_overrides {
+            let (slot_overrides, account_overrides) = parse_state_overrides(state_overrides);
+            if slot_overrides.is_empty() && account_overrides.is_empty() {
+                call_trace_simulate(
+                    execution_env.transaction,
+                    execution_env.block_context,
+                    storage_view,
+                    call_config,
+                )
+            } else {
+                let wrapped =
+                    OverriddenStateView::new(storage_view, slot_overrides, account_overrides);
+                call_trace_simulate(
+                    execution_env.transaction,
+                    execution_env.block_context,
+                    wrapped,
+                    call_config,
+                )
+            }
+        } else {
+            call_trace_simulate(
+                execution_env.transaction,
+                execution_env.block_context,
+                storage_view,
+                call_config,
+            )
+        }
         .map(GethTrace::CallTracer)
         .map_err(|err| EthCallError::ForwardSubsystemError(anyhow::anyhow!(err)))
     }
@@ -570,4 +619,57 @@ pub enum EthCallError {
     Repository(#[from] RepositoryError),
     #[error(transparent)]
     State(#[from] StateError),
+}
+
+/// Parses the RPC `StateOverride` structure into separate maps of slot overrides
+/// and account-level overrides (balance/nonce/code).
+fn parse_state_overrides(
+    state_overrides: StateOverride,
+) -> (
+    std::collections::HashMap<B256, B256>,
+    std::collections::HashMap<Address, AccountViewOverride>,
+) {
+    use zk_ee::common_structs::derive_flat_storage_key;
+
+    let mut slot_out = std::collections::HashMap::new();
+    let mut acc_out: std::collections::HashMap<Address, AccountViewOverride> =
+        std::collections::HashMap::new();
+
+    // `StateOverride` is expected to be a map-like structure of Address => AccountOverride
+    for (address, account) in state_overrides {
+        // Merge `state` and `state_diff` if present. Latter should take precedence on overlap.
+        if let Some(state) = account.state {
+            for (slot, value) in state {
+                let flat_key = derive_flat_storage_key(
+                    &B160::from_be_bytes(address.into_array()),
+                    &(slot.0.into()),
+                );
+                slot_out.insert(B256::from(flat_key.as_u8_array()), value);
+            }
+        }
+        if let Some(state_diff) = account.state_diff {
+            for (slot, value_override) in state_diff {
+                let flat_key = derive_flat_storage_key(
+                    &B160::from_be_bytes(address.into_array()),
+                    &(slot.0.into()),
+                );
+                slot_out.insert(B256::from(flat_key.as_u8_array()), value_override);
+            }
+        }
+
+        if account.balance.is_some() || account.nonce.is_some() || account.code.is_some() {
+            let entry = acc_out.entry(address).or_default();
+            if let Some(bal) = account.balance {
+                entry.balance = Some(bal);
+            }
+            if let Some(nonce) = account.nonce {
+                entry.nonce = Some(nonce);
+            }
+            if let Some(code) = account.code {
+                entry.code = Some(code.to_vec());
+            }
+        }
+    }
+
+    (slot_out, acc_out)
 }

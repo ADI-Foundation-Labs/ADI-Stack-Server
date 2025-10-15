@@ -18,6 +18,7 @@ mod debug_impl;
 mod monitoring_middleware;
 mod net_impl;
 mod sandbox;
+mod state_override_view;
 mod tx_handler;
 mod types;
 mod web3_impl;
