@@ -241,9 +241,11 @@ impl EntryField {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FieldKind {
     Unsigned,
+    #[allow(dead_code)]
     Signed,
     Boolean,
     Text,
+    #[allow(dead_code)]
     Bytes,
 }
 
