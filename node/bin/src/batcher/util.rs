@@ -1,12 +1,12 @@
 use alloy::primitives::{B256, U256, keccak256};
 use blake2::{Blake2s256, Digest};
 use zksync_os_l1_sender::commitment::StoredBatchInfo;
-use zksync_os_merkle_tree::{MerkleTree, MerkleTreeVersion, RocksDBWrapper};
+use zksync_os_merkle_tree::{Database, MerkleTree, MerkleTreeVersion};
 use zksync_os_storage_api::RepositoryBlock;
 
 pub async fn load_genesis_stored_batch_info(
     genesis_block: RepositoryBlock,
-    tree: MerkleTree<RocksDBWrapper>,
+    tree: MerkleTree<impl Database>,
     expected_genesis_root: B256,
 ) -> anyhow::Result<StoredBatchInfo> {
     let tree_at_genesis = MerkleTreeVersion { tree, block: 0 };

@@ -12,7 +12,7 @@ use zksync_os_interface::types::BlockOutput;
 use zksync_os_l1_sender::batcher_metrics::BATCHER_METRICS;
 use zksync_os_l1_sender::batcher_model::{BatchEnvelope, ProverInput};
 use zksync_os_l1_sender::commitment::StoredBatchInfo;
-use zksync_os_merkle_tree::TreeBatchOutput;
+use zksync_os_merkle_tree::{Database, TreeBatchOutput};
 use zksync_os_observability::{
     ComponentStateHandle, ComponentStateReporter, GenericComponentState,
 };
@@ -25,7 +25,7 @@ pub mod util;
 
 /// Batcher component - handles batching logic, receives blocks and prepares batch data
 #[derive(Debug)]
-pub struct Batcher {
+pub struct Batcher<DB> {
     pub chain_id: u64,
     pub chain_address: Address,
     pub first_block_to_process: u64,
@@ -36,11 +36,17 @@ pub struct Batcher {
     pub pubdata_limit_bytes: u64,
     pub batcher_config: BatcherConfig,
     pub prev_batch_info: StoredBatchInfo,
+    pub _phantom: std::marker::PhantomData<DB>,
 }
 
 #[async_trait]
-impl PipelineComponent for Batcher {
-    type Input = (BlockOutput, ReplayRecord, ProverInput, BlockMerkleTreeData);
+impl<DB: Database + 'static> PipelineComponent for Batcher<DB> {
+    type Input = (
+        BlockOutput,
+        ReplayRecord,
+        ProverInput,
+        BlockMerkleTreeData<DB>,
+    );
     type Output = BatchEnvelope<ProverInput>;
 
     const NAME: &'static str = "batcher";
@@ -97,14 +103,14 @@ impl PipelineComponent for Batcher {
     }
 }
 
-impl Batcher {
+impl<DB: Database + 'static> Batcher<DB> {
     async fn create_batch(
         &mut self,
         block_receiver: &mut PeekableReceiver<(
             BlockOutput,
             ReplayRecord,
             ProverInput,
-            BlockMerkleTreeData,
+            BlockMerkleTreeData<DB>,
         )>,
         latency_tracker: &ComponentStateHandle<GenericComponentState>,
         expected_first_block: u64,

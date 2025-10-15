@@ -10,7 +10,7 @@ use tokio_stream::wrappers::ReceiverStream;
 use vise::{Buckets, Histogram, LabeledFamily, Metrics, Unit};
 use zksync_os_interface::types::BlockOutput;
 use zksync_os_l1_sender::batcher_model::ProverInput;
-use zksync_os_merkle_tree::{MerkleTreeVersion, RocksDBWrapper, fixed_bytes_to_bytes32};
+use zksync_os_merkle_tree::{Database, MerkleTreeVersion, fixed_bytes_to_bytes32};
 use zksync_os_multivm::{ExecutionVersion, proving_run_execution_version};
 use zksync_os_observability::{ComponentStateReporter, GenericComponentState};
 use zksync_os_pipeline::{PeekableReceiver, PipelineComponent};
@@ -18,20 +18,26 @@ use zksync_os_storage_api::{ReadStateHistory, ReplayRecord};
 use zksync_os_types::ZksyncOsEncode;
 
 /// This component generates prover input from batch replay data
-pub struct ProverInputGenerator<ReadState> {
+pub struct ProverInputGenerator<ReadState, DB> {
     pub enable_logging: bool,
     pub maximum_in_flight_blocks: usize,
     pub first_block_to_process: u64,
     pub app_bin_base_path: PathBuf,
     pub read_state: ReadState,
+    pub _phantom: std::marker::PhantomData<DB>,
 }
 
 #[async_trait]
-impl<ReadState: ReadStateHistory + Clone + Send + 'static> PipelineComponent
-    for ProverInputGenerator<ReadState>
+impl<ReadState: ReadStateHistory + Clone + Send + 'static, DB: Database + Clone + 'static>
+    PipelineComponent for ProverInputGenerator<ReadState, DB>
 {
-    type Input = (BlockOutput, ReplayRecord, BlockMerkleTreeData);
-    type Output = (BlockOutput, ReplayRecord, ProverInput, BlockMerkleTreeData);
+    type Input = (BlockOutput, ReplayRecord, BlockMerkleTreeData<DB>);
+    type Output = (
+        BlockOutput,
+        ReplayRecord,
+        ProverInput,
+        BlockMerkleTreeData<DB>,
+    );
 
     const NAME: &'static str = "prover_input_generator";
     const OUTPUT_BUFFER_SIZE: usize = 5;
@@ -111,7 +117,7 @@ impl<ReadState: ReadStateHistory + Clone + Send + 'static> PipelineComponent
 fn compute_prover_input(
     replay_record: &ReplayRecord,
     state_handle: impl ReadStateHistory,
-    tree_view: MerkleTreeVersion<RocksDBWrapper>,
+    tree_view: MerkleTreeVersion<impl Database + 'static>,
     app_bin_base_path: PathBuf,
     enable_logging: bool,
 ) -> Vec<u32> {

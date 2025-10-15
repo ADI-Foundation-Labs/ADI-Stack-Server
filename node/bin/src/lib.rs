@@ -59,7 +59,7 @@ use zksync_os_l1_sender::commands::prove::ProofCommand;
 use zksync_os_l1_sender::pipeline_component::L1Sender;
 use zksync_os_l1_watcher::{L1CommitWatcher, L1ExecuteWatcher, L1TxWatcher};
 use zksync_os_mempool::L2TransactionPool;
-use zksync_os_merkle_tree::{MerkleTree, RocksDBWrapper};
+use zksync_os_merkle_tree::{Database, MerkleTree};
 use zksync_os_object_store::ObjectStoreFactory;
 use zksync_os_observability::GENERAL_METRICS;
 use zksync_os_pipeline::Pipeline;
@@ -469,7 +469,7 @@ async fn run_main_node_pipeline(
     starting_block: u64,
     repositories: impl WriteRepository + Clone,
     block_context_provider: BlockContextProvider<impl L2TransactionPool>,
-    tree: MerkleTree<RocksDBWrapper>,
+    tree: MerkleTree<impl Database + Clone + 'static>,
     finality: impl ReadFinality + Clone,
     chain_id: u64,
     genesis: &Genesis,
@@ -584,6 +584,7 @@ async fn run_main_node_pipeline(
                 .app_bin_unpack_path
                 .clone(),
             read_state: state.clone(),
+            _phantom: Default::default(),
         })
         .pipe(Batcher {
             chain_id,
@@ -593,6 +594,7 @@ async fn run_main_node_pipeline(
             pubdata_limit_bytes: config.sequencer_config.block_pubdata_limit_bytes,
             batcher_config: config.batcher_config.clone(),
             prev_batch_info: last_committed_batch_info,
+            _phantom: Default::default(),
         })
         .pipe(fri_proving_step)
         .pipe(GaplessCommitter {
@@ -642,7 +644,7 @@ async fn run_en_pipeline(
     tasks: &mut JoinSet<()>,
     block_context_provider: BlockContextProvider<impl L2TransactionPool>,
     state: impl ReadStateHistory + WriteState + Clone,
-    tree: MerkleTree<RocksDBWrapper>,
+    tree: MerkleTree<impl Database + Clone + 'static>,
     starting_block: u64,
     repositories: impl WriteRepository + Clone,
     finality: impl ReadFinality + Clone,

@@ -9,28 +9,28 @@ use vise::{Buckets, Gauge, Histogram, Metrics, Unit};
 use zksync_os_genesis::Genesis;
 use zksync_os_interface::types::BlockOutput;
 use zksync_os_merkle_tree::{
-    MerkleTree, MerkleTreeColumnFamily, MerkleTreeVersion, RocksDBWrapper, TreeEntry,
+    Database, MerkleTree, MerkleTreeColumnFamily, MerkleTreeVersion, RocksDBWrapper, TreeEntry,
 };
 use zksync_os_observability::{ComponentStateReporter, GenericComponentState};
 use zksync_os_pipeline::{PeekableReceiver, PipelineComponent};
 use zksync_os_rocksdb::{RocksDB, RocksDBOptions, StalledWritesRetries};
-pub struct BlockMerkleTreeData {
-    pub block_start: MerkleTreeVersion,
-    pub block_end: MerkleTreeVersion,
+pub struct BlockMerkleTreeData<DB: Database> {
+    pub block_start: MerkleTreeVersion<DB>,
+    pub block_end: MerkleTreeVersion<DB>,
 }
 
 #[derive(Debug)]
-pub(crate) struct TreeManager {
-    pub tree: MerkleTree<RocksDBWrapper>,
+pub(crate) struct TreeManager<DB> {
+    pub tree: MerkleTree<DB>,
 }
 
 #[async_trait]
-impl PipelineComponent for TreeManager {
+impl<DB: Database + Clone + 'static> PipelineComponent for TreeManager<DB> {
     type Input = (BlockOutput, zksync_os_storage_api::ReplayRecord);
     type Output = (
         BlockOutput,
         zksync_os_storage_api::ReplayRecord,
-        BlockMerkleTreeData,
+        BlockMerkleTreeData<DB>,
     );
     const NAME: &'static str = "merkle_tree";
     const OUTPUT_BUFFER_SIZE: usize = 10;
@@ -125,7 +125,7 @@ impl PipelineComponent for TreeManager {
     }
 }
 
-impl TreeManager {
+impl TreeManager<RocksDBWrapper> {
     pub async fn load_or_initialize_tree(
         path: &Path,
         genesis: &Genesis,
