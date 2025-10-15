@@ -165,7 +165,8 @@ fn format_context(cf: &str, key: &[u8], value: &[u8]) -> Result<EntryRecord> {
 
 fn format_last_l1_id(cf: &str, key: &[u8], value: &[u8]) -> Result<EntryRecord> {
     let block = decode_u64(key)?;
-    let id = decode_u64(value)?;
+    let (id, _): (u64, _) = bincode::serde::decode_from_slice(value, bincode::config::standard())
+        .context("Failed to deserialize context")?;
     let summary = format!("block {block}: next L1 priority id {id}");
     let detail = format!("Block #{block}\nLast processed L1 tx id: {id}");
     Ok(
