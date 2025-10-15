@@ -10,7 +10,7 @@ use tokio::{
 };
 use tokio_util::codec::{self, FramedRead, FramedWrite, LengthDelimitedCodec};
 use zksync_os_sequencer::model::blocks::BlockCommand;
-use zksync_os_storage_api::{REPLAY_WIRE_FORMAT_VERSION, ReplayRecord};
+use zksync_os_storage_api::{REPLAY_WIRE_FORMAT_VERSION, ReadReplayExt, ReplayRecord};
 
 use zksync_os_storage::db::BlockReplayStorage;
 

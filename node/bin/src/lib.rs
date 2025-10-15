@@ -46,12 +46,10 @@ use alloy::network::EthereumWallet;
 use alloy::providers::{Provider, WalletProvider};
 use anyhow::{Context, Result};
 use futures::FutureExt;
-use futures::StreamExt;
-use futures::stream::BoxStream;
 use ruint::aliases::U256;
 use std::path::Path;
 use std::sync::Arc;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use tokio::sync::watch;
 use tokio::task::JoinSet;
 use zksync_os_contract_interface::l1_discovery::L1State;
@@ -70,7 +68,6 @@ use zksync_os_pipeline::Pipeline;
 use zksync_os_rpc::{RpcStorage, run_jsonrpsee_server};
 use zksync_os_sequencer::execution::Sequencer;
 use zksync_os_sequencer::execution::block_context_provider::BlockContextProvider;
-use zksync_os_sequencer::model::blocks::{BlockCommand, ProduceCommand};
 use zksync_os_status_server::run_status_server;
 use zksync_os_storage::db::BlockReplayStorage;
 use zksync_os_storage::in_memory::Finality;
@@ -218,7 +215,7 @@ pub async fn run<State: ReadStateHistory + WriteState + StateInitializer + Clone
         is_main_node: config.sequencer_config.is_main_node(),
         l1_state: l1_state.clone(),
         state_block_range_available: state.block_range_available(),
-        block_replay_storage_last_block: block_replay_storage.latest_block().unwrap_or(0),
+        block_replay_storage_last_block: block_replay_storage.latest_record().unwrap_or(0),
         tree_last_block: tree_db
             .latest_version()
             .expect("cannot read tree last processed block after initialization")
@@ -458,39 +455,6 @@ pub async fn run<State: ReadStateHistory + WriteState + StateInitializer + Clone
     tracing::info!("All components initialized in {startup_time:?}");
     tasks.join_next().await;
     tracing::info!("One of the subsystems exited - exiting process.");
-}
-
-// todo: extract to a `command_source.rs` - left here to reduce PR size.
-pub fn command_source(
-    block_replay_wal: &BlockReplayStorage,
-    block_to_start: u64,
-    block_time: Duration,
-    max_transactions_in_block: usize,
-) -> BoxStream<BlockCommand> {
-    let last_block_in_wal = block_replay_wal.latest_block().unwrap_or(0);
-    tracing::info!(last_block_in_wal, "Last block in WAL: {last_block_in_wal}");
-    tracing::info!(block_to_start, "block_to_start: {block_to_start}");
-
-    // Stream of replay commands from WAL
-    let replay_wal_stream = block_replay_wal
-        .stream_from(block_to_start)
-        .map(|record| BlockCommand::Replay(Box::new(record)));
-
-    // Combined source: run WAL replay first, then produce blocks from mempool
-    let produce_stream: BoxStream<BlockCommand> =
-        futures::stream::unfold(last_block_in_wal + 1, move |block_number| async move {
-            Some((
-                BlockCommand::Produce(ProduceCommand {
-                    block_number,
-                    block_time,
-                    max_transactions_in_block,
-                }),
-                block_number + 1,
-            ))
-        })
-        .boxed();
-    let stream = replay_wal_stream.chain(produce_stream);
-    stream.boxed()
 }
 
 #[allow(clippy::too_many_arguments)]
