@@ -72,7 +72,7 @@ use zksync_os_storage::in_memory::Finality;
 use zksync_os_storage::lazy::RepositoryManager;
 use zksync_os_storage_api::{
     FinalityStatus, ReadFinality, ReadReplay, ReadRepository, ReadStateHistory, WriteReplay,
-    WriteState,
+    WriteRepository, WriteState,
 };
 
 const BLOCK_REPLAY_WAL_DB_NAME: &str = "block_replay_wal";
@@ -471,7 +471,7 @@ async fn run_main_node_pipeline<
     tasks: &mut JoinSet<()>,
     state: State,
     starting_block: u64,
-    repositories: RepositoryManager,
+    repositories: impl WriteRepository + Clone,
     block_context_provider: BlockContextProvider<Mempool>,
     tree: MerkleTree<RocksDBWrapper>,
     finality: Finality,
@@ -652,7 +652,7 @@ async fn run_en_pipeline<
     state: State,
     tree: MerkleTree<RocksDBWrapper>,
     starting_block: u64,
-    repositories: RepositoryManager,
+    repositories: impl WriteRepository + Clone,
     finality: Finality,
     _stop_receiver: watch::Receiver<bool>,
 ) {
@@ -701,7 +701,7 @@ async fn run_en_pipeline<
     );
 }
 
-fn block_hashes_for_first_block(repositories: &RepositoryManager) -> BlockHashes {
+fn block_hashes_for_first_block(repositories: &dyn ReadRepository) -> BlockHashes {
     let mut block_hashes = BlockHashes::default();
     let genesis_block = repositories
         .get_block_by_number(0)
