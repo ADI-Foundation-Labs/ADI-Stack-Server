@@ -12029,8 +12029,12 @@ name = "zksync_os_storage"
 version = "0.8.2-non-semver-compat"
 dependencies = [
  "alloy",
+ "bincode 2.0.1",
  "dashmap",
  "forward_system",
+ "futures",
+ "pin-project 1.1.10",
+ "semver 1.0.26",
  "tokio",
  "tracing",
  "vise",

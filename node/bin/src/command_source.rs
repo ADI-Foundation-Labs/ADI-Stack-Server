@@ -1,4 +1,3 @@
-use crate::block_replay_storage::BlockReplayStorage;
 use crate::command_source;
 use crate::replay_transport::replay_receiver;
 use async_trait::async_trait;
@@ -7,6 +6,7 @@ use std::time::Duration;
 use tokio::sync::mpsc;
 use zksync_os_pipeline::{PeekableReceiver, PipelineComponent};
 use zksync_os_sequencer::model::blocks::BlockCommand;
+use zksync_os_storage::db::BlockReplayStorage;
 
 /// Main node command source
 #[derive(Debug)]

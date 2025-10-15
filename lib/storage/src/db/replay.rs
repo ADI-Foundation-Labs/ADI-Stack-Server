@@ -1,11 +1,9 @@
-use crate::BLOCK_REPLAY_WAL_DB_NAME;
-use crate::metadata::NODE_VERSION;
 use alloy::primitives::{B256, BlockNumber};
 use futures::Stream;
 use futures::stream::{self, BoxStream, StreamExt};
 use pin_project::pin_project;
 use std::convert::TryInto;
-use std::path::PathBuf;
+use std::path::Path;
 use std::task::Poll;
 use std::time::Duration;
 use tokio::pin;
@@ -16,7 +14,6 @@ use zksync_os_genesis::Genesis;
 use zksync_os_interface::types::BlockContext;
 use zksync_os_rocksdb::RocksDB;
 use zksync_os_rocksdb::db::{NamedColumnFamily, WriteBatch};
-use zksync_os_sequencer::model::blocks::BlockCommand;
 use zksync_os_storage_api::{ReadReplay, ReplayRecord, WriteReplay};
 
 /// A write-ahead log storing BlockReplayData.
@@ -71,11 +68,10 @@ impl BlockReplayStorage {
     /// Key under `Latest` CF for tracking the highest block number.
     const LATEST_KEY: &'static [u8] = b"latest_block";
 
-    pub async fn new(rocks_db_path: PathBuf, genesis: &Genesis) -> Self {
-        let db =
-            RocksDB::<BlockReplayColumnFamily>::new(&rocks_db_path.join(BLOCK_REPLAY_WAL_DB_NAME))
-                .expect("Failed to open BlockReplayWAL")
-                .with_sync_writes();
+    pub async fn new(db_path: &Path, genesis: &Genesis, node_version: semver::Version) -> Self {
+        let db = RocksDB::<BlockReplayColumnFamily>::new(db_path)
+            .expect("Failed to open BlockReplayStorage")
+            .with_sync_writes();
 
         let this = Self { db };
         if this.latest_block().is_none() {
@@ -88,7 +84,7 @@ impl BlockReplayStorage {
                 starting_l1_priority_id: 0,
                 transactions: vec![],
                 previous_block_timestamp: 0,
-                node_version: NODE_VERSION.parse().unwrap(),
+                node_version,
                 block_output_hash: B256::ZERO,
             })
         }
@@ -150,23 +146,23 @@ impl BlockReplayStorage {
             })
     }
 
-    /// Streams all replay commands with block_number ≥ `start`, in ascending block order - used for state recovery
-    pub fn replay_commands_from(&self, start: u64) -> BoxStream<BlockCommand> {
+    /// Streams all replay records with block_number ≥ `start`, in ascending block order. Finishes
+    /// when after reaching the latest stored record.
+    pub fn stream_from(&self, start: u64) -> BoxStream<ReplayRecord> {
         let latest = self.latest_block().unwrap_or(0);
         let stream = stream::iter(start..=latest).filter_map(move |block_num| {
             let record = self.get_replay_record(block_num);
             match record {
-                Some(record) => {
-                    futures::future::ready(Some(BlockCommand::Replay(Box::new(record))))
-                }
+                Some(record) => futures::future::ready(Some(record)),
                 None => futures::future::ready(None),
             }
         });
         Box::pin(stream)
     }
 
-    /// Streams all replay commands with block_number ≥ `start`, in ascending block order and waits for new ones on running out
-    pub fn replay_commands_forever(&self, start: BlockNumber) -> BoxStream<ReplayRecord> {
+    /// Streams all replay records with block_number ≥ `start`, in ascending block order. On reaching
+    /// the latest stored record continuously waits for new records to appear.
+    pub fn stream_from_forever(&self, start: BlockNumber) -> BoxStream<ReplayRecord> {
         #[pin_project]
         struct BlockStream {
             replays: BlockReplayStorage,
@@ -180,7 +176,7 @@ impl BlockReplayStorage {
             fn poll_next(
                 self: std::pin::Pin<&mut Self>,
                 cx: &mut std::task::Context<'_>,
-            ) -> std::task::Poll<Option<Self::Item>> {
+            ) -> Poll<Option<Self::Item>> {
                 let mut this = self.project();
                 if let Some(record) = this.replays.get_replay_record(*this.current_block) {
                     *this.current_block += 1;
@@ -322,5 +318,5 @@ pub struct BlockReplayRocksDBMetrics {
 }
 
 #[vise::register]
-pub(crate) static BLOCK_REPLAY_ROCKS_DB_METRICS: vise::Global<BlockReplayRocksDBMetrics> =
+pub static BLOCK_REPLAY_ROCKS_DB_METRICS: vise::Global<BlockReplayRocksDBMetrics> =
     vise::Global::new();

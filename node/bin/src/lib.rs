@@ -3,7 +3,6 @@
 #![feature(generic_const_exprs)]
 mod batch_sink;
 pub mod batcher;
-pub mod block_replay_storage;
 mod command_source;
 pub mod config;
 mod en_remote_config;
@@ -22,7 +21,6 @@ pub mod zkstack_config;
 
 use crate::batch_sink::{BatchSink, NoOpSink};
 use crate::batcher::{Batcher, util::load_genesis_stored_batch_info};
-use crate::block_replay_storage::BlockReplayStorage;
 use crate::command_source::{ExternalNodeCommandSource, MainNodeCommandSource};
 use crate::config::{Config, ProverApiConfig};
 use crate::en_remote_config::load_remote_config;
@@ -74,6 +72,7 @@ use zksync_os_sequencer::execution::Sequencer;
 use zksync_os_sequencer::execution::block_context_provider::BlockContextProvider;
 use zksync_os_sequencer::model::blocks::{BlockCommand, ProduceCommand};
 use zksync_os_status_server::run_status_server;
+use zksync_os_storage::db::BlockReplayStorage;
 use zksync_os_storage::in_memory::Finality;
 use zksync_os_storage::lazy::RepositoryManager;
 use zksync_os_storage_api::{
@@ -178,8 +177,15 @@ pub async fn run<State: ReadStateHistory + WriteState + StateInitializer + Clone
 
     tracing::info!("Initializing BlockReplayStorage");
 
-    let block_replay_storage =
-        BlockReplayStorage::new(config.general_config.rocks_db_path.clone(), &genesis).await;
+    let block_replay_storage = BlockReplayStorage::new(
+        &config
+            .general_config
+            .rocks_db_path
+            .join(BLOCK_REPLAY_WAL_DB_NAME),
+        &genesis,
+        node_version.clone(),
+    )
+    .await;
 
     tracing::info!("Initializing Tree RocksDB");
     let tree_db = TreeManager::load_or_initialize_tree(
@@ -466,8 +472,9 @@ pub fn command_source(
     tracing::info!(block_to_start, "block_to_start: {block_to_start}");
 
     // Stream of replay commands from WAL
-    let replay_wal_stream: BoxStream<BlockCommand> =
-        Box::pin(block_replay_wal.replay_commands_from(block_to_start));
+    let replay_wal_stream = block_replay_wal
+        .stream_from(block_to_start)
+        .map(|record| BlockCommand::Replay(Box::new(record)));
 
     // Combined source: run WAL replay first, then produce blocks from mempool
     let produce_stream: BoxStream<BlockCommand> =

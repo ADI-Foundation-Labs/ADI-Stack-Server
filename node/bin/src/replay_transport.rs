@@ -12,7 +12,7 @@ use tokio_util::codec::{self, FramedRead, FramedWrite, LengthDelimitedCodec};
 use zksync_os_sequencer::model::blocks::BlockCommand;
 use zksync_os_storage_api::{REPLAY_WIRE_FORMAT_VERSION, ReplayRecord};
 
-use crate::block_replay_storage::BlockReplayStorage;
+use zksync_os_storage::db::BlockReplayStorage;
 
 pub async fn replay_server(
     block_replays: BlockReplayStorage,
@@ -52,7 +52,7 @@ pub async fn replay_server(
             );
 
             let mut replay_sender = FramedWrite::new(send, BlockReplayEncoder::new());
-            let mut stream = block_replays.replay_commands_forever(starting_block);
+            let mut stream = block_replays.stream_from_forever(starting_block);
             loop {
                 let replay = stream.next().await.unwrap();
                 match replay_sender.send(replay).await {
