@@ -18,10 +18,10 @@ pub const STACK_SIZE: usize = 1024;
 /// zksync-os ergs per gas.
 pub const ERGS_PER_GAS: u64 = 256;
 
-pub fn execute(
+pub fn execute<V: ViewState>(
     tx: ZkTransaction,
     mut block_context: BlockContext,
-    state_view: impl ViewState,
+    state_view: V,
 ) -> anyhow::Result<Result<TxOutput, InvalidTransaction>> {
     let encoded_tx = tx.encode();
 

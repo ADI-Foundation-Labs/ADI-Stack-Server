@@ -236,29 +236,28 @@ impl<RpcStorage: ReadRpcStorage> EthCallHandler<RpcStorage> {
             .storage
             .state_view_at(execution_env.block_context.block_number)?;
 
-        let res = if let Some(state_overrides) = state_overrides {
-            let (slot_overrides, account_overrides) = parse_state_overrides(state_overrides);
-            if slot_overrides.is_empty() && account_overrides.is_empty() {
-                execute(
-                    execution_env.transaction,
-                    execution_env.block_context,
-                    storage_view,
-                )
-            } else {
-                let wrapped =
-                    OverriddenStateView::new(storage_view, slot_overrides, account_overrides);
-                execute(
-                    execution_env.transaction,
-                    execution_env.block_context,
-                    wrapped,
-                )
+        let res = match state_overrides {
+            Some(ov) => {
+                let (slot, acct) = parse_state_overrides(ov);
+                if slot.is_empty() && acct.is_empty() {
+                    execute(
+                        execution_env.transaction,
+                        execution_env.block_context,
+                        storage_view,
+                    )
+                } else {
+                    execute(
+                        execution_env.transaction,
+                        execution_env.block_context,
+                        OverriddenStateView::new(storage_view, slot, acct),
+                    )
+                }
             }
-        } else {
-            execute(
+            None => execute(
                 execution_env.transaction,
                 execution_env.block_context,
                 storage_view,
-            )
+            ),
         }
         .map_err(EthCallError::ForwardSubsystemError)?
         .map_err(EthCallError::InvalidTransaction)?;
@@ -288,32 +287,31 @@ impl<RpcStorage: ReadRpcStorage> EthCallHandler<RpcStorage> {
             .storage
             .state_view_at(execution_env.block_context.block_number)?;
 
-        if let Some(state_overrides) = state_overrides {
-            let (slot_overrides, account_overrides) = parse_state_overrides(state_overrides);
-            if slot_overrides.is_empty() && account_overrides.is_empty() {
-                call_trace_simulate(
-                    execution_env.transaction,
-                    execution_env.block_context,
-                    storage_view,
-                    call_config,
-                )
-            } else {
-                let wrapped =
-                    OverriddenStateView::new(storage_view, slot_overrides, account_overrides);
-                call_trace_simulate(
-                    execution_env.transaction,
-                    execution_env.block_context,
-                    wrapped,
-                    call_config,
-                )
+        match state_overrides {
+            Some(ov) => {
+                let (slot, acct) = parse_state_overrides(ov);
+                if slot.is_empty() && acct.is_empty() {
+                    call_trace_simulate(
+                        execution_env.transaction,
+                        execution_env.block_context,
+                        storage_view,
+                        call_config,
+                    )
+                } else {
+                    call_trace_simulate(
+                        execution_env.transaction,
+                        execution_env.block_context,
+                        OverriddenStateView::new(storage_view, slot, acct),
+                        call_config,
+                    )
+                }
             }
-        } else {
-            call_trace_simulate(
+            None => call_trace_simulate(
                 execution_env.transaction,
                 execution_env.block_context,
                 storage_view,
                 call_config,
-            )
+            ),
         }
         .map(GethTrace::CallTracer)
         .map_err(|err| EthCallError::ForwardSubsystemError(anyhow::anyhow!(err)))
