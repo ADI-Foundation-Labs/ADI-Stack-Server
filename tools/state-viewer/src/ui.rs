@@ -1,6 +1,6 @@
 use ratatui::{
     layout::{Constraint, Direction, Layout},
-    style::{Modifier, Style},
+    style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block as TuiBlock, Borders, List, ListItem, ListState, Paragraph, Wrap},
     Frame,
@@ -45,8 +45,18 @@ fn build_header_lines(app: &App) -> Vec<Line<'static>> {
         Span::raw(app.db_path().display().to_string()),
     ]));
     lines.push(Line::from(
-        "Controls: Tab/Shift-Tab DB • ←/→ CF • ↑/↓ move • PgUp/PgDn page • g/G start/end • r reload • q exit",
+        "Controls: Tab/Shift-Tab DB • ←/→ CF • ↑/↓ move • PgUp/PgDn page • g/G start/end • s cycle sort • Shift+S reverse • x clear sort • / search • e edit • d delete • r reload • q exit",
     ));
+    let mut status_parts = Vec::new();
+    if let Some(sort) = app.sort_label() {
+        status_parts.push(format!("Sort: {sort}"));
+    }
+    if let Some(filter) = app.filter_label() {
+        status_parts.push(format!("Filter: {filter}"));
+    }
+    if !status_parts.is_empty() {
+        lines.push(Line::from(status_parts.join("  •  ")));
+    }
     if let Some(status) = app.status_message() {
         lines.push(Line::from(status.to_owned()));
     } else {
@@ -112,18 +122,66 @@ fn render_entries(app: &App, frame: &mut Frame<'_>, area: ratatui::layout::Rect)
 }
 
 fn render_details(app: &App, frame: &mut Frame<'_>, area: ratatui::layout::Rect) {
-    let detail_text = match app.selected_entry() {
-        Some(idx) => app.entries()[idx].detail().to_string(),
-        None => "Select a column family or press r to reload.".to_string(),
-    };
+    if let Some(prompt) = app.prompt_state() {
+        let mut lines = Vec::new();
+        lines.push(Line::from(Span::styled(
+            prompt.title(),
+            Style::default().add_modifier(Modifier::BOLD),
+        )));
+        if let Some(message) = prompt.message() {
+            lines.push(Line::from(message.to_string()));
+        }
+        let mut input_line = String::from("> ");
+        input_line.push_str(prompt.input());
+        input_line.push('▌');
+        lines.push(Line::from(input_line));
+        if let Some(error) = prompt.error() {
+            lines.push(Line::from(Span::styled(
+                error.to_string(),
+                Style::default().fg(Color::Red),
+            )));
+        }
+        lines.push(Line::from("Enter to confirm • Esc cancels"));
 
-    let detail = Paragraph::new(detail_text)
-        .block(
-            TuiBlock::default()
-                .title("Entry Details")
-                .borders(Borders::ALL),
-        )
-        .wrap(Wrap { trim: false });
+        let block = Paragraph::new(lines)
+            .block(
+                TuiBlock::default()
+                    .title("Input")
+                    .borders(Borders::ALL),
+            )
+            .wrap(Wrap { trim: false });
+        frame.render_widget(block, area);
+    } else if let Some(confirm) = app.confirm_state() {
+        let lines = vec![
+            Line::from(Span::styled(
+                confirm.title(),
+                Style::default().add_modifier(Modifier::BOLD),
+            )),
+            Line::from(confirm.message().to_string()),
+            Line::from("Press y to confirm • n/Esc cancels"),
+        ];
+        let block = Paragraph::new(lines)
+            .block(
+                TuiBlock::default()
+                    .title("Confirm")
+                    .borders(Borders::ALL),
+            )
+            .wrap(Wrap { trim: false });
+        frame.render_widget(block, area);
+    } else {
+        let detail_text = match app.selected_entry() {
+            Some(idx) => app.entries()[idx].detail().to_string(),
+            None => "Select a column family or press r to reload.".to_string(),
+        };
 
-    frame.render_widget(detail, area);
+        let detail = Paragraph::new(detail_text)
+            .block(
+                TuiBlock::default()
+                    .title("Entry Details")
+                    .borders(Borders::ALL),
+            )
+            .wrap(Wrap { trim: false });
+
+        frame.render_widget(detail, area);
+    }
 }

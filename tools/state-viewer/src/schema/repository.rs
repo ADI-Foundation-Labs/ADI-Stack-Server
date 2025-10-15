@@ -1,4 +1,4 @@
-use std::fmt::Write as _;
+use std::{convert::TryFrom, fmt::Write as _};
 
 use alloy::consensus::Block;
 use alloy::eips::Decodable2718 as _;
@@ -11,7 +11,7 @@ use zksync_os_types::{ZkEnvelope, ZkReceiptEnvelope};
 use super::utils::{
     decode_b256, decode_u64, ensure_len, format_address, format_b256, format_optional_address,
 };
-use super::{Entry, Schema};
+use super::{EntryField, EntryRecord, FieldCapabilities, FieldRole, FieldValue, Schema};
 
 pub struct RepositorySchema;
 
@@ -36,21 +36,41 @@ impl Schema for RepositorySchema {
         ]
     }
 
-    fn format_entry(&self, cf: &str, key: &[u8], value: &[u8]) -> Result<Entry> {
+    fn decode_entry(&self, cf: &str, key: &[u8], value: &[u8]) -> Result<EntryRecord> {
         match cf {
-            "block_data" => format_block_data(key, value),
-            "block_number_to_hash" => format_block_number_to_hash(key, value),
-            "tx" => format_tx(key, value),
-            "tx_receipt" => format_receipt(key, value),
-            "tx_meta" => format_tx_meta(key, value),
-            "initiator_and_nonce_to_hash" => format_initiator_nonce(key, value),
-            "meta" => format_meta(key, value),
+            "block_data" => format_block_data(cf, key, value),
+            "block_number_to_hash" => format_block_number_to_hash(cf, key, value),
+            "tx" => format_tx(cf, key, value),
+            "tx_receipt" => format_receipt(cf, key, value),
+            "tx_meta" => format_tx_meta(cf, key, value),
+            "initiator_and_nonce_to_hash" => format_initiator_nonce(cf, key, value),
+            "meta" => format_meta(cf, key, value),
             other => Err(anyhow!("Unsupported column family `{other}`")),
+        }
+    }
+
+    fn update_value(
+        &self,
+        cf: &str,
+        _entry: &EntryRecord,
+        field_name: &str,
+        new_value: &FieldValue,
+    ) -> Result<Vec<u8>> {
+        if cf == "meta" && field_name.eq_ignore_ascii_case("block") {
+            let number = match new_value {
+                FieldValue::Unsigned(value) => *value,
+                _ => return Err(anyhow!("Metadata value must be an unsigned integer")),
+            };
+            let value_u64 = u64::try_from(number)
+                .map_err(|_| anyhow!("Value {number} exceeds u64 range"))?;
+            Ok(value_u64.to_be_bytes().to_vec())
+        } else {
+            Err(anyhow!("Editing not supported for column family `{cf}`"))
         }
     }
 }
 
-fn format_block_data(key: &[u8], value: &[u8]) -> Result<Entry> {
+fn format_block_data(cf: &str, key: &[u8], value: &[u8]) -> Result<EntryRecord> {
     let hash = decode_b256(key, "block hash")?;
     let mut slice = value;
     let block = Block::decode(&mut slice).context("decoding block rlp")?;
@@ -72,18 +92,65 @@ fn format_block_data(key: &[u8], value: &[u8]) -> Result<Entry> {
         tx_count,
         value.len()
     );
-    Ok(Entry::new(summary, detail))
+    Ok(
+        EntryRecord::new(cf, key, value, summary, detail).with_fields([
+            EntryField::text(
+                "hash",
+                format_b256(hash, 0),
+                FieldRole::Key,
+                FieldCapabilities::default().searchable().key_part(),
+            ),
+            EntryField::unsigned(
+                "block",
+                header.number as u128,
+                FieldRole::Value,
+                FieldCapabilities::default()
+                    .sortable()
+                    .searchable(),
+            ),
+            EntryField::unsigned(
+                "timestamp",
+                header.timestamp as u128,
+                FieldRole::Value,
+                FieldCapabilities::default().sortable().searchable(),
+            ),
+            EntryField::unsigned(
+                "tx_count",
+                tx_count as u128,
+                FieldRole::Derived,
+                FieldCapabilities::default().sortable(),
+            ),
+        ]),
+    )
 }
 
-fn format_block_number_to_hash(key: &[u8], value: &[u8]) -> Result<Entry> {
+fn format_block_number_to_hash(cf: &str, key: &[u8], value: &[u8]) -> Result<EntryRecord> {
     let number = decode_u64(key)?;
     let hash = decode_b256(value, "block hash")?;
     let summary = format!("block #{number} → {}", format_b256(hash, 12));
     let detail = format!("Block #{number}\nHash: {}", format_b256(hash, 0));
-    Ok(Entry::new(summary, detail))
+    Ok(
+        EntryRecord::new(cf, key, value, summary, detail).with_fields([
+            EntryField::unsigned(
+                "block",
+                number as u128,
+                FieldRole::Key,
+                FieldCapabilities::default()
+                    .sortable()
+                    .searchable()
+                    .key_part(),
+            ),
+            EntryField::text(
+                "hash",
+                format_b256(hash, 0),
+                FieldRole::Value,
+                FieldCapabilities::default().searchable(),
+            ),
+        ]),
+    )
 }
 
-fn format_tx(key: &[u8], value: &[u8]) -> Result<Entry> {
+fn format_tx(cf: &str, key: &[u8], value: &[u8]) -> Result<EntryRecord> {
     let hash = decode_b256(key, "tx hash")?;
     let mut slice = value;
     let envelope = ZkEnvelope::decode_2718(&mut slice)?;
@@ -106,7 +173,7 @@ fn format_tx(key: &[u8], value: &[u8]) -> Result<Entry> {
         value.len()
     );
 
-    if let Some(tx) = recovered {
+    if let Some(tx) = recovered.as_ref() {
         let (inner, signer) = tx.clone().into_parts();
         let _ = writeln!(detail, "Signer: {}", format_address(signer));
         let _ = writeln!(detail, "Nonce: {}", tx.nonce());
@@ -119,10 +186,39 @@ fn format_tx(key: &[u8], value: &[u8]) -> Result<Entry> {
         }
     }
 
-    Ok(Entry::new(summary, detail))
+    let mut entry = EntryRecord::new(cf, key, value, summary, detail).with_field(
+        EntryField::text(
+            "hash",
+            format_b256(hash, 0),
+            FieldRole::Key,
+            FieldCapabilities::default().searchable().key_part(),
+        ),
+    );
+    entry.add_field(EntryField::text(
+        "tx_type",
+        format!("{:?}", envelope.tx_type()),
+        FieldRole::Derived,
+        FieldCapabilities::default().searchable(),
+    ));
+    if let Some(tx) = recovered.as_ref() {
+        let (_, signer) = tx.clone().into_parts();
+        entry.add_field(EntryField::unsigned(
+            "nonce",
+            tx.nonce() as u128,
+            FieldRole::Value,
+            FieldCapabilities::default().sortable().searchable(),
+        ));
+        entry.add_field(EntryField::text(
+            "signer",
+            format_address(signer),
+            FieldRole::Value,
+            FieldCapabilities::default().searchable(),
+        ));
+    }
+    Ok(entry)
 }
 
-fn format_receipt(key: &[u8], value: &[u8]) -> Result<Entry> {
+fn format_receipt(cf: &str, key: &[u8], value: &[u8]) -> Result<EntryRecord> {
     let hash = decode_b256(key, "tx hash")?;
     let mut slice = value;
     let receipt = ZkReceiptEnvelope::decode_2718(&mut slice)?;
@@ -141,10 +237,31 @@ fn format_receipt(key: &[u8], value: &[u8]) -> Result<Entry> {
         receipt.logs().len(),
         value.len()
     );
-    Ok(Entry::new(summary, detail))
+    Ok(
+        EntryRecord::new(cf, key, value, summary, detail).with_fields([
+            EntryField::text(
+                "hash",
+                format_b256(hash, 0),
+                FieldRole::Key,
+                FieldCapabilities::default().searchable().key_part(),
+            ),
+            EntryField::boolean(
+                "status",
+                receipt.status(),
+                FieldRole::Value,
+                FieldCapabilities::default().searchable(),
+            ),
+            EntryField::unsigned(
+                "logs",
+                receipt.logs().len() as u128,
+                FieldRole::Derived,
+                FieldCapabilities::default().sortable(),
+            ),
+        ]),
+    )
 }
 
-fn format_tx_meta(key: &[u8], value: &[u8]) -> Result<Entry> {
+fn format_tx_meta(cf: &str, key: &[u8], value: &[u8]) -> Result<EntryRecord> {
     let hash = decode_b256(key, "tx hash")?;
     let mut slice = value;
     let meta = TxMeta::decode(&mut slice)?;
@@ -166,10 +283,39 @@ fn format_tx_meta(key: &[u8], value: &[u8]) -> Result<Entry> {
         meta.number_of_logs_before_this_tx,
         meta.contract_address.map_or_else(|| "none".into(), format_address)
     );
-    Ok(Entry::new(summary, detail))
+    Ok(
+        EntryRecord::new(cf, key, value, summary, detail).with_fields([
+            EntryField::text(
+                "hash",
+                format_b256(hash, 0),
+                FieldRole::Key,
+                FieldCapabilities::default().searchable().key_part(),
+            ),
+            EntryField::unsigned(
+                "block",
+                meta.block_number as u128,
+                FieldRole::Value,
+                FieldCapabilities::default()
+                    .sortable()
+                    .searchable(),
+            ),
+            EntryField::unsigned(
+                "timestamp",
+                meta.block_timestamp as u128,
+                FieldRole::Value,
+                FieldCapabilities::default().sortable(),
+            ),
+            EntryField::unsigned(
+                "tx_index",
+                meta.tx_index_in_block as u128,
+                FieldRole::Value,
+                FieldCapabilities::default().sortable(),
+            ),
+        ]),
+    )
 }
 
-fn format_initiator_nonce(key: &[u8], value: &[u8]) -> Result<Entry> {
+fn format_initiator_nonce(cf: &str, key: &[u8], value: &[u8]) -> Result<EntryRecord> {
     ensure_len(key, 28, "initiator+nonce key")?;
     let (addr_bytes, nonce_bytes) = key.split_at(20);
     let address = Address::from_slice(addr_bytes);
@@ -187,13 +333,55 @@ fn format_initiator_nonce(key: &[u8], value: &[u8]) -> Result<Entry> {
         nonce,
         format_b256(hash, 0)
     );
-    Ok(Entry::new(summary, detail))
+    Ok(
+        EntryRecord::new(cf, key, value, summary, detail).with_fields([
+            EntryField::text(
+                "initiator",
+                format_address(address),
+                FieldRole::Key,
+                FieldCapabilities::default().searchable().key_part(),
+            ),
+            EntryField::unsigned(
+                "nonce",
+                nonce as u128,
+                FieldRole::Key,
+                FieldCapabilities::default()
+                    .sortable()
+                    .searchable()
+                    .key_part(),
+            ),
+            EntryField::text(
+                "hash",
+                format_b256(hash, 0),
+                FieldRole::Value,
+                FieldCapabilities::default().searchable(),
+            ),
+        ]),
+    )
 }
 
-fn format_meta(key: &[u8], value: &[u8]) -> Result<Entry> {
+fn format_meta(cf: &str, key: &[u8], value: &[u8]) -> Result<EntryRecord> {
     let key_str = String::from_utf8_lossy(key);
     let number = decode_u64(value)?;
     let summary = format!("{key_str} → {number}");
     let detail = format!("Metadata key `{key_str}`\nLatest block number: {number}");
-    Ok(Entry::new(summary, detail))
+    Ok(
+        EntryRecord::new(cf, key, value, summary, detail).with_fields([
+            EntryField::text(
+                "meta_key",
+                key_str.to_string(),
+                FieldRole::Key,
+                FieldCapabilities::default().searchable().key_part(),
+            ),
+            EntryField::unsigned(
+                "block",
+                number as u128,
+                FieldRole::Value,
+                FieldCapabilities::default()
+                    .sortable()
+                    .searchable()
+                    .editable(),
+            ),
+        ]),
+    )
 }

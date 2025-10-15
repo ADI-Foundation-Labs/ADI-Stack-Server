@@ -1,4 +1,4 @@
-use std::fmt::Write as _;
+use std::{convert::TryFrom, fmt::Write as _};
 
 use anyhow::{anyhow, Context, Result};
 use bincode::config::standard;
@@ -6,7 +6,7 @@ use zksync_os_interface::types::BlockContext;
 use zksync_os_types::{ZkTransaction, ZkTxType};
 
 use super::utils::{decode_b256, decode_u64, format_address, format_b256, format_optional_address};
-use super::{Entry, Schema};
+use super::{EntryField, EntryRecord, FieldCapabilities, FieldRole, FieldValue, Schema};
 
 pub struct BlockReplaySchema;
 
@@ -30,20 +30,40 @@ impl Schema for BlockReplaySchema {
         ]
     }
 
-    fn format_entry(&self, cf: &str, key: &[u8], value: &[u8]) -> Result<Entry> {
+    fn decode_entry(&self, cf: &str, key: &[u8], value: &[u8]) -> Result<EntryRecord> {
         match cf {
-            "context" => format_context(key, value),
-            "last_processed_l1_tx_id" => format_last_l1_id(key, value),
-            "txs" => format_txs(key, value),
-            "node_version" => format_node_version(key, value),
-            "block_output_hash" => format_block_output_hash(key, value),
-            "latest" => format_latest(key, value),
+            "context" => format_context(cf, key, value),
+            "last_processed_l1_tx_id" => format_last_l1_id(cf, key, value),
+            "txs" => format_txs(cf, key, value),
+            "node_version" => format_node_version(cf, key, value),
+            "block_output_hash" => format_block_output_hash(cf, key, value),
+            "latest" => format_latest(cf, key, value),
             other => Err(anyhow!("Unsupported column family `{other}`")),
+        }
+    }
+
+    fn update_value(
+        &self,
+        cf: &str,
+        _entry: &EntryRecord,
+        field_name: &str,
+        new_value: &FieldValue,
+    ) -> Result<Vec<u8>> {
+        if cf == "latest" && field_name.eq_ignore_ascii_case("block") {
+            let block = match new_value {
+                FieldValue::Unsigned(value) => *value,
+                _ => return Err(anyhow!("Block number must be an unsigned integer")),
+            };
+            let block_u64 = u64::try_from(block)
+                .map_err(|_| anyhow!("Block number {block} exceeds u64 range"))?;
+            Ok(block_u64.to_be_bytes().to_vec())
+        } else {
+            Err(anyhow!("Editing not supported for column family `{cf}`"))
         }
     }
 }
 
-fn format_context(key: &[u8], value: &[u8]) -> Result<Entry> {
+fn format_context(cf: &str, key: &[u8], value: &[u8]) -> Result<EntryRecord> {
     let block = decode_u64(key)?;
     let (ctx, _) = bincode::serde::decode_from_slice::<BlockContext, _>(value, standard())?;
     let summary = format!(
@@ -61,18 +81,46 @@ fn format_context(key: &[u8], value: &[u8]) -> Result<Entry> {
         ctx.execution_version,
         ctx.block_hashes.0[255]
     );
-    Ok(Entry::new(summary, detail))
+    Ok(
+        EntryRecord::new(cf, key, value, summary, detail).with_field(EntryField::unsigned(
+            "block",
+            block,
+            FieldRole::Key,
+            FieldCapabilities::default()
+                .sortable()
+                .searchable()
+                .key_part(),
+        )),
+    )
 }
 
-fn format_last_l1_id(key: &[u8], value: &[u8]) -> Result<Entry> {
+fn format_last_l1_id(cf: &str, key: &[u8], value: &[u8]) -> Result<EntryRecord> {
     let block = decode_u64(key)?;
     let id = decode_u64(value)?;
     let summary = format!("block {block}: next L1 priority id {id}");
     let detail = format!("Block #{block}\nLast processed L1 tx id: {id}");
-    Ok(Entry::new(summary, detail))
+    Ok(
+        EntryRecord::new(cf, key, value, summary, detail).with_fields([
+            EntryField::unsigned(
+                "block",
+                block,
+                FieldRole::Key,
+                FieldCapabilities::default()
+                    .sortable()
+                    .searchable()
+                    .key_part(),
+            ),
+            EntryField::unsigned(
+                "last_l1_tx_id",
+                id,
+                FieldRole::Value,
+                FieldCapabilities::default().searchable(),
+            ),
+        ]),
+    )
 }
 
-fn format_txs(key: &[u8], value: &[u8]) -> Result<Entry> {
+fn format_txs(cf: &str, key: &[u8], value: &[u8]) -> Result<EntryRecord> {
     let block = decode_u64(key)?;
     let (txs, _) = bincode::decode_from_slice::<Vec<ZkTransaction>, _>(value, standard())?;
     let counts = tx_counts(&txs);
@@ -93,18 +141,46 @@ fn format_txs(key: &[u8], value: &[u8]) -> Result<Entry> {
             format_optional_address(tx.to())
         );
     }
-    Ok(Entry::new(summary, detail))
+    Ok(
+        EntryRecord::new(cf, key, value, summary, detail).with_field(EntryField::unsigned(
+            "block",
+            block,
+            FieldRole::Key,
+            FieldCapabilities::default()
+                .sortable()
+                .searchable()
+                .key_part(),
+        )),
+    )
 }
 
-fn format_node_version(key: &[u8], value: &[u8]) -> Result<Entry> {
+fn format_node_version(cf: &str, key: &[u8], value: &[u8]) -> Result<EntryRecord> {
     let block = decode_u64(key)?;
     let version = String::from_utf8(value.to_vec()).context("node_version entry is not UTF-8")?;
     let summary = format!("block {block}: node {version}");
     let detail = format!("Block #{block}\nNode version: {version}");
-    Ok(Entry::new(summary, detail))
+    Ok(
+        EntryRecord::new(cf, key, value, summary, detail).with_fields([
+            EntryField::unsigned(
+                "block",
+                block,
+                FieldRole::Key,
+                FieldCapabilities::default()
+                    .sortable()
+                    .searchable()
+                    .key_part(),
+            ),
+            EntryField::text(
+                "version",
+                version,
+                FieldRole::Value,
+                FieldCapabilities::default().searchable(),
+            ),
+        ]),
+    )
 }
 
-fn format_block_output_hash(key: &[u8], value: &[u8]) -> Result<Entry> {
+fn format_block_output_hash(cf: &str, key: &[u8], value: &[u8]) -> Result<EntryRecord> {
     let block = decode_u64(key)?;
     let hash = decode_b256(value, "block output hash")?;
     let summary = format!("block {block}: output {}", format_b256(hash, 12));
@@ -112,15 +188,51 @@ fn format_block_output_hash(key: &[u8], value: &[u8]) -> Result<Entry> {
         "Block #{block}\nBlock output hash: {}",
         format_b256(hash, 0)
     );
-    Ok(Entry::new(summary, detail))
+    Ok(
+        EntryRecord::new(cf, key, value, summary, detail).with_fields([
+            EntryField::unsigned(
+                "block",
+                block,
+                FieldRole::Key,
+                FieldCapabilities::default()
+                    .sortable()
+                    .searchable()
+                    .key_part(),
+            ),
+            EntryField::text(
+                "hash",
+                format_b256(hash, 0),
+                FieldRole::Value,
+                FieldCapabilities::default().searchable(),
+            ),
+        ]),
+    )
 }
 
-fn format_latest(key: &[u8], value: &[u8]) -> Result<Entry> {
+fn format_latest(cf: &str, key: &[u8], value: &[u8]) -> Result<EntryRecord> {
     let key_str = String::from_utf8_lossy(key);
     let block = decode_u64(value)?;
     let summary = format!("{key_str} → {block}");
     let detail = format!("Metadata key `{key_str}`\nValue: {block} (latest block number)");
-    Ok(Entry::new(summary, detail))
+    Ok(
+        EntryRecord::new(cf, key, value, summary, detail).with_fields([
+            EntryField::text(
+                "meta_key",
+                key_str.to_string(),
+                FieldRole::Key,
+                FieldCapabilities::default().searchable().key_part(),
+            ),
+            EntryField::unsigned(
+                "block",
+                block,
+                FieldRole::Value,
+                FieldCapabilities::default()
+                    .sortable()
+                    .searchable()
+                    .editable(),
+            ),
+        ]),
+    )
 }
 
 struct TxCounts {

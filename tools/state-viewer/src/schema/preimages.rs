@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Result};
 
 use super::utils::{ascii_preview, decode_b256, format_b256, truncate_hex};
-use super::{Entry, Schema};
+use super::{EntryField, EntryRecord, FieldCapabilities, FieldRole, Schema};
 
 pub struct PreimagesSchema;
 
@@ -18,7 +18,7 @@ impl Schema for PreimagesSchema {
         &["storage"]
     }
 
-    fn format_entry(&self, cf: &str, key: &[u8], value: &[u8]) -> Result<Entry> {
+    fn decode_entry(&self, cf: &str, key: &[u8], value: &[u8]) -> Result<EntryRecord> {
         match cf {
             "storage" => {
                 let hash = decode_b256(key, "preimage key")?;
@@ -30,7 +30,22 @@ impl Schema for PreimagesSchema {
                     truncate_hex(value, 256),
                     ascii_preview(value, 64)
                 );
-                Ok(Entry::new(summary, detail))
+                Ok(
+                    EntryRecord::new(cf, key, value, summary, detail).with_fields([
+                        EntryField::text(
+                            "hash",
+                            format_b256(hash, 0),
+                            FieldRole::Key,
+                            FieldCapabilities::default().searchable().key_part(),
+                        ),
+                        EntryField::unsigned(
+                            "length",
+                            value.len() as u128,
+                            FieldRole::Value,
+                            FieldCapabilities::default().sortable().searchable(),
+                        ),
+                    ]),
+                )
             }
             other => Err(anyhow!("Unsupported column family `{other}`")),
         }
