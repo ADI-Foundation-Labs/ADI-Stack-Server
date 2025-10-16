@@ -1,10 +1,10 @@
 use alloy::primitives::{Address, B256, U256, address};
-use reth_revm::db::CacheDB;
 use reth_revm::DatabaseRef;
+use reth_revm::db::CacheDB;
 use std::collections::HashMap;
 use zksync_os_interface::types::{AccountDiff, StorageWrite};
 
-use crate::revm_two_fa::bytecode_hash::{calculate_bytecode_hash, EMPTY_BYTE_CODE_HASH};
+use crate::revm_two_fa::bytecode_hash::{EMPTY_BYTE_CODE_HASH, calculate_bytecode_hash};
 
 const ACCOUNT_PROPERTIES_STORAGE_ADDRESS: Address =
     address!("0000000000000000000000000000000000008003");
@@ -15,7 +15,8 @@ pub fn accumulate_revm_state_diffs<DB>(
     cache_db: &mut CacheDB<DB>,
     zksync_account_diff: &[AccountDiff],
 ) -> Vec<AccountDiff>
-where DB: DatabaseRef
+where
+    DB: DatabaseRef,
 {
     let mut to_add = vec![];
     for (address, _) in cache_db.cache.accounts.iter() {
@@ -39,7 +40,7 @@ where DB: DatabaseRef
                 address: *addr,
                 balance: account.balance,
                 nonce: account.nonce,
-                bytecode_hash: calculate_bytecode_hash(&account.code.unwrap_or_default())
+                bytecode_hash: calculate_bytecode_hash(&account.code.unwrap_or_default()),
             });
         }
     }
@@ -52,7 +53,9 @@ pub fn compare_state_diffs<DB>(
     // revm_state_diffs: &HashMap<Address, Account, RandomState>,
     zksync_storage_writes: &Vec<StorageWrite>,
     zksync_account_diffs: &Vec<AccountDiff>,
-) where DB: DatabaseRef {
+) where
+    DB: DatabaseRef,
+{
     // 1) Build REVM map: (account, slot_key) -> value
     let mut revm_map: HashMap<(Address, B256), B256> = HashMap::new();
 
@@ -68,7 +71,6 @@ pub fn compare_state_diffs<DB>(
                 let v = B256::from(*slot);
                 revm_map.insert((*addr, k), v);
             }
-
         }
     }
 

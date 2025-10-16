@@ -81,7 +81,7 @@ where
                     block.prevrandao = Some(replay_record.block_context.mix_hash.into());
                 })
                 .build_zk();
-            
+
             let revm_txs = replay_record
                 .transactions
                 .iter()
@@ -98,9 +98,10 @@ where
                         tx_output.is_success(),
                     ))
                 });
-                
+
             evm.transact_many_commit(revm_txs)?;
-            let zksync_account_changes = accumulate_revm_state_diffs(evm.0.db_mut(), &block_output.account_diffs);
+            let zksync_account_changes =
+                accumulate_revm_state_diffs(evm.0.db_mut(), &block_output.account_diffs);
             compare_state_diffs(
                 evm.0.db_mut(),
                 &block_output.storage_writes,

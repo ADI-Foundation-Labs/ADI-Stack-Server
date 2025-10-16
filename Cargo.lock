@@ -11402,6 +11402,7 @@ dependencies = [
 [[package]]
 name = "zksync-revm"
 version = "0.1.0"
+source = "git+https://github.com/vladbochok/zksync-revm#e0db3c20c61a94d797e14f0e935b7a586531fde2"
 dependencies = [
  "auto_impl",
  "revm",
