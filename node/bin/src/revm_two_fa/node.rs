@@ -1,20 +1,16 @@
-use alloy::primitives::map::foldhash::HashMap;
-use alloy::primitives::{Address, U256};
+use alloy::primitives::U256;
 use async_trait::async_trait;
 use reth_revm::db::CacheDB;
-use reth_revm::state::Account;
 
-use reth_revm::InspectCommitEvm;
-use reth_revm::InspectEvm;
-use reth_revm::context::Context;
-use revm_inspectors::tracing::{TracingInspector, TracingInspectorConfig};
+use reth_revm::ExecuteCommitEvm;
+use reth_revm::context::{Context, ContextTr};
 use tokio::sync::mpsc::Sender;
 use zksync_os_interface::types::BlockOutput;
 use zksync_os_pipeline::{PeekableReceiver, PipelineComponent};
 use zksync_os_storage_api::{ReadStateHistory, ReplayRecord};
 use zksync_revm::{DefaultZk, ZkBuilder};
 
-use crate::revm_two_fa::helpers::zk_tx_try_into_revm_tx;
+use crate::revm_two_fa::helpers::zk_tx_into_revm_tx;
 use crate::revm_two_fa::revm_state_db::RevmStateDb;
 use crate::revm_two_fa::storage_diff_comp::{accumulate_revm_state_diffs, compare_state_diffs};
 
@@ -52,7 +48,6 @@ where
         mut input: PeekableReceiver<Self::Input>, // PeekableReceiver<(BlockOutput, ReplayRecord)>
         output: Sender<Self::Output>,             // Sender<(BlockOutput, ReplayRecord)>
     ) -> anyhow::Result<()> {
-        let mut tracer = TracingInspector::new(TracingInspectorConfig::none().with_state_diffs());
         loop {
             let Some((block_output, replay_record)) = input.recv().await else {
                 anyhow::bail!("inbound channel closed");
@@ -82,37 +77,34 @@ where
                     block.number = U256::from(replay_record.block_context.block_number);
                     block.timestamp = U256::from(replay_record.block_context.timestamp);
                     block.beneficiary = replay_record.block_context.coinbase;
+                    block.basefee = replay_record.block_context.eip1559_basefee.saturating_to();
+                    block.prevrandao = Some(replay_record.block_context.mix_hash.into());
                 })
-                .build_zk_with_inspector(&mut tracer);
-
-            let mut state_changes_in_txs: Vec<HashMap<Address, Account>> = Default::default();
-            for (transaction, tx_output_raw) in replay_record
+                .build_zk();
+            
+            let revm_txs = replay_record
                 .transactions
                 .iter()
                 .zip(block_output.tx_results)
-            {
-                let tx_output = match tx_output_raw {
-                    Ok(tx_output) => tx_output,
-                    _ => continue, // Skip invalid transaction as they are not included in the batch
-                };
+                .filter_map(|(transaction, tx_output_raw)| {
+                    let tx_output = match tx_output_raw {
+                        Ok(tx_output) => tx_output,
+                        _ => return None, // Skip invalid transaction as they are not included in the batch
+                    };
 
-                // Skip transactions that failed on the ZKsync OS node
-                // We will only charge fees and bump nonce for such transactions
-                if !tx_output.is_success() {
-                    // TODO: charge gas and bump nonce
-                    continue;
-                }
-
-                let zk_tx = zk_tx_try_into_revm_tx(&transaction)?;
-                let ref_tx = evm.inspect_tx(zk_tx.clone())?;
-                evm.inspect_tx_commit(zk_tx)?;
-                // Move to separate function
-                state_changes_in_txs.push(ref_tx.state);
-            }
+                    Some(zk_tx_into_revm_tx(
+                        &transaction,
+                        tx_output.gas_used,
+                        tx_output.is_success(),
+                    ))
+                });
+                
+            evm.transact_many_commit(revm_txs)?;
+            let zksync_account_changes = accumulate_revm_state_diffs(evm.0.db_mut(), &block_output.account_diffs);
             compare_state_diffs(
-                &accumulate_revm_state_diffs(&state_changes_in_txs),
+                evm.0.db_mut(),
                 &block_output.storage_writes,
-                &block_output.account_diffs,
+                &zksync_account_changes,
             );
         }
     }

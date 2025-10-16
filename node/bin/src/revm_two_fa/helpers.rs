@@ -1,7 +1,6 @@
 use alloy::consensus::Transaction;
 use alloy::eips::Typed2718;
 use alloy::primitives::Bytes;
-use anyhow::Result;
 use reth_revm::context::TxEnv;
 use reth_revm::primitives::TxKind;
 use reth_revm::state::Bytecode;
@@ -18,11 +17,11 @@ pub fn get_unpadded_code(full_bytecode: &[u8], account: &AccountProperties) -> B
 }
 
 /// Convert a ZkTransaction into a revm TxEnv for REVM re-execution
-pub fn zk_tx_try_into_revm_tx(
+pub fn zk_tx_into_revm_tx(
     tx: &ZkTransaction,
     gas_used: u64,
     execution_status: bool,
-) -> Result<ZKsyncTx<TxEnv>> {
+) -> ZKsyncTx<TxEnv> {
     let caller = tx.signer();
 
     // Extract transaction details based on envelope type
@@ -126,5 +125,5 @@ pub fn zk_tx_try_into_revm_tx(
         .map_err(|e| anyhow::anyhow!("Failed to build TxEnv: {:?}", e))
         .unwrap();
 
-    Ok(tx)
+    tx
 }
