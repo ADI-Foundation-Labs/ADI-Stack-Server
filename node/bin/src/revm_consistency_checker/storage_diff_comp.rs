@@ -255,8 +255,11 @@ where
             B256::ZERO
         };
 
-        let db_info = cache_db.db.basic_ref(*addr)?;
-        if db_info.unwrap_or_default() != acc.info {
+        let prev_account = cache_db.db.basic_ref(*addr)?.unwrap_or_default();
+        let changed = prev_account.nonce != acc.info.nonce
+            || prev_account.balance != acc.info.balance
+            || prev_account.code_hash != acc.info.code_hash;
+        if changed {
             map.insert(
                 *addr,
                 AccountSnap {
