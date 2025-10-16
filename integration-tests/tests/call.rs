@@ -177,7 +177,7 @@ async fn call_with_state_overrides() -> anyhow::Result<()> {
             }
         }
     });
-    let overrides: StateOverride = serde_json::from_value(overrides_json).unwrap();
+    let overrides: StateOverride = serde_json::from_value(overrides_json)?;
 
     // Call again with the override; expect 2 now
     let out_overridden = tester.l2_provider.call(tx_req).overrides(overrides).await?;
