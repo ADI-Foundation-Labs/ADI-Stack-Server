@@ -168,6 +168,11 @@ pub struct SequencerConfig {
 
     /// Override for pubdata price (in wei). If set, pubdata price will be constant and equal to this value.
     pub pubdata_price_override: Option<u64>,
+
+    /// Enable REVM consistency checker (EN only).
+    /// Ignored on Main Node (`is_main_node() == true`).
+    #[config(default_t = false)]
+    pub revm_consistency_checker_enabled: bool,
 }
 
 impl SequencerConfig {

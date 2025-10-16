@@ -701,7 +701,12 @@ async fn run_en_pipeline<
             repositories: repositories.clone(),
             sequencer_config: config.sequencer_config.clone().into(),
         })
-        .pipe(RevmTwoFa::new(state.clone()))
+        .pipe_opt(
+            config
+                .sequencer_config
+                .revm_consistency_checker_enabled
+                .then(|| RevmTwoFa::new(state.clone())),
+        )
         .pipe(TreeManager { tree: tree.clone() })
         .pipe(NoOpSink::new())
         .spawn(tasks);
