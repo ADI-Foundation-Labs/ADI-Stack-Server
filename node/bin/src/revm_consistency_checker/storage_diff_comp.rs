@@ -1,7 +1,6 @@
 use alloy::primitives::{Address, B256, U256, address};
-use reth_revm::DatabaseRef;
-use reth_revm::db::CacheDB;
-use std::collections::HashMap;
+use reth_revm::{DatabaseRef, db::CacheDB};
+use std::collections::{HashMap, HashSet};
 use zksync_os_interface::types::{AccountDiff, StorageWrite};
 
 use crate::revm_consistency_checker::bytecode_hash::{
@@ -11,280 +10,422 @@ use crate::revm_consistency_checker::bytecode_hash::{
 const ACCOUNT_PROPERTIES_STORAGE_ADDRESS: Address =
     address!("0000000000000000000000000000000000008003");
 
-/// Fold a sequence of per-transaction state diffs into a single per-block diff.
-/// `tx_diffs` must be ordered from earliest to latest tx in the block.
-pub fn accumulate_revm_state_diffs<DB>(
-    cache_db: &mut CacheDB<DB>,
-    zksync_account_diff: &[AccountDiff],
-) -> Vec<AccountDiff>
-where
-    DB: DatabaseRef,
-{
-    let mut to_add = vec![];
-    for (address, _) in cache_db.cache.accounts.iter() {
-        let mut cont = false;
-        for x in zksync_account_diff.iter() {
-            if x.address == *address {
-                cont = true;
-                break;
-            }
-        }
-        if !cont {
-            to_add.push(address);
-        }
-    }
-    let mut final_zksync_account_diff = Vec::from(zksync_account_diff);
-
-    for addr in to_add {
-        if let Ok(account) = cache_db.basic_ref(*addr) {
-            let account = account.unwrap_or_default();
-            final_zksync_account_diff.push(AccountDiff {
-                address: *addr,
-                balance: account.balance,
-                nonce: account.nonce,
-                bytecode_hash: calculate_bytecode_hash(&account.code.unwrap_or_default()),
-            });
-        }
-    }
-
-    final_zksync_account_diff
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct AccountSnap {
+    nonce: u64,
+    balance: U256,
+    bytecode_hash: B256,
 }
 
-pub fn compare_state_diffs<DB>(
-    cache_db: &mut CacheDB<DB>,
-    // revm_state_diffs: &HashMap<Address, Account, RandomState>,
-    zksync_storage_writes: &Vec<StorageWrite>,
-    zksync_account_diffs: &Vec<AccountDiff>,
-) where
+/// Storage mismatch between ZKsync OS and REVM block execution
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StorageMismatch {
+    pub addr: Address,
+    pub slot: B256,
+    // None indicates no storage update occurred in REVM
+    pub revm_value: Option<B256>,
+    // None indicates no storage update occurred in ZKsync OS
+    pub zk_value: Option<B256>,
+}
+
+/// Generic pair of optional values (REVM / ZKsync OS) for a field.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ValuePair<T> {
+    pub revm: Option<T>,
+    pub zk: Option<T>,
+}
+
+/// All account discrepancies.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AccountMismatch {
+    pub addr: Address,
+    pub nonce: Option<ValuePair<u64>>,
+    pub balance: Option<ValuePair<U256>>,
+    pub bytecode_hash: Option<ValuePair<B256>>,
+}
+
+/// Full comparison result.
+#[derive(Debug, Default)]
+pub struct CompareReport {
+    pub storage: Vec<StorageMismatch>,
+    pub accounts: Vec<AccountMismatch>,
+}
+
+impl CompareReport {
+    pub fn build<DB>(
+        cache_db: &CacheDB<DB>,
+        zksync_storage_writes: &[StorageWrite],
+        zksync_account_diffs: &[AccountDiff],
+    ) -> Result<CompareReport, anyhow::Error>
+    where
+        DB: DatabaseRef,
+        DB::Error: std::error::Error + Send + Sync + 'static,
+    {
+        // internal maps keyed by (addr, slot)
+        let revm_storage = build_revm_storage_map(cache_db)?;
+        let zk_storage = build_zk_storage_map(zksync_storage_writes);
+
+        let revm_accounts = build_revm_accounts(cache_db)?;
+        let zk_accounts = build_zk_accounts(zksync_account_diffs);
+
+        let storage_report = compare_storage(&revm_storage, &zk_storage);
+        let account_report = compare_accounts(&revm_accounts, &zk_accounts);
+
+        Ok(CompareReport {
+            storage: storage_report,
+            accounts: account_report,
+        })
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.storage.is_empty() && self.accounts.is_empty()
+    }
+
+    /// Print a structured summary via `tracing`
+    /// - INFO when everything matches
+    /// - WARN + DEBUG details when mismatches exist
+    pub fn log_tracing(&self, max_show: usize) {
+        if self.is_empty() {
+            tracing::info!(
+                storage_mismatches = 0,
+                account_mismatches = 0,
+                "State diffs match"
+            );
+            return;
+        }
+
+        tracing::warn!(
+            storage_mismatches = self.storage.len(),
+            account_mismatches = self.accounts.len(),
+            "State diffs do not match"
+        );
+
+        // STORAGE
+        tracing::debug!(total = self.storage.len(), "=== STORAGE DIFFS ===");
+        for m in self.storage.iter().take(max_show) {
+            match (m.revm_value, m.zk_value) {
+                (Some(r), Some(z)) if r != z => {
+                    tracing::debug!(
+                        addr = ?m.addr,
+                        slot = ?m.slot,
+                        revm = ?r,
+                        zk = ?z,
+                        "storage value mismatch"
+                    );
+                }
+                (Some(r), None) => {
+                    tracing::debug!(
+                        addr = ?m.addr,
+                        slot = ?m.slot,
+                        revm = ?r,
+                        zk = "none",
+                        "storage missing in zksync"
+                    );
+                }
+                (None, Some(z)) => {
+                    tracing::debug!(
+                        addr = ?m.addr,
+                        slot = ?m.slot,
+                        revm = "none",
+                        zk = ?z,
+                        "storage missing in revm"
+                    );
+                }
+                _ => {}
+            }
+        }
+        if self.storage.len() > max_show {
+            tracing::debug!(
+                remaining = self.storage.len() - max_show,
+                "additional storage mismatches not shown"
+            );
+        }
+
+        // ACCOUNTS
+        tracing::debug!(total = self.accounts.len(), "=== ACCOUNT DIFFS ===");
+        for m in self.accounts.iter().take(max_show) {
+            // Header per account
+            tracing::debug!(addr = ?m.addr, "account mismatch");
+
+            if let Some(p) = m.nonce {
+                match (p.revm, p.zk) {
+                    (Some(r), Some(z)) if r != z => {
+                        tracing::debug!(addr = ?m.addr, revm = r, zk = z, "nonce mismatch");
+                    }
+                    (Some(r), None) => {
+                        tracing::debug!(addr = ?m.addr, revm = r, zk = "none", "nonce missing in zksync");
+                    }
+                    (None, Some(z)) => {
+                        tracing::debug!(addr = ?m.addr, revm = "none", zk = z, "nonce missing in revm");
+                    }
+                    _ => {}
+                }
+            }
+            if let Some(p) = m.balance {
+                match (p.revm, p.zk) {
+                    (Some(r), Some(z)) if r != z => {
+                        tracing::debug!(addr = ?m.addr, revm = ?r, zk = ?z, "balance mismatch");
+                    }
+                    (Some(r), None) => {
+                        tracing::debug!(addr = ?m.addr, revm = ?r, zk = "none", "balance missing in zksync");
+                    }
+                    (None, Some(z)) => {
+                        tracing::debug!(addr = ?m.addr, revm = "none", zk = ?z, "balance missing in revm");
+                    }
+                    _ => {}
+                }
+            }
+            if let Some(p) = m.bytecode_hash {
+                match (p.revm, p.zk) {
+                    (Some(r), Some(z)) if !code_hash_equivalent(r, z) => {
+                        tracing::debug!(addr = ?m.addr, revm = ?r, zk = ?z, "bytecode hash mismatch");
+                    }
+                    (Some(r), None) => {
+                        tracing::debug!(addr = ?m.addr, revm = ?r, zk = "none", "codehash missing in zksync");
+                    }
+                    (None, Some(z)) => {
+                        tracing::debug!(addr = ?m.addr, revm = "none", zk = ?z, "codehash missing in revm");
+                    }
+                    _ => {}
+                }
+            }
+        }
+        if self.accounts.len() > max_show {
+            tracing::debug!(
+                remaining = self.accounts.len() - max_show,
+                "additional account mismatches not shown"
+            );
+        }
+    }
+}
+
+/* ------------------------------ builders ------------------------------ */
+
+fn build_revm_storage_map<DB>(
+    cache_db: &CacheDB<DB>,
+) -> Result<HashMap<(Address, B256), B256>, anyhow::Error>
+where
     DB: DatabaseRef,
+    DB::Error: std::error::Error + Send + Sync + 'static,
 {
-    // 1) Build REVM map: (account, slot_key) -> value
-    let mut revm_map: HashMap<(Address, B256), B256> = HashMap::new();
+    let mut map = HashMap::new();
 
     for (addr, account) in &cache_db.cache.accounts {
-        // TODO: Account Properties stores the hash of nonce, balance and etc
-        // It is limitation for now
         if *addr == ACCOUNT_PROPERTIES_STORAGE_ADDRESS {
             continue;
         }
-        for (slot_key, slot) in &account.storage {
-            if cache_db.db.storage_ref(*addr, *slot_key).unwrap() != *slot {
-                let k = B256::from(*slot_key);
-                let v = B256::from(*slot);
-                revm_map.insert((*addr, k), v);
+        for (slot_key, slot_val) in &account.storage {
+            let prev = cache_db.db.storage_ref(*addr, *slot_key)?;
+            if prev != *slot_val {
+                map.insert((*addr, B256::from(*slot_key)), B256::from(*slot_val));
             }
         }
     }
+    Ok(map)
+}
 
-    // 2) Build ZK map (latest write wins)
-    let mut zk_map: HashMap<(Address, B256), B256> = HashMap::new();
+fn build_zk_storage_map(zksync_storage_writes: &[StorageWrite]) -> HashMap<(Address, B256), B256> {
+    let mut map = HashMap::new();
     for w in zksync_storage_writes {
-        // TODO: Account Properties stores the hash of nonce, balance and etc
-        // It is limitation for now
         if w.account == ACCOUNT_PROPERTIES_STORAGE_ADDRESS {
             continue;
         }
-        // As per your note: ignore `key`, use `(account, account_key)`.
-        zk_map.insert((w.account, w.account_key), w.value);
+        map.insert((w.account, w.account_key), w.value); // latest write wins
     }
+    map
+}
 
-    // 3) Compare
-    let mut missing_in_revm: Vec<((Address, B256), B256)> = Vec::new();
-    let mut missing_in_zksync: Vec<(Address, B256)> = Vec::new();
-    let mut value_mismatches: Vec<((Address, B256), B256, B256)> = Vec::new();
+fn build_revm_accounts<DB>(
+    cache_db: &CacheDB<DB>,
+) -> Result<HashMap<Address, AccountSnap>, anyhow::Error>
+where
+    DB: DatabaseRef,
+    DB::Error: std::error::Error + Send + Sync + 'static,
+{
+    let mut map = HashMap::new();
 
-    for (k, zk_v) in &zk_map {
-        match revm_map.get(k) {
-            None => missing_in_revm.push((*k, *zk_v)),
-            Some(revm_v) if revm_v != zk_v => value_mismatches.push((*k, *revm_v, *zk_v)),
-            _ => {}
-        }
-    }
-    for k in revm_map.keys() {
-        if !zk_map.contains_key(k) {
-            missing_in_zksync.push(*k);
-        }
-    }
-
-    #[derive(Clone, Copy)]
-    struct Snap {
-        nonce: u64,
-        balance: U256,
-        bytecode_hash: B256,
-    }
-
-    // REVM changed accounts → post-state snapshot
-    let mut revm_accounts: HashMap<Address, Snap> = HashMap::new();
     for (addr, acc) in &cache_db.cache.accounts {
-        let code = acc.info.code.as_ref();
-        let bytecode_hash = if let Some(bytecode) = code
-            && !bytecode.is_empty()
-        {
-            calculate_bytecode_hash(bytecode)
+        let bytecode_hash = if let Some(code) = acc.info.code.as_ref() {
+            if code.is_empty() {
+                B256::ZERO
+            } else {
+                calculate_bytecode_hash(code)
+            }
         } else {
-            Default::default()
+            B256::ZERO
         };
 
-        revm_accounts.insert(
-            *addr,
-            Snap {
-                nonce: acc.info.nonce,
-                balance: acc.info.balance,
-                bytecode_hash,
-            },
-        );
+        let db_info = cache_db.db.basic_ref(*addr)?;
+        if db_info.unwrap_or_default() != acc.info {
+            map.insert(
+                *addr,
+                AccountSnap {
+                    nonce: acc.info.nonce,
+                    balance: acc.info.balance,
+                    bytecode_hash,
+                },
+            );
+        }
     }
+    Ok(map)
+}
 
-    // ZKsync account diffs (latest wins if duplicates)
-    let mut zk_accounts: HashMap<Address, Snap> = HashMap::new();
+fn build_zk_accounts(zksync_account_diffs: &[AccountDiff]) -> HashMap<Address, AccountSnap> {
+    let mut map = HashMap::new();
     for d in zksync_account_diffs {
-        zk_accounts.insert(
+        map.insert(
             d.address,
-            Snap {
+            AccountSnap {
                 nonce: d.nonce,
                 balance: d.balance,
                 bytecode_hash: d.bytecode_hash,
             },
         );
     }
+    map
+}
 
-    // Accounts present in ZK but not in REVM (shouldn't happen if REVM list is "changed accounts")
-    let mut acc_missing_in_revm: Vec<Address> = Vec::new();
-    // Accounts present in REVM but not in ZK
-    let mut acc_missing_in_zksync: Vec<Address> = Vec::new();
-    // Field-level mismatches
-    struct AccMismatch {
-        addr: Address,
-        nonce: Option<(u64, u64)>, // (revm, zk)
-        balance: Option<(U256, U256)>,
-        bytecode_hash: Option<(B256, B256)>,
+/* ------------------------------ comparers ----------------------------- */
+
+fn compare_storage(
+    revm: &HashMap<(Address, B256), B256>,
+    zk: &HashMap<(Address, B256), B256>,
+) -> Vec<StorageMismatch> {
+    let mut mismatches = Vec::new();
+
+    // Keys present in REVM (diff or missing in ZK)
+    for (&(addr, slot), &revm_v) in revm {
+        match zk.get(&(addr, slot)) {
+            Some(&zk_v) if zk_v != revm_v => mismatches.push(StorageMismatch {
+                addr,
+                slot,
+                revm_value: Some(revm_v),
+                zk_value: Some(zk_v),
+            }),
+            None => mismatches.push(StorageMismatch {
+                addr,
+                slot,
+                revm_value: Some(revm_v),
+                zk_value: None,
+            }),
+            _ => {}
+        }
     }
-    let mut acc_value_mismatches: Vec<AccMismatch> = Vec::new();
 
-    for (&addr, r) in &revm_accounts {
-        match zk_accounts.get(&addr) {
-            None => acc_missing_in_zksync.push(addr),
-            Some(z) => {
-                let mut mm = AccMismatch {
-                    addr,
-                    nonce: None,
-                    balance: None,
-                    bytecode_hash: None,
-                };
+    // Keys present in ZKsync OS but missing in REVM
+    for (&(addr, slot), &zk_v) in zk {
+        if !revm.contains_key(&(addr, slot)) {
+            mismatches.push(StorageMismatch {
+                addr,
+                slot,
+                revm_value: None,
+                zk_value: Some(zk_v),
+            });
+        }
+    }
+
+    mismatches
+}
+
+fn compare_accounts(
+    revm: &HashMap<Address, AccountSnap>,
+    zk: &HashMap<Address, AccountSnap>,
+) -> Vec<AccountMismatch> {
+    let mut mismatches = Vec::new();
+
+    // Iterate over the union of addresses
+    let mut all = HashSet::new();
+    all.extend(revm.keys().copied());
+    all.extend(zk.keys().copied());
+
+    for addr in all {
+        match (revm.get(&addr), zk.get(&addr)) {
+            (Some(r), Some(z)) => {
+                // Only emit fields that actually differ
+                let mut any = false;
+                let mut nonce = None;
+                let mut balance = None;
+                let mut bytecode_hash = None;
+
                 if r.nonce != z.nonce {
-                    mm.nonce = Some((r.nonce, z.nonce));
+                    nonce = Some(ValuePair {
+                        revm: Some(r.nonce),
+                        zk: Some(z.nonce),
+                    });
+                    any = true;
                 }
                 if r.balance != z.balance {
-                    mm.balance = Some((r.balance, z.balance));
+                    balance = Some(ValuePair {
+                        revm: Some(r.balance),
+                        zk: Some(z.balance),
+                    });
+                    any = true;
                 }
-                if r.bytecode_hash != z.bytecode_hash
-                    && !(r.bytecode_hash == EMPTY_BYTE_CODE_HASH && z.bytecode_hash == B256::ZERO)
-                    && !(r.bytecode_hash == B256::ZERO && z.bytecode_hash == EMPTY_BYTE_CODE_HASH)
-                {
-                    mm.bytecode_hash = Some((r.bytecode_hash, z.bytecode_hash));
+                if !code_hash_equivalent(r.bytecode_hash, z.bytecode_hash) {
+                    bytecode_hash = Some(ValuePair {
+                        revm: Some(r.bytecode_hash),
+                        zk: Some(z.bytecode_hash),
+                    });
+                    any = true;
                 }
-                if mm.nonce.is_some() || mm.balance.is_some() || mm.bytecode_hash.is_some() {
-                    acc_value_mismatches.push(mm);
+
+                if any {
+                    mismatches.push(AccountMismatch {
+                        addr,
+                        nonce,
+                        balance,
+                        bytecode_hash,
+                    });
                 }
             }
+            (Some(r), None) => {
+                // Present only in REVM: emit full snapshot with zk=None
+                mismatches.push(AccountMismatch {
+                    addr,
+                    nonce: Some(ValuePair {
+                        revm: Some(r.nonce),
+                        zk: None,
+                    }),
+                    balance: Some(ValuePair {
+                        revm: Some(r.balance),
+                        zk: None,
+                    }),
+                    bytecode_hash: Some(ValuePair {
+                        revm: Some(r.bytecode_hash),
+                        zk: None,
+                    }),
+                });
+            }
+            (None, Some(z)) => {
+                // Present only in ZK: emit full snapshot with revm=None
+                mismatches.push(AccountMismatch {
+                    addr,
+                    nonce: Some(ValuePair {
+                        revm: None,
+                        zk: Some(z.nonce),
+                    }),
+                    balance: Some(ValuePair {
+                        revm: None,
+                        zk: Some(z.balance),
+                    }),
+                    bytecode_hash: Some(ValuePair {
+                        revm: None,
+                        zk: Some(z.bytecode_hash),
+                    }),
+                });
+            }
+            (None, None) => unreachable!("address in union but missing from both maps"),
         }
     }
-    for (&addr, _z) in &zk_accounts {
-        if !revm_accounts.contains_key(&addr) {
-            acc_missing_in_revm.push(addr);
-        }
-    }
 
-    const MAX_SHOW: usize = 20;
-    let storage_ok =
-        missing_in_revm.is_empty() && missing_in_zksync.is_empty() && value_mismatches.is_empty();
-    let accounts_ok = acc_missing_in_revm.is_empty()
-        && acc_missing_in_zksync.is_empty()
-        && acc_value_mismatches.is_empty();
+    mismatches
+}
 
-    if storage_ok && accounts_ok {
-        println!(
-            "✅ State diffs match. Compared {} storage keys and {} accounts (incl. synthesized 0x…8003).",
-            zk_map.len(),
-            zk_accounts.len()
-        );
-        return;
-    }
+/* ------------------------------ helpers ------------------------------- */
 
-    println!("❌ State diffs do not match.");
-
-    // Storage section
-    println!("=== STORAGE DIFFS ===");
-    println!("  missing_in_revm  : {}", missing_in_revm.len());
-    for ((addr, key), val) in missing_in_revm.iter().take(MAX_SHOW) {
-        println!("    REVM MISSING -> addr: {addr:?}, slot: {key:#x}, expected: {val:#x}");
-    }
-    if missing_in_revm.len() > MAX_SHOW {
-        println!("    ... and {} more", missing_in_revm.len() - MAX_SHOW);
-    }
-
-    println!("  missing_in_zksync: {}", missing_in_zksync.len());
-    for (addr, key) in missing_in_zksync.iter().take(MAX_SHOW) {
-        let v = revm_map.get(&(*addr, *key)).copied().unwrap_or(B256::ZERO);
-        println!("    ZK MISSING -> addr: {addr:?}, slot: {key:#x}, revm_value: {v:#x}");
-    }
-    if missing_in_zksync.len() > MAX_SHOW {
-        println!("    ... and {} more", missing_in_zksync.len() - MAX_SHOW);
-    }
-
-    println!("  value_mismatches : {}", value_mismatches.len());
-    for ((addr, key), revm_v, zk_v) in value_mismatches.iter().take(MAX_SHOW) {
-        println!(
-            "    VALUE MISMATCH -> addr: {addr:?}, slot: {key:#x}, revm: {revm_v:#x}, zk: {zk_v:#x}"
-        );
-    }
-    if value_mismatches.len() > MAX_SHOW {
-        println!("    ... and {} more", value_mismatches.len() - MAX_SHOW);
-    }
-
-    // Accounts section
-    println!("=== ACCOUNT DIFFS ===");
-    println!("  acc_missing_in_revm   : {}", acc_missing_in_revm.len());
-    for addr in acc_missing_in_revm.iter().take(MAX_SHOW) {
-        println!("    REVM MISSING ACCOUNT -> addr: {addr:?}");
-    }
-    if acc_missing_in_revm.len() > MAX_SHOW {
-        println!("    ... and {} more", acc_missing_in_revm.len() - MAX_SHOW);
-    }
-
-    println!("  acc_missing_in_zksync : {}", acc_missing_in_zksync.len());
-    for addr in acc_missing_in_zksync.iter().take(MAX_SHOW) {
-        println!("    ZK MISSING ACCOUNT -> addr: {addr:?}");
-    }
-    if acc_missing_in_zksync.len() > MAX_SHOW {
-        println!(
-            "    ... and {} more",
-            acc_missing_in_zksync.len() - MAX_SHOW
-        );
-    }
-
-    println!("  acc_value_mismatches  : {}", acc_value_mismatches.len());
-    for m in acc_value_mismatches.iter().take(MAX_SHOW) {
-        if let Some((r, z)) = m.nonce {
-            println!(
-                "    NONCE MISMATCH -> addr: {:?}, revm: {r}, zk: {z}",
-                m.addr
-            );
-        }
-        if let Some((r, z)) = m.balance {
-            println!(
-                "    BALANCE MISMATCH -> addr: {:?}, revm: {r}, zk: {z}",
-                m.addr
-            );
-        }
-        if let Some((r, z)) = m.bytecode_hash {
-            println!(
-                "    BYTECODE HASH MISMATCH -> addr: {:?}, revm: {r:#x}, zk: {z:#x}",
-                m.addr
-            );
-        }
-    }
-    if acc_value_mismatches.len() > MAX_SHOW {
-        println!("    ... and {} more", acc_value_mismatches.len() - MAX_SHOW);
-    }
+#[inline]
+fn code_hash_equivalent(a: B256, b: B256) -> bool {
+    a == b
+        || (a == EMPTY_BYTE_CODE_HASH && b == B256::ZERO)
+        || (a == B256::ZERO && b == EMPTY_BYTE_CODE_HASH)
 }

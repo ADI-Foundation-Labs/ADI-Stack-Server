@@ -13,9 +13,7 @@ use zksync_revm::{DefaultZk, ZkBuilder};
 
 use crate::revm_consistency_checker::helpers::zk_tx_into_revm_tx;
 use crate::revm_consistency_checker::revm_state_db::RevmStateDb;
-use crate::revm_consistency_checker::storage_diff_comp::{
-    accumulate_revm_state_diffs, compare_state_diffs,
-};
+use crate::revm_consistency_checker::storage_diff_comp::CompareReport;
 
 pub struct RevmConsistencyChecker<State>
 where
@@ -110,13 +108,12 @@ where
                 });
 
             evm.transact_many_commit(revm_txs)?;
-            let zksync_account_changes =
-                accumulate_revm_state_diffs(evm.0.db_mut(), &block_output.account_diffs);
-            compare_state_diffs(
+            let compare_report = CompareReport::build(
                 evm.0.db_mut(),
                 &block_output.storage_writes,
-                &zksync_account_changes,
-            );
+                &block_output.account_diffs,
+            )?;
+            compare_report.log_tracing(20);
         }
     }
 }

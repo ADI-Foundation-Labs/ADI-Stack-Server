@@ -606,6 +606,12 @@ async fn run_main_node_pipeline<
             repositories: repositories.clone(),
             sequencer_config: config.sequencer_config.clone().into(),
         })
+        .pipe_opt(
+            config
+                .sequencer_config
+                .revm_consistency_checker_enabled
+                .then(|| RevmConsistencyChecker::new(state.clone())),
+        )
         .pipe(TreeManager { tree: tree.clone() })
         .pipe(ProverInputGenerator {
             enable_logging: config.prover_input_generator_config.logging_enabled,
