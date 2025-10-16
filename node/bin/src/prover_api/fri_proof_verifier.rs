@@ -2,7 +2,7 @@ use crate::prover_api::fri_job_manager::SubmitError;
 use alloy::primitives::B256;
 use execution_utils::{ProgramProof, generate_oracle_data_from_metadata_and_proof_list};
 use zk_os_basic_system::system_implementation::system::BatchPublicInput;
-use zksync_os_l1_sender::commitment::StoredBatchInfo;
+use zksync_os_contract_interface::models::StoredBatchInfo;
 
 pub fn verify_fri_proof(
     previous_state_commitment: B256,
@@ -35,7 +35,10 @@ pub fn verify_fri_proof(
     // compare expected_hash_u32s with the last 8 values of proof_final_register_values
     (proof_final_register_values[..8] == expected_hash_u32s)
         .then_some(())
-        .ok_or(SubmitError::VerificationFailed)
+        .ok_or(SubmitError::FriProofVerificationError {
+            expected_hash_u32s,
+            proof_final_register_values,
+        })
 }
 
 fn batch_output_hash_as_register_values(public_input: &BatchPublicInput) -> [u32; 8] {

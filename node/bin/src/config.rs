@@ -169,6 +169,16 @@ pub struct SequencerConfig {
     /// Override for pubdata price (in wei). If set, pubdata price will be constant and equal to this value.
     pub pubdata_price_override: Option<u64>,
 
+    /// Maximum number of blocks to produce.
+    /// `None` means unlimited (default, standard operations),
+    /// `Some(0)` means no new blocks (useful when only RPC/replay/batching functionality is needed),
+    /// `Some(n)` means seal at most n new blocks.
+    /// Replay blocks are always processed regardless of this setting.
+    /// Only affects the Main Node.
+    /// Useful for mitigation/operations.
+    #[config(default_t = None)]
+    pub max_blocks_to_produce: Option<u64>,
+
     /// Enable REVM consistency checker.
     #[config(default_t = false)]
     pub revm_consistency_checker_enabled: bool,
@@ -266,7 +276,14 @@ pub struct L1SenderConfig {
 #[config(derive(Default))]
 pub struct L1WatcherConfig {
     /// Max number of L1 blocks to be processed at a time.
-    #[config(default_t = 100)]
+    ///
+    /// L1 providers have different limits:
+    /// * Alchemy - 2k blocks per request
+    /// * Chainstack - 10k blocks per request
+    /// * reth (by default) - 100k blocks per request
+    ///
+    /// Overall, 1000 blocks is a fairly conservative default for the general case.
+    #[config(default_t = 1000)]
     pub max_blocks_to_process: u64,
 
     /// How often to poll L1 for new priority requests.
@@ -444,6 +461,7 @@ impl From<SequencerConfig> for zksync_os_sequencer::config::SequencerConfig {
             block_replay_download_address: c.block_replay_download_address,
             block_gas_limit: c.block_gas_limit,
             block_pubdata_limit_bytes: c.block_pubdata_limit_bytes,
+            max_blocks_to_produce: c.max_blocks_to_produce,
         }
     }
 }
