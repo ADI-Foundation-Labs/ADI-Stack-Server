@@ -1,10 +1,12 @@
 use alloy::consensus::BlobTransactionSidecar;
+use alloy::primitives::U256;
 use alloy::providers::Provider;
 use alloy::rpc::types::TransactionRequest;
 use alloy::rpc::types::state::StateOverride;
+use serde_json::json;
 use zksync_os_integration_tests::Tester;
 use zksync_os_integration_tests::assert_traits::EthCallAssert;
-use zksync_os_integration_tests::contracts::{EventEmitter, SimpleRevert};
+use zksync_os_integration_tests::contracts::{EventEmitter, SimpleRevert, TracingSecondary};
 
 #[test_log::test(tokio::test)]
 async fn call_genesis() -> anyhow::Result<()> {
@@ -143,6 +145,44 @@ async fn call_revert() -> anyhow::Result<()> {
         error,
         "server returned an error response: error code 3: execution reverted: my message, data: \"0x08c379a00000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000a6d79206d65737361676500000000000000000000000000000000000000000000\""
     );
+
+    Ok(())
+}
+
+#[test_log::test(tokio::test)]
+async fn call_with_state_overrides() -> anyhow::Result<()> {
+    // Deploy a dummy contract with storage at slot 0, call it to read the value,
+    // then call again with a state override for slot 0 and expect a different result.
+    let tester = Tester::setup().await?;
+
+    // Deploy TracingSecondary with `data = 1` stored at slot 0
+    let initial_data = U256::from(1);
+    let contract = TracingSecondary::deploy(tester.l2_provider.clone(), initial_data).await?;
+
+    // Build a TransactionRequest for multiply(1) -> returns the storage-backed value
+    let tx_req = contract.multiply(U256::from(1)).into_transaction_request();
+
+    // Baseline call without overrides (should return 7)
+    let out = tester.l2_provider.call(tx_req.clone()).await?;
+    let baseline = U256::from_be_slice(&out);
+    assert_eq!(baseline, initial_data);
+
+    // Prepare state override via JSON to match expected types: set slot 0 to 13
+    let overrides_json = json!({
+        format!("{:#x}", contract.address()): {
+            "state": {
+                // slot 0 -> 0x...02
+                "0x0000000000000000000000000000000000000000000000000000000000000000":
+                    format!("0x{:064x}", U256::from(2u64)),
+            }
+        }
+    });
+    let overrides: StateOverride = serde_json::from_value(overrides_json).unwrap();
+
+    // Call again with the override; expect 2 now
+    let out_overridden = tester.l2_provider.call(tx_req).overrides(overrides).await?;
+    let overridden = U256::from_be_slice(&out_overridden);
+    assert_eq!(overridden, U256::from(2));
 
     Ok(())
 }
