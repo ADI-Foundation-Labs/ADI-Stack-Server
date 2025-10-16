@@ -238,8 +238,8 @@ impl<RpcStorage: ReadRpcStorage> EthCallHandler<RpcStorage> {
 
         let res = match state_overrides {
             Some(ov) => {
-                let (slot, acct) = parse_state_overrides(ov);
-                if slot.is_empty() && acct.is_empty() {
+                let (slot_overrides, account) = parse_state_overrides(ov);
+                if slot_overrides.is_empty() && account.is_empty() {
                     execute(
                         execution_env.transaction,
                         execution_env.block_context,
@@ -249,7 +249,7 @@ impl<RpcStorage: ReadRpcStorage> EthCallHandler<RpcStorage> {
                     execute(
                         execution_env.transaction,
                         execution_env.block_context,
-                        OverriddenStateView::new(storage_view, slot, acct),
+                        OverriddenStateView::new(storage_view, slot_overrides, account),
                     )
                 }
             }
@@ -289,8 +289,8 @@ impl<RpcStorage: ReadRpcStorage> EthCallHandler<RpcStorage> {
 
         match state_overrides {
             Some(ov) => {
-                let (slot, acct) = parse_state_overrides(ov);
-                if slot.is_empty() && acct.is_empty() {
+                let (slot_overrides, account) = parse_state_overrides(ov);
+                if slot_overrides.is_empty() && slot_overrides.is_empty() {
                     call_trace_simulate(
                         execution_env.transaction,
                         execution_env.block_context,
@@ -301,7 +301,7 @@ impl<RpcStorage: ReadRpcStorage> EthCallHandler<RpcStorage> {
                     call_trace_simulate(
                         execution_env.transaction,
                         execution_env.block_context,
-                        OverriddenStateView::new(storage_view, slot, acct),
+                        OverriddenStateView::new(storage_view, slot_overrides, account),
                         call_config,
                     )
                 }
