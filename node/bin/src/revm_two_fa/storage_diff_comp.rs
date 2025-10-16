@@ -1,6 +1,8 @@
 use alloy::primitives::{Address, B256, U256, address, map::foldhash::fast::RandomState};
 use blake2::{Blake2s256, Digest};
 use reth_revm::bytecode::Bytecode;
+use reth_revm::db::CacheDB;
+use reth_revm::{Database, DatabaseRef};
 use reth_revm::{bytecode::opcode, state::Account};
 use std::collections::{HashMap, hash_map::Entry};
 use zksync_os_interface::types::{AccountDiff, StorageWrite};
@@ -11,11 +13,22 @@ const ACCOUNT_PROPERTIES_STORAGE_ADDRESS: Address =
 pub const BYTECODE_ALIGNMENT: usize = core::mem::size_of::<u64>();
 pub const JUMPDEST: u8 = 0x5b;
 
+pub const EMPTY_BYTE_CODE_HASH: B256 = B256::new([
+    0x69, 0x21, 0x7a, 0x30, 0x79, 0x90, 0x80, 0x94, 0xe1, 0x11, 0x21, 0xd0, 0x42, 0x35, 0x4a, 0x7c,
+    0x1f, 0x55, 0xb6, 0x48, 0x2c, 0xa1, 0xa5, 0x1e, 0x1b, 0x25, 0x0d, 0xfd, 0x1e, 0xd0, 0xee, 0xf9,
+]);
+
+// TODO: refactor
+
 /// Fold a sequence of per-transaction state diffs into a single per-block diff.
 /// `tx_diffs` must be ordered from earliest to latest tx in the block.
-pub fn accumulate_revm_state_diffs(
+pub fn accumulate_revm_state_diffs<DB>(
     tx_diffs: &[HashMap<Address, Account, RandomState>],
-) -> HashMap<Address, Account, RandomState> {
+    cache_db: &mut CacheDB<DB>,
+    zksync_account_diff: &[AccountDiff],
+) -> (HashMap<Address, Account, RandomState>, Vec<AccountDiff>)
+where DB: DatabaseRef
+{
     let mut acc: HashMap<Address, Account, RandomState> =
         HashMap::with_hasher(RandomState::default());
 
@@ -34,31 +47,62 @@ pub fn accumulate_revm_state_diffs(
         }
     }
 
-    acc
+    for account in acc.values_mut() {
+        if account.is_selfdestructed_locally() {
+            account.selfdestruct();
+            account.unmark_selfdestructed_locally();
+        }
+    }
+
+    for acc_diff in zksync_account_diff {
+        if let Entry::Vacant(v) = acc.entry(acc_diff.address) {
+            if let Ok(account) = cache_db.basic(acc_diff.address) {
+                v.insert(account.unwrap_or_default().into());
+            }
+        }
+    }
+
+    let mut to_add = vec![];
+    for (address, _) in acc.iter() {
+        let mut cont = false;
+        for x in zksync_account_diff.iter() {
+            if x.address == *address {
+                cont = true;
+                break;
+            }
+        }
+        if !cont {
+            to_add.push(address);
+        }
+    }
+    let mut final_zksync_account_diff = Vec::from(zksync_account_diff);
+
+    for addr in to_add {
+        if let Ok(account) = cache_db.basic(*addr) {
+            let account = account.unwrap_or_default();
+            final_zksync_account_diff.push(AccountDiff {
+                address: *addr,
+                balance: account.balance,
+                nonce: account.nonce,
+                bytecode_hash: compute_bytecode_hash(&account.code.unwrap_or_default())
+            });
+        }
+    }
+
+    (acc, final_zksync_account_diff)
 }
 
 /// Merge `src` tx-level changes into `dst` (block accumulator).
 /// Last-write-wins semantics for all fields/slots.
 fn merge_account(dst: &mut Account, src: &Account) {
-    // --- AccountInfo: take the latest snapshot values.
-    dst.info.balance = src.info.balance;
-    dst.info.nonce = src.info.nonce;
-    dst.info.code_hash = src.info.code_hash;
+    dst.info = src.info.clone();
+    dst.status = src.status.clone();
+    dst.transaction_id = src.transaction_id;
 
-    // Prefer explicit code provided by the tx diff; retain previous if None.
-    if src.info.code.is_some() {
-        dst.info.code = src.info.code.clone();
-    }
-
-    // --- Storage: overwrite slots present in this tx diff.
-    // (If a slot isn't present here, the previous value stays.)
+    // Overwrite slots present in this tx diff.
     for (k, slot) in &src.storage {
         dst.storage.insert(*k, slot.clone());
     }
-
-    // --- Status / bookkeeping:
-    // Keep the latest status (replace with bitwise-OR style merge if your type supports it).
-    dst.status |= src.status.clone();
 }
 
 #[inline(always)]
@@ -235,7 +279,10 @@ pub fn compare_state_diffs(
                 if r.balance != z.balance {
                     mm.balance = Some((r.balance, z.balance));
                 }
-                if r.bytecode_hash != z.bytecode_hash {
+                if r.bytecode_hash != z.bytecode_hash
+                    && !(r.bytecode_hash == EMPTY_BYTE_CODE_HASH && z.bytecode_hash == B256::ZERO)
+                    && !(r.bytecode_hash == B256::ZERO && z.bytecode_hash == EMPTY_BYTE_CODE_HASH)
+                {
                     mm.bytecode_hash = Some((r.bytecode_hash, z.bytecode_hash));
                 }
                 if mm.nonce.is_some() || mm.balance.is_some() || mm.bytecode_hash.is_some() {
@@ -352,3 +399,13 @@ fn calculate_bytecode_test() {
     let bytecode_hash = compute_bytecode_hash(&bytecode);
     println!("bytecode {:?}", bytecode_hash);
 }
+
+#[test]
+fn calculate_empty_bytecode_test() {
+    use alloy::hex;
+    let bytecode = Bytecode::new_legacy(hex!("").into());
+    let bytecode_hash = compute_bytecode_hash(&bytecode);
+    println!("bytecode {:?}", bytecode_hash);
+}
+
+// 0x69217a3079908094e11121d042354a7c1f55b6482ca1a51e1b250dfd1ed0eef9

@@ -18,7 +18,11 @@ pub fn get_unpadded_code(full_bytecode: &[u8], account: &AccountProperties) -> B
 }
 
 /// Convert a ZkTransaction into a revm TxEnv for REVM re-execution
-pub fn zk_tx_try_into_revm_tx(tx: &ZkTransaction) -> Result<ZKsyncTx<TxEnv>> {
+pub fn zk_tx_try_into_revm_tx(
+    tx: &ZkTransaction,
+    gas_used: u64,
+    execution_status: bool,
+) -> Result<ZKsyncTx<TxEnv>> {
     let caller = tx.signer();
 
     // Extract transaction details based on envelope type
@@ -36,7 +40,7 @@ pub fn zk_tx_try_into_revm_tx(tx: &ZkTransaction) -> Result<ZKsyncTx<TxEnv>> {
     ) = match envelope {
         zksync_os_types::ZkEnvelope::L2(l2_tx) => {
             // L2 transactions are standard Ethereum transactions
-            let gas_price = l2_tx.gas_price().unwrap_or(0);
+            let gas_price = l2_tx.max_fee_per_gas();
             let priority_fee = l2_tx.max_priority_fee_per_gas();
             let value = l2_tx.value();
             let data = l2_tx.input().clone();
@@ -58,8 +62,8 @@ pub fn zk_tx_try_into_revm_tx(tx: &ZkTransaction) -> Result<ZKsyncTx<TxEnv>> {
             // L1 priority transactions - extract from canonical transaction format
             let inner = &l1_tx.inner;
             (
-                0u128, // L1 transactions don't have gas price in the same way
-                None,
+                l1_tx.max_fee_per_gas(),
+                l1_tx.max_priority_fee_per_gas(),
                 inner.value(),
                 inner.input().clone(),
                 None,
@@ -116,6 +120,8 @@ pub fn zk_tx_try_into_revm_tx(tx: &ZkTransaction) -> Result<ZKsyncTx<TxEnv>> {
         .base(tx_env_builder)
         .mint(to_mint)
         .refund_recipient(refund_recipient)
+        .gas_used_override(Some(gas_used))
+        .force_fail(!execution_status)
         .build()
         .map_err(|e| anyhow::anyhow!("Failed to build TxEnv: {:?}", e))
         .unwrap();
