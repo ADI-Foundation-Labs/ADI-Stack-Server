@@ -15,7 +15,7 @@ pub mod prover_api;
 mod prover_input_generator;
 mod replay_transport;
 pub mod reth_state;
-mod revm_two_fa;
+mod revm_consistency_checker;
 pub mod sentry;
 mod state_initializer;
 pub mod tree_manager;
@@ -43,7 +43,7 @@ use crate::prover_api::snark_proving_pipeline_step::SnarkProvingPipelineStep;
 use crate::prover_input_generator::ProverInputGenerator;
 use crate::replay_transport::replay_server;
 use crate::reth_state::ZkClient;
-use crate::revm_two_fa::node::RevmTwoFa;
+use crate::revm_consistency_checker::node::RevmConsistencyChecker;
 use crate::state_initializer::StateInitializer;
 use crate::tree_manager::TreeManager;
 use alloy::network::EthereumWallet;
@@ -705,7 +705,7 @@ async fn run_en_pipeline<
             config
                 .sequencer_config
                 .revm_consistency_checker_enabled
-                .then(|| RevmTwoFa::new(state.clone())),
+                .then(|| RevmConsistencyChecker::new(state.clone())),
         )
         .pipe(TreeManager { tree: tree.clone() })
         .pipe(NoOpSink::new())

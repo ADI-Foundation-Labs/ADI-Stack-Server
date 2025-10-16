@@ -4,7 +4,9 @@ use reth_revm::db::CacheDB;
 use std::collections::HashMap;
 use zksync_os_interface::types::{AccountDiff, StorageWrite};
 
-use crate::revm_two_fa::bytecode_hash::{EMPTY_BYTE_CODE_HASH, calculate_bytecode_hash};
+use crate::revm_consistency_checker::bytecode_hash::{
+    EMPTY_BYTE_CODE_HASH, calculate_bytecode_hash,
+};
 
 const ACCOUNT_PROPERTIES_STORAGE_ADDRESS: Address =
     address!("0000000000000000000000000000000000008003");

@@ -1,6 +1,6 @@
 use std::{error::Error, fmt};
 
-use crate::revm_two_fa::helpers::get_unpadded_code;
+use crate::revm_consistency_checker::helpers::get_unpadded_code;
 use alloy::primitives::{Address, B256};
 use reth_revm::{
     DatabaseRef,

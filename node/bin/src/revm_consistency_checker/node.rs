@@ -6,22 +6,25 @@ use reth_revm::ExecuteCommitEvm;
 use reth_revm::context::{Context, ContextTr};
 use tokio::sync::mpsc::Sender;
 use zksync_os_interface::types::BlockOutput;
+use zksync_os_observability::{ComponentStateReporter, GenericComponentState};
 use zksync_os_pipeline::{PeekableReceiver, PipelineComponent};
 use zksync_os_storage_api::{ReadStateHistory, ReplayRecord};
 use zksync_revm::{DefaultZk, ZkBuilder};
 
-use crate::revm_two_fa::helpers::zk_tx_into_revm_tx;
-use crate::revm_two_fa::revm_state_db::RevmStateDb;
-use crate::revm_two_fa::storage_diff_comp::{accumulate_revm_state_diffs, compare_state_diffs};
+use crate::revm_consistency_checker::helpers::zk_tx_into_revm_tx;
+use crate::revm_consistency_checker::revm_state_db::RevmStateDb;
+use crate::revm_consistency_checker::storage_diff_comp::{
+    accumulate_revm_state_diffs, compare_state_diffs,
+};
 
-pub struct RevmTwoFa<State>
+pub struct RevmConsistencyChecker<State>
 where
     State: ReadStateHistory + Clone + Send + 'static,
 {
     state: RevmStateDb<State>,
 }
 
-impl<State> RevmTwoFa<State>
+impl<State> RevmConsistencyChecker<State>
 where
     State: ReadStateHistory + Clone + Send + 'static,
 {
@@ -33,14 +36,14 @@ where
 }
 
 #[async_trait]
-impl<State> PipelineComponent for RevmTwoFa<State>
+impl<State> PipelineComponent for RevmConsistencyChecker<State>
 where
     State: ReadStateHistory + Clone + Send + 'static,
 {
     type Input = (BlockOutput, ReplayRecord);
     type Output = (BlockOutput, ReplayRecord);
 
-    const NAME: &'static str = "REVM 2FA";
+    const NAME: &'static str = "revm_consistency_checker";
     const OUTPUT_BUFFER_SIZE: usize = 5;
 
     async fn run(
@@ -48,11 +51,17 @@ where
         mut input: PeekableReceiver<Self::Input>, // PeekableReceiver<(BlockOutput, ReplayRecord)>
         output: Sender<Self::Output>,             // Sender<(BlockOutput, ReplayRecord)>
     ) -> anyhow::Result<()> {
+        let latency_tracker = ComponentStateReporter::global().handle_for(
+            "revm_consistency_checker",
+            GenericComponentState::WaitingRecv,
+        );
         loop {
+            latency_tracker.enter_state(GenericComponentState::WaitingRecv);
             let Some((block_output, replay_record)) = input.recv().await else {
                 anyhow::bail!("inbound channel closed");
             };
 
+            latency_tracker.enter_state(GenericComponentState::WaitingSend);
             // Immediately send the output to avoid blocking the next pipeline steps
             if output
                 .send((block_output.clone(), replay_record.clone()))
@@ -61,6 +70,7 @@ where
             {
                 anyhow::bail!("Outbound channel closed");
             }
+            latency_tracker.enter_state(GenericComponentState::Processing);
 
             self.state.set_latest_block(
                 replay_record.block_context.block_number - 1,
