@@ -1,9 +1,9 @@
+use std::collections::HashMap;
 use alloy::consensus::BlobTransactionSidecar;
-use alloy::primitives::U256;
+use alloy::primitives::{b256, U256};
 use alloy::providers::Provider;
 use alloy::rpc::types::TransactionRequest;
-use alloy::rpc::types::state::StateOverride;
-use serde_json::json;
+use alloy::rpc::types::state::{AccountOverride, StateOverride};
 use zksync_os_integration_tests::Tester;
 use zksync_os_integration_tests::assert_traits::EthCallAssert;
 use zksync_os_integration_tests::contracts::{EventEmitter, SimpleRevert, TracingSecondary};
@@ -162,22 +162,26 @@ async fn call_with_state_overrides() -> anyhow::Result<()> {
     // Build a TransactionRequest for multiply(1) -> returns the storage-backed value
     let tx_req = contract.multiply(U256::from(1)).into_transaction_request();
 
-    // Baseline call without overrides (should return 7)
+    // Baseline call without overrides (should return 1)
     let out = tester.l2_provider.call(tx_req.clone()).await?;
     let baseline = U256::from_be_slice(&out);
     assert_eq!(baseline, initial_data);
 
-    // Prepare state override via JSON to match expected types: set slot 0 to 13
-    let overrides_json = json!({
-        format!("{:#x}", contract.address()): {
-            "state": {
-                // slot 0 -> 0x...02
-                "0x0000000000000000000000000000000000000000000000000000000000000000":
-                    format!("0x{:064x}", U256::from(2u64)),
-            }
-        }
-    });
-    let overrides: StateOverride = serde_json::from_value(overrides_json)?;
+    // Prepare state override via JSON to match expected types: set slot 0 to 2
+    let overrides = StateOverride::from_iter([(
+        *contract.address(),
+        AccountOverride {
+            balance: None,
+            nonce: None,
+            code: None,
+            state: Some(HashMap::from_iter([(
+                b256!("0x0000000000000000000000000000000000000000000000000000000000000000"),
+                b256!("0x0000000000000000000000000000000000000000000000000000000000000002"),
+            )])),
+            state_diff: None,
+            move_precompile_to: None,
+        },
+    )]);
 
     // Call again with the override; expect 2 now
     let out_overridden = tester.l2_provider.call(tx_req).overrides(overrides).await?;

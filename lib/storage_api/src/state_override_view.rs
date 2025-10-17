@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::ViewState;
 use alloy::primitives::{Address, B256, U256, ruint::aliases::B160};
 use zk_ee::common_structs::derive_flat_storage_key;
-use zk_os_api::helpers::{set_properties_code, set_properties_nonce};
+use zk_os_api::helpers::{set_properties_code, set_properties_nonce, set_properties_balance};
 use zk_os_basic_system::system_implementation::flat_storage_model::{
     ACCOUNT_PROPERTIES_STORAGE_ADDRESS, AccountProperties, address_into_special_storage_key,
 };
@@ -55,12 +55,11 @@ impl<V: ViewState> OverriddenStateView<V> {
             }
 
             if let Some(balance) = acc_override.balance {
-                use zk_os_api::helpers::set_properties_balance;
                 set_properties_balance(&mut base, balance);
             }
 
             if let Some(code) = acc_override.code {
-                let bytecode_preimage = set_properties_code(&mut base, &code.to_vec());
+                let bytecode_preimage = set_properties_code(&mut base, &code);
                 // Map bytecode hash -> preimage
                 let bytecode_hash_b256: B256 = base.bytecode_hash.as_u8_array().into();
                 preimage_overrides.insert(bytecode_hash_b256, bytecode_preimage);
