@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.8.4](https://github.com/matter-labs/zksync-os-server/compare/v0.8.3...v0.8.4) (2025-10-17)
+
+
+### Features
+
+* config in sequencer to limit block production for operations/debug ([#537](https://github.com/matter-labs/zksync-os-server/issues/537)) ([ebdde51](https://github.com/matter-labs/zksync-os-server/commit/ebdde5129cc15e03600378501744c52eca231263))
+* **l1-sender:** use alloy-based tx inclusion ([#541](https://github.com/matter-labs/zksync-os-server/issues/541)) ([48202cd](https://github.com/matter-labs/zksync-os-server/commit/48202cdbd70381f3689670e7d76bfe53dcdd2801))
+* **l1-watcher:** move pagination/polling into shared component ([#548](https://github.com/matter-labs/zksync-os-server/issues/548)) ([d98d0ef](https://github.com/matter-labs/zksync-os-server/commit/d98d0ef66e2c232141a72cf8b8d31fc23be14721))
+* make pipelines repository-agnostic ([#536](https://github.com/matter-labs/zksync-os-server/issues/536)) ([e28635b](https://github.com/matter-labs/zksync-os-server/commit/e28635bdc12432857cbeb84056a684bba8e1edf9))
+* **storage:** move replay DB to storage crate ([#535](https://github.com/matter-labs/zksync-os-server/issues/535)) ([9c43a90](https://github.com/matter-labs/zksync-os-server/commit/9c43a90011bcb63c69029c2a2505c1ad4576180d))
+
+
+### Bug Fixes
+
+* Disable warning on connection retries ([#545](https://github.com/matter-labs/zksync-os-server/issues/545)) ([1a56284](https://github.com/matter-labs/zksync-os-server/commit/1a5628418b11cec0e5b99cfcb6df10115a8e05a2))
+* Persisting some info about the failed batch ([#532](https://github.com/matter-labs/zksync-os-server/issues/532)) ([ccc9a9f](https://github.com/matter-labs/zksync-os-server/commit/ccc9a9fe48279820731b46094404ccb3a57bdd21))
+
 ## [0.8.3](https://github.com/matter-labs/zksync-os-server/compare/v0.8.2...v0.8.3) (2025-10-15)
 
 
