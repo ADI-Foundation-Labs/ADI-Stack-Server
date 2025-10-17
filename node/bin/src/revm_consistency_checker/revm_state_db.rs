@@ -1,7 +1,7 @@
 use std::{error::Error, fmt};
 
 use crate::revm_consistency_checker::helpers::get_unpadded_code;
-use alloy::primitives::{Address, B256};
+use alloy::primitives::{Address, B256, KECCAK256_EMPTY};
 use reth_revm::{
     DatabaseRef,
     db::DBErrorMarker,
@@ -89,16 +89,29 @@ where
             .state_view_at(self.latest_block)?
             .get_account(address)
             .map(|props| {
-                let code_hash = B256::from(props.bytecode_hash.as_u8_array());
+                // If an account has no bytecode but a non-zero nonce or balance,
+                // it has an empty keccak256 code hash
+                let observable_code_hash = {
+                    let is_acc_empty = props.nonce == 0 && props.balance.is_zero();
+                    if props.observable_bytecode_hash.is_zero() && !is_acc_empty {
+                        KECCAK256_EMPTY
+                    } else {
+                        B256::from(props.observable_bytecode_hash.as_u8_array())
+                    }
+                };
 
                 AccountInfo {
                     nonce: props.nonce,
                     balance: props.balance,
-                    code_hash: B256::from(props.observable_bytecode_hash.as_u8_array()),
+                    code_hash: observable_code_hash,
                     code: if props.bytecode_hash.is_zero() {
                         None
                     } else {
-                        let bytecode = self.code_by_hash_ref(code_hash).expect("code_by_hash");
+                        // Retrieve ZKsync OS internal bytecode from the database.
+                        // Then clean it by removing any padding or metadata artifacts before use.
+                        let bytecode = self
+                            .code_by_hash_ref(B256::from(props.bytecode_hash.as_u8_array()))
+                            .expect("code_by_hash");
                         Some(get_unpadded_code(bytecode.bytes_slice(), &props).into())
                     },
                 }
