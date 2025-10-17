@@ -3,7 +3,6 @@
 #![feature(generic_const_exprs)]
 mod batch_sink;
 pub mod batcher;
-pub mod block_replay_storage;
 mod command_source;
 pub mod config;
 mod en_remote_config;
@@ -14,7 +13,6 @@ mod priority_tree_steps;
 pub mod prover_api;
 mod prover_input_generator;
 mod replay_transport;
-pub mod reth_state;
 pub mod sentry;
 mod state_initializer;
 pub mod tree_manager;
@@ -22,7 +20,6 @@ pub mod zkstack_config;
 
 use crate::batch_sink::{BatchSink, NoOpSink};
 use crate::batcher::{Batcher, util::load_genesis_stored_batch_info};
-use crate::block_replay_storage::BlockReplayStorage;
 use crate::command_source::{ExternalNodeCommandSource, MainNodeCommandSource};
 use crate::config::{Config, ProverApiConfig, gas_adjuster_config};
 use crate::en_remote_config::load_remote_config;
@@ -41,19 +38,16 @@ use crate::prover_api::snark_job_manager::{FakeSnarkProver, SnarkJobManager};
 use crate::prover_api::snark_proving_pipeline_step::SnarkProvingPipelineStep;
 use crate::prover_input_generator::ProverInputGenerator;
 use crate::replay_transport::replay_server;
-use crate::reth_state::ZkClient;
 use crate::state_initializer::StateInitializer;
 use crate::tree_manager::TreeManager;
 use alloy::network::EthereumWallet;
 use alloy::providers::{Provider, WalletProvider};
 use anyhow::{Context, Result};
 use futures::FutureExt;
-use futures::StreamExt;
-use futures::stream::BoxStream;
 use ruint::aliases::U256;
 use std::path::Path;
 use std::sync::Arc;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use tokio::sync::watch;
 use tokio::task::JoinSet;
 use zksync_os_contract_interface::l1_discovery::L1State;
@@ -65,7 +59,7 @@ use zksync_os_l1_sender::commands::commit::CommitCommand;
 use zksync_os_l1_sender::commands::prove::ProofCommand;
 use zksync_os_l1_sender::pipeline_component::L1Sender;
 use zksync_os_l1_watcher::{L1CommitWatcher, L1ExecuteWatcher, L1TxWatcher};
-use zksync_os_mempool::RethPool;
+use zksync_os_mempool::L2TransactionPool;
 use zksync_os_merkle_tree::{MerkleTree, RocksDBWrapper};
 use zksync_os_object_store::ObjectStoreFactory;
 use zksync_os_observability::GENERAL_METRICS;
@@ -73,12 +67,13 @@ use zksync_os_pipeline::Pipeline;
 use zksync_os_rpc::{RpcStorage, run_jsonrpsee_server};
 use zksync_os_sequencer::execution::Sequencer;
 use zksync_os_sequencer::execution::block_context_provider::BlockContextProvider;
-use zksync_os_sequencer::model::blocks::{BlockCommand, ProduceCommand};
 use zksync_os_status_server::run_status_server;
+use zksync_os_storage::db::BlockReplayStorage;
 use zksync_os_storage::in_memory::Finality;
 use zksync_os_storage::lazy::RepositoryManager;
 use zksync_os_storage_api::{
-    FinalityStatus, ReadFinality, ReadReplay, ReadRepository, ReadStateHistory, WriteState,
+    FinalityStatus, ReadFinality, ReadReplay, ReadRepository, ReadStateHistory, WriteReplay,
+    WriteRepository, WriteState,
 };
 use zksync_os_types::{NotAcceptingReason, TransactionAcceptanceState};
 
@@ -180,8 +175,15 @@ pub async fn run<State: ReadStateHistory + WriteState + StateInitializer + Clone
 
     tracing::info!("Initializing BlockReplayStorage");
 
-    let block_replay_storage =
-        BlockReplayStorage::new(config.general_config.rocks_db_path.clone(), &genesis).await;
+    let block_replay_storage = BlockReplayStorage::new(
+        &config
+            .general_config
+            .rocks_db_path
+            .join(BLOCK_REPLAY_WAL_DB_NAME),
+        &genesis,
+        node_version.clone(),
+    )
+    .await;
 
     tracing::info!("Initializing Tree RocksDB");
     let tree_db = TreeManager::load_or_initialize_tree(
@@ -202,7 +204,9 @@ pub async fn run<State: ReadStateHistory + WriteState + StateInitializer + Clone
 
     tracing::info!("Initializing mempools");
     let l2_mempool = zksync_os_mempool::in_memory(
-        ZkClient::new(repositories.clone(), state.clone(), chain_id),
+        state.clone(),
+        repositories.clone(),
+        chain_id,
         config.mempool_config.clone().into(),
         config.tx_validator_config.clone().into(),
     );
@@ -214,7 +218,7 @@ pub async fn run<State: ReadStateHistory + WriteState + StateInitializer + Clone
         is_main_node: config.sequencer_config.is_main_node(),
         l1_state: l1_state.clone(),
         state_block_range_available: state.block_range_available(),
-        block_replay_storage_last_block: block_replay_storage.latest_block().unwrap_or(0),
+        block_replay_storage_last_block: block_replay_storage.latest_record(),
         tree_last_block: tree_db
             .latest_version()
             .expect("cannot read tree last processed block after initialization")
@@ -410,24 +414,23 @@ pub async fn run<State: ReadStateHistory + WriteState + StateInitializer + Clone
     let genesis = Arc::new(genesis);
     // todo: `BlockContextProvider` initialization and its dependencies
     // should be moved to `sequencer`
-    let block_context_provider: BlockContextProvider<RethPool<ZkClient<State>>> =
-        BlockContextProvider::new(
-            next_l1_priority_id,
-            l1_transactions_for_sequencer,
-            l2_mempool,
-            block_hashes_for_next_block,
-            previous_block_timestamp,
-            chain_id,
-            config.sequencer_config.block_gas_limit,
-            config.sequencer_config.block_pubdata_limit_bytes,
-            node_version,
-            genesis.clone(),
-            config.sequencer_config.fee_collector_address,
-            config.sequencer_config.base_fee_override,
-            config.sequencer_config.pubdata_price_override,
-            pubdata_price_provider,
-            pending_block_context_sender,
-        );
+    let block_context_provider = BlockContextProvider::new(
+        next_l1_priority_id,
+        l1_transactions_for_sequencer,
+        l2_mempool,
+        block_hashes_for_next_block,
+        previous_block_timestamp,
+        chain_id,
+        config.sequencer_config.block_gas_limit,
+        config.sequencer_config.block_pubdata_limit_bytes,
+        node_version,
+        genesis.clone(),
+        config.sequencer_config.fee_collector_address,
+        config.sequencer_config.base_fee_override,
+        config.sequencer_config.pubdata_price_override,
+        pubdata_price_provider,
+        pending_block_context_sender,
+    );
 
     // ========== Start Sequencer ===========
     tasks.spawn(
@@ -500,55 +503,20 @@ pub async fn run<State: ReadStateHistory + WriteState + StateInitializer + Clone
     tracing::info!("One of the subsystems exited - exiting process.");
 }
 
-// todo: extract to a `command_source.rs` - left here to reduce PR size.
-pub fn command_source(
-    block_replay_wal: &BlockReplayStorage,
-    block_to_start: u64,
-    block_time: Duration,
-    max_transactions_in_block: usize,
-) -> BoxStream<BlockCommand> {
-    let last_block_in_wal = block_replay_wal.latest_block().unwrap_or(0);
-    tracing::info!(last_block_in_wal, "Last block in WAL: {last_block_in_wal}");
-    tracing::info!(block_to_start, "block_to_start: {block_to_start}");
-
-    // Stream of replay commands from WAL
-    let replay_wal_stream: BoxStream<BlockCommand> =
-        Box::pin(block_replay_wal.replay_commands_from(block_to_start));
-
-    // Combined source: run WAL replay first, then produce blocks from mempool
-    let produce_stream: BoxStream<BlockCommand> =
-        futures::stream::unfold(last_block_in_wal + 1, move |block_number| async move {
-            Some((
-                BlockCommand::Produce(ProduceCommand {
-                    block_number,
-                    block_time,
-                    max_transactions_in_block,
-                }),
-                block_number + 1,
-            ))
-        })
-        .boxed();
-    let stream = replay_wal_stream.chain(produce_stream);
-    stream.boxed()
-}
-
 #[allow(clippy::too_many_arguments)]
-async fn run_main_node_pipeline<
-    State: ReadStateHistory + WriteState + StateInitializer + Clone,
-    Finality: ReadFinality + Clone,
->(
+async fn run_main_node_pipeline(
     config: Config,
     l1_provider: impl Provider + WalletProvider<Wallet = EthereumWallet> + Clone + 'static,
     batch_storage: ProofStorage,
     node_state_on_startup: NodeStateOnStartup,
-    block_replay_storage: BlockReplayStorage,
+    block_replay_storage: impl WriteReplay + Clone,
     tasks: &mut JoinSet<()>,
-    state: State,
+    state: impl ReadStateHistory + WriteState + Clone,
     starting_block: u64,
-    repositories: RepositoryManager,
-    block_context_provider: BlockContextProvider<RethPool<ZkClient<State>>>,
+    repositories: impl WriteRepository + Clone,
+    block_context_provider: BlockContextProvider<impl L2TransactionPool>,
     tree: MerkleTree<RocksDBWrapper>,
-    finality: Finality,
+    finality: impl ReadFinality + Clone,
     chain_id: u64,
     genesis: &Genesis,
     _stop_receiver: watch::Receiver<bool>,
@@ -647,7 +615,7 @@ async fn run_main_node_pipeline<
         .pipe(Sequencer {
             block_context_provider,
             state: state.clone(),
-            wal: block_replay_storage.clone(),
+            replay: block_replay_storage.clone(),
             repositories: repositories.clone(),
             sequencer_config: config.sequencer_config.clone().into(),
             tx_acceptance_state_sender,
@@ -714,21 +682,18 @@ async fn run_main_node_pipeline<
 /// Only for EN - we still populate channels destined for the batcher subsystem -
 /// need to drain them to not get stuck
 #[allow(clippy::too_many_arguments)]
-async fn run_en_pipeline<
-    State: ReadStateHistory + WriteState + StateInitializer + Clone,
-    Finality: ReadFinality + Clone,
->(
+async fn run_en_pipeline(
     config: Config,
     batch_storage: ProofStorage,
     node_state_on_startup: NodeStateOnStartup,
-    block_replay_storage: BlockReplayStorage,
+    block_replay_storage: impl WriteReplay + Clone,
     tasks: &mut JoinSet<()>,
-    block_context_provider: BlockContextProvider<RethPool<ZkClient<State>>>,
-    state: State,
+    block_context_provider: BlockContextProvider<impl L2TransactionPool>,
+    state: impl ReadStateHistory + WriteState + Clone,
     tree: MerkleTree<RocksDBWrapper>,
     starting_block: u64,
-    repositories: RepositoryManager,
-    finality: Finality,
+    repositories: impl WriteRepository + Clone,
+    finality: impl ReadFinality + Clone,
     _stop_receiver: watch::Receiver<bool>,
     tx_acceptance_state_sender: watch::Sender<TransactionAcceptanceState>,
 ) {
@@ -744,7 +709,7 @@ async fn run_en_pipeline<
         .pipe(Sequencer {
             block_context_provider,
             state: state.clone(),
-            wal: block_replay_storage.clone(),
+            replay: block_replay_storage.clone(),
             repositories: repositories.clone(),
             sequencer_config: config.sequencer_config.clone().into(),
             tx_acceptance_state_sender,
@@ -778,7 +743,7 @@ async fn run_en_pipeline<
     );
 }
 
-fn block_hashes_for_first_block(repositories: &RepositoryManager) -> BlockHashes {
+fn block_hashes_for_first_block(repositories: &dyn ReadRepository) -> BlockHashes {
     let mut block_hashes = BlockHashes::default();
     let genesis_block = repositories
         .get_block_by_number(0)
