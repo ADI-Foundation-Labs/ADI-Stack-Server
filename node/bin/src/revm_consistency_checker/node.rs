@@ -86,7 +86,8 @@ where
                     block.timestamp = U256::from(replay_record.block_context.timestamp);
                     block.beneficiary = replay_record.block_context.coinbase;
                     block.basefee = replay_record.block_context.eip1559_basefee.saturating_to();
-                    block.prevrandao = Some(replay_record.block_context.mix_hash.into());
+                    block.gas_limit = replay_record.block_context.gas_limit;
+                    block.prevrandao = Some(U256::ONE.into());
                 })
                 .build_zk();
 
