@@ -12,6 +12,7 @@ use alloy::rpc::types::state::StateOverride;
 use alloy::rpc::types::trace::geth::{CallConfig, GethTrace};
 use alloy::rpc::types::{BlockOverrides, TransactionRequest};
 use std::collections::HashMap;
+use zk_ee::common_structs::derive_flat_storage_key;
 use zk_os_api::helpers::{get_balance, get_nonce};
 use zksync_os_interface::types::ExecutionOutput;
 use zksync_os_interface::{
@@ -23,7 +24,6 @@ use zksync_os_storage_api::{
     RepositoryError, StateError,
     state_override_view::{AccountViewOverride, OverriddenStateView},
 };
-use zk_ee::common_structs::derive_flat_storage_key;
 use zksync_os_types::{
     L1_TX_MINIMAL_GAS_LIMIT, L1Envelope, L1PriorityTxType, L1Tx, L1TxType, L2Envelope,
     REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, UpgradeTxType, ZkEnvelope, ZkTransaction, ZkTxType,
@@ -222,8 +222,7 @@ impl<RpcStorage: ReadRpcStorage> EthCallHandler<RpcStorage> {
         state_overrides: Option<StateOverride>,
         block_overrides: Option<Box<BlockOverrides>>,
     ) -> Result<Bytes, EthCallError> {
-        let execution_env =
-            self.prepare_execution_env(request, block, block_overrides)?;
+        let execution_env = self.prepare_execution_env(request, block, block_overrides)?;
         let storage_view = self
             .storage
             .state_view_at(execution_env.block_context.block_number)?;
@@ -265,8 +264,7 @@ impl<RpcStorage: ReadRpcStorage> EthCallHandler<RpcStorage> {
         state_overrides: Option<StateOverride>,
         block_overrides: Option<Box<BlockOverrides>>,
     ) -> Result<GethTrace, EthCallError> {
-        let execution_env =
-            self.prepare_execution_env(request, block, block_overrides)?;
+        let execution_env = self.prepare_execution_env(request, block, block_overrides)?;
         let storage_view = self
             .storage
             .state_view_at(execution_env.block_context.block_number)?;

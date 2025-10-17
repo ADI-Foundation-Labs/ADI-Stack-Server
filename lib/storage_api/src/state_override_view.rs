@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::ViewState;
 use alloy::primitives::{Address, B256, U256, ruint::aliases::B160};
 use zk_ee::common_structs::derive_flat_storage_key;
-use zk_os_api::helpers::{set_properties_code, set_properties_nonce, set_properties_balance};
+use zk_os_api::helpers::{set_properties_balance, set_properties_code, set_properties_nonce};
 use zk_os_basic_system::system_implementation::flat_storage_model::{
     ACCOUNT_PROPERTIES_STORAGE_ADDRESS, AccountProperties, address_into_special_storage_key,
 };

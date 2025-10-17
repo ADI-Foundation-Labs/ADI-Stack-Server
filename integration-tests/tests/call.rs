@@ -1,9 +1,9 @@
-use std::collections::HashMap;
 use alloy::consensus::BlobTransactionSidecar;
-use alloy::primitives::{b256, U256};
+use alloy::primitives::{U256, b256};
 use alloy::providers::Provider;
 use alloy::rpc::types::TransactionRequest;
 use alloy::rpc::types::state::{AccountOverride, StateOverride};
+use std::collections::HashMap;
 use zksync_os_integration_tests::Tester;
 use zksync_os_integration_tests::assert_traits::EthCallAssert;
 use zksync_os_integration_tests::contracts::{EventEmitter, SimpleRevert, TracingSecondary};
