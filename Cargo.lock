@@ -11524,6 +11524,7 @@ dependencies = [
  "anyhow",
  "backon",
  "serde",
+ "structdiff",
  "tracing",
  "vise",
 ]
