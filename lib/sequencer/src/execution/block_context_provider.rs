@@ -111,9 +111,13 @@ impl<Mempool: L2TransactionPool> BlockContextProvider<Mempool> {
                 }
 
                 let timestamp = (millis_since_epoch() / 1000) as u64;
+
+                const NATIVE_PRICE: u128 = 1_000_000;
+                const NATIVE_PER_GAS: u128 = 100;
+                let eip1559_basefee = NATIVE_PRICE * NATIVE_PER_GAS;
                 let block_context = BlockContext {
-                    eip1559_basefee: U256::from(self.base_fee_override.unwrap_or(1000)),
-                    native_price: U256::from(1),
+                    eip1559_basefee: U256::from(self.base_fee_override.unwrap_or(eip1559_basefee)),
+                    native_price: U256::from(NATIVE_PRICE),
                     pubdata_price: U256::from(
                         self.pubdata_price_override
                             .unwrap_or(self.pubdata_price_provider.pubdata_price()),
@@ -129,6 +133,7 @@ impl<Mempool: L2TransactionPool> BlockContextProvider<Mempool> {
                     mix_hash: Default::default(),
                     execution_version: LATEST_EXECUTION_VERSION as u32,
                 };
+                dbg!(block_context);
                 self.pending_block_context_sender
                     .send_replace(Some(block_context));
                 PreparedBlockCommand {

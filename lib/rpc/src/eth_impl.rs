@@ -566,7 +566,7 @@ impl<RpcStorage: ReadRpcStorage, Mempool: L2TransactionPool> EthApiServer
 
     async fn gas_price(&self) -> RpcResult<U256> {
         // todo(#??): real implementation
-        Ok(U256::from(1000))
+        Ok(U256::from(100_000_000))
     }
 
     async fn get_account(&self, _address: Address, _block: BlockId) -> RpcResult<Option<Account>> {
@@ -593,7 +593,7 @@ impl<RpcStorage: ReadRpcStorage, Mempool: L2TransactionPool> EthApiServer
         // todo(#??): real implementation
         let block_count: usize = block_count.try_into().unwrap();
         Ok(FeeHistory {
-            base_fee_per_gas: vec![10000u128; block_count],
+            base_fee_per_gas: vec![100_000_000u128; block_count],
             gas_used_ratio: vec![0.5; block_count],
             base_fee_per_blob_gas: vec![],
             blob_gas_used_ratio: vec![],

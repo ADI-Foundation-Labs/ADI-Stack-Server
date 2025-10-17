@@ -58,7 +58,7 @@ sentry = "0.43.0"
 regex = "1.11.3"
 
 #zksync_os_interface = { path = "../zksync-os-interface/crates/interface" }
-#zk_os_forward_system = { package = "forward_system", path = "../zksync-os/forward_system", features = ["evm-compatibility", "no_print"] }
+#zk_os_forward_system = { package = "forward_system", path = "../zksync-os/forward_system", features = ["evm-compatibility"] }
 #zk_ee = { package = "zk_ee", path = "../zksync-os/zk_ee" }
 #zk_os_basic_system = { package = "basic_system", path = "../zksync-os/basic_system" }
 #zk_os_api = { package = "zksync_os_api", path = "../zksync-os/api" }

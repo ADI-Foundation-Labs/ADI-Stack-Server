@@ -309,6 +309,7 @@ impl<RpcStorage: ReadRpcStorage> EthCallHandler<RpcStorage> {
                     .ok_or(EthCallError::BlockNotFound(block_id))?,
             }
         };
+        tracing::info!(?block_context, "estimate start");
 
         // Rest of the flow was heavily borrowed from reth, which in turn closely follows the
         // original geth logic. Source:
@@ -375,6 +376,7 @@ impl<RpcStorage: ReadRpcStorage> EthCallHandler<RpcStorage> {
                 .min(highest_gas_limit),
         );
         let tx = self.create_tx_from_request(request, &block_context)?;
+        tracing::info!("tx.gas_limit() = {}", tx.gas_limit());
 
         let storage_view = self.storage.state_view_at(block_context.block_number)?;
 
@@ -415,6 +417,7 @@ impl<RpcStorage: ReadRpcStorage> EthCallHandler<RpcStorage> {
             let mut optimistic_tx = tx.clone();
             set_gas_limit(&mut optimistic_tx, optimistic_gas_limit);
 
+            tracing::info!("execute with {optimistic_gas_limit}");
             // Re-execute the transaction with the new gas limit and update the result and
             // environment.
             res = execute(optimistic_tx, block_context, storage_view.clone())
@@ -463,6 +466,7 @@ impl<RpcStorage: ReadRpcStorage> EthCallHandler<RpcStorage> {
                 gas_limit = mid_tx.gas_limit(),
                 "trying to simulate transaction"
             );
+            tracing::info!("execute with {mid_gas_limit}");
 
             // Execute transaction and handle potential gas errors, adjusting limits accordingly.
             match execute(mid_tx, block_context, storage_view.clone())
