@@ -24,7 +24,7 @@ use crate::batch_sink::{BatchSink, NoOpSink};
 use crate::batcher::{Batcher, util::load_genesis_stored_batch_info};
 use crate::block_replay_storage::BlockReplayStorage;
 use crate::command_source::{ExternalNodeCommandSource, MainNodeCommandSource};
-use crate::config::{Config, ProverApiConfig};
+use crate::config::{Config, ProverApiConfig, gas_adjuster_config};
 use crate::en_remote_config::load_remote_config;
 use crate::l1_provider::build_node_l1_provider;
 use crate::metadata::NODE_VERSION;
@@ -57,6 +57,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::sync::watch;
 use tokio::task::JoinSet;
 use zksync_os_contract_interface::l1_discovery::L1State;
+use zksync_os_gas_adjuster::{GasAdjuster, PanickingPubdataPriceProvider, PubdataPriceProvider};
 use zksync_os_genesis::{FileGenesisInputSource, Genesis, GenesisInputSource};
 use zksync_os_interface::types::BlockHashes;
 use zksync_os_l1_sender::batcher_model::{BatchEnvelope, FriProof};
@@ -367,6 +368,31 @@ pub async fn run<State: ReadStateHistory + WriteState + StateInitializer + Clone
         .map(report_exit("JSON-RPC server")),
     );
 
+    tracing::info!("Initializing pubdata price provider");
+    let pubdata_price_provider: Arc<dyn PubdataPriceProvider> =
+        if config.sequencer_config.is_main_node() {
+            let gas_adjuster_config = gas_adjuster_config(
+                config.gas_adjuster_config.clone(),
+                l1_state.da_input_mode,
+                config.l1_sender_config.rollup_pubdata_mode,
+                config.l1_sender_config.max_priority_fee_per_gas_gwei,
+            );
+            let gas_adjuster = Arc::new(
+                GasAdjuster::new(l1_provider.clone().erased(), gas_adjuster_config)
+                    .await
+                    .unwrap(),
+            );
+            tasks.spawn(
+                gas_adjuster
+                    .clone()
+                    .run()
+                    .map(report_exit("Gas adjuster server")),
+            );
+            gas_adjuster
+        } else {
+            Arc::new(PanickingPubdataPriceProvider)
+        };
+
     // ========== Start BlockContextProvider and its state ===========
     tracing::info!("Initializing BlockContextProvider");
 
@@ -397,6 +423,7 @@ pub async fn run<State: ReadStateHistory + WriteState + StateInitializer + Clone
             config.sequencer_config.fee_collector_address,
             config.sequencer_config.base_fee_override,
             config.sequencer_config.pubdata_price_override,
+            pubdata_price_provider,
         );
 
     // ========== Start Sequencer ===========

@@ -7,6 +7,7 @@ use reth_primitives::SealedBlock;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::mpsc;
+use zksync_os_gas_adjuster::PubdataPriceProvider;
 use zksync_os_genesis::Genesis;
 use zksync_os_interface::types::{BlockContext, BlockHashes, BlockOutput};
 use zksync_os_mempool::{
@@ -38,8 +39,9 @@ pub struct BlockContextProvider<Mempool> {
     node_version: semver::Version,
     genesis: Arc<Genesis>,
     fee_collector_address: Address,
-    base_fee_override: Option<u64>,
-    pubdata_price_override: Option<u64>,
+    base_fee_override: Option<u128>,
+    pubdata_price_override: Option<u128>,
+    pubdata_price_provider: Arc<dyn PubdataPriceProvider>,
 }
 
 impl<Mempool: L2TransactionPool> BlockContextProvider<Mempool> {
@@ -56,8 +58,9 @@ impl<Mempool: L2TransactionPool> BlockContextProvider<Mempool> {
         node_version: semver::Version,
         genesis: Arc<Genesis>,
         fee_collector_address: Address,
-        base_fee_override: Option<u64>,
-        pubdata_price_override: Option<u64>,
+        base_fee_override: Option<u128>,
+        pubdata_price_override: Option<u128>,
+        pubdata_price_provider: Arc<dyn PubdataPriceProvider>,
     ) -> Self {
         Self {
             next_l1_priority_id,
@@ -73,6 +76,7 @@ impl<Mempool: L2TransactionPool> BlockContextProvider<Mempool> {
             fee_collector_address,
             base_fee_override,
             pubdata_price_override,
+            pubdata_price_provider,
         }
     }
 
@@ -107,8 +111,10 @@ impl<Mempool: L2TransactionPool> BlockContextProvider<Mempool> {
                 let block_context = BlockContext {
                     eip1559_basefee: U256::from(self.base_fee_override.unwrap_or(1000)),
                     native_price: U256::from(1),
-                    // todo: make dynamic once zksync-os sets max gas per pubdata >1 for L2 txs
-                    pubdata_price: U256::from(self.pubdata_price_override.unwrap_or(1)),
+                    pubdata_price: U256::from(
+                        self.pubdata_price_override
+                            .unwrap_or(self.pubdata_price_provider.pubdata_price()),
+                    ),
                     block_number: produce_command.block_number,
                     timestamp,
                     chain_id: self.chain_id,

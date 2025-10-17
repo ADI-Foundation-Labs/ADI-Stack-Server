@@ -27,6 +27,7 @@ members = [
     "lib/multivm",
     "lib/tracing",
     "lib/pipeline",
+    "lib/gas_adjuster",
 ]
 resolver = "3"
 default-members = ["node/bin"]
@@ -167,6 +168,7 @@ zksync_os_status_server = { version = "=0.8.3-non-semver-compat", path = "lib/st
 zksync_os_multivm = { version = "=0.8.3-non-semver-compat", path = "lib/multivm" }
 zksync_os_tracing = { version = "=0.8.3-non-semver-compat", path = "lib/tracing" }
 zksync_os_pipeline = { version = "=0.8.3-non-semver-compat", path = "lib/pipeline" }
+zksync_os_gas_adjuster = { version = "=0.8.3-non-semver-compat", path = "lib/gas_adjuster" }
 
 zksync_os_server = { version = "=0.8.3-non-semver-compat", path = "node/bin" }
 
