@@ -6,7 +6,7 @@ use reth_execution_types::ChangedAccount;
 use reth_primitives::SealedBlock;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, watch};
 use zksync_os_gas_adjuster::PubdataPriceProvider;
 use zksync_os_genesis::Genesis;
 use zksync_os_interface::types::{BlockContext, BlockHashes, BlockOutput};
@@ -42,6 +42,7 @@ pub struct BlockContextProvider<Mempool> {
     base_fee_override: Option<u128>,
     pubdata_price_override: Option<u128>,
     pubdata_price_provider: Arc<dyn PubdataPriceProvider>,
+    pending_block_context_sender: watch::Sender<Option<BlockContext>>,
 }
 
 impl<Mempool: L2TransactionPool> BlockContextProvider<Mempool> {
@@ -61,6 +62,7 @@ impl<Mempool: L2TransactionPool> BlockContextProvider<Mempool> {
         base_fee_override: Option<u128>,
         pubdata_price_override: Option<u128>,
         pubdata_price_provider: Arc<dyn PubdataPriceProvider>,
+        pending_block_context_sender: watch::Sender<Option<BlockContext>>,
     ) -> Self {
         Self {
             next_l1_priority_id,
@@ -77,6 +79,7 @@ impl<Mempool: L2TransactionPool> BlockContextProvider<Mempool> {
             base_fee_override,
             pubdata_price_override,
             pubdata_price_provider,
+            pending_block_context_sender,
         }
     }
 
@@ -126,6 +129,8 @@ impl<Mempool: L2TransactionPool> BlockContextProvider<Mempool> {
                     mix_hash: Default::default(),
                     execution_version: LATEST_EXECUTION_VERSION as u32,
                 };
+                self.pending_block_context_sender
+                    .send_replace(Some(block_context));
                 PreparedBlockCommand {
                     block_context,
                     tx_source: Box::pin(best_txs),

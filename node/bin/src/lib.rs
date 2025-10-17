@@ -355,6 +355,7 @@ pub async fn run<State: ReadStateHistory + WriteState + StateInitializer + Clone
             ))
         };
 
+    let (pending_block_context_sender, pending_block_context_receiver) = watch::channel(None);
     tasks.spawn(
         run_jsonrpsee_server(
             config.rpc_config.clone().into(),
@@ -364,6 +365,7 @@ pub async fn run<State: ReadStateHistory + WriteState + StateInitializer + Clone
             l2_mempool.clone(),
             genesis_input_source,
             tx_acceptance_state_receiver,
+            pending_block_context_receiver,
         )
         .map(report_exit("JSON-RPC server")),
     );
@@ -424,6 +426,7 @@ pub async fn run<State: ReadStateHistory + WriteState + StateInitializer + Clone
             config.sequencer_config.base_fee_override,
             config.sequencer_config.pubdata_price_override,
             pubdata_price_provider,
+            pending_block_context_sender,
         );
 
     // ========== Start Sequencer ===========

@@ -5,12 +5,13 @@ use crate::rpc_storage::ReadRpcStorage;
 use crate::sandbox::{call_trace_simulate, execute};
 use alloy::consensus::transaction::Recovered;
 use alloy::consensus::{SignableTransaction, TxEip1559, TxEip2930, TxLegacy, TxType};
-use alloy::eips::BlockId;
+use alloy::eips::{BlockId, BlockNumberOrTag};
 use alloy::network::TransactionBuilder;
 use alloy::primitives::{Address, B256, Bytes, Signature, TxKind, U256};
 use alloy::rpc::types::state::StateOverride;
 use alloy::rpc::types::trace::geth::{CallConfig, GethTrace};
 use alloy::rpc::types::{BlockOverrides, TransactionRequest};
+use tokio::sync::watch;
 use zk_os_api::helpers::{get_balance, get_nonce};
 use zksync_os_interface::types::ExecutionOutput;
 use zksync_os_interface::{
@@ -31,6 +32,7 @@ pub struct EthCallHandler<RpcStorage> {
     config: RpcConfig,
     storage: RpcStorage,
     chain_id: u64,
+    pending_block_context: watch::Receiver<Option<BlockContext>>,
 }
 
 struct ExecutionEnv {
@@ -39,11 +41,17 @@ struct ExecutionEnv {
 }
 
 impl<RpcStorage: ReadRpcStorage> EthCallHandler<RpcStorage> {
-    pub fn new(config: RpcConfig, storage: RpcStorage, chain_id: u64) -> Self {
+    pub fn new(
+        config: RpcConfig,
+        storage: RpcStorage,
+        chain_id: u64,
+        pending_block_context: watch::Receiver<Option<BlockContext>>,
+    ) -> Self {
         Self {
             config,
             storage,
             chain_id,
+            pending_block_context,
         }
     }
 
@@ -278,14 +286,29 @@ impl<RpcStorage: ReadRpcStorage> EthCallHandler<RpcStorage> {
             return Err(EthCallError::StateOverridesNotSupported);
         }
         let block_id = block_number.unwrap_or_default();
-        let Some(block_number) = self.storage.resolve_block_number(block_id)? else {
-            return Err(EthCallError::BlockNotFound(block_id));
+
+        let block_context = {
+            let Some(block_number) = self.storage.resolve_block_number(block_id)? else {
+                return Err(EthCallError::BlockNotFound(block_id));
+            };
+            match block_id {
+                BlockId::Number(BlockNumberOrTag::Pending) => {
+                    if let Some(pending_block_context) = *self.pending_block_context.borrow() {
+                        pending_block_context
+                    } else {
+                        self.storage
+                            .replay_storage()
+                            .get_context(block_number)
+                            .ok_or(EthCallError::BlockNotFound(block_id))?
+                    }
+                }
+                block_id => self
+                    .storage
+                    .replay_storage()
+                    .get_context(block_number)
+                    .ok_or(EthCallError::BlockNotFound(block_id))?,
+            }
         };
-        let block_context = self
-            .storage
-            .replay_storage()
-            .get_context(block_number)
-            .ok_or(EthCallError::BlockNotFound(block_id))?;
 
         // Rest of the flow was heavily borrowed from reth, which in turn closely follows the
         // original geth logic. Source:
@@ -353,7 +376,7 @@ impl<RpcStorage: ReadRpcStorage> EthCallHandler<RpcStorage> {
         );
         let tx = self.create_tx_from_request(request, &block_context)?;
 
-        let storage_view = self.storage.state_view_at(block_number)?;
+        let storage_view = self.storage.state_view_at(block_context.block_number)?;
 
         // Execute the transaction with the highest possible gas limit.
         let mut res = execute(tx.clone(), block_context, storage_view.clone())
