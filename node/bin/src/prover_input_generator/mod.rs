@@ -8,6 +8,7 @@ use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use vise::{Buckets, Histogram, LabeledFamily, Metrics, Unit};
+use zksync_os_interface::traits::TxListSource;
 use zksync_os_interface::types::BlockOutput;
 use zksync_os_l1_sender::batcher_model::ProverInput;
 use zksync_os_merkle_tree::{MerkleTreeVersion, RocksDBWrapper, fixed_bytes_to_bytes32};
@@ -132,10 +133,12 @@ fn compute_prover_input(
                 unreachable!("proving_run_execution_version does not return 1 or 2")
             } // we prove v1 and v2 blocks with v3, it's reflected in `proving_run_execution_version`
             ExecutionVersion::V3 => {
-                use zk_ee::{common_structs::ProofData, system::metadata::BlockMetadataFromOracle};
+                use zk_ee::{
+                    common_structs::ProofData,
+                    system::metadata::zk_metadata::BlockMetadataFromOracle,
+                };
                 use zk_os_forward_system::run::{
                     StorageCommitment, convert::FromInterface, generate_proof_input,
-                    test_impl::TxListSource,
                 };
 
                 let initial_storage_commitment = StorageCommitment {
@@ -146,9 +149,9 @@ fn compute_prover_input(
                 let list_source = TxListSource { transactions };
 
                 let bin_path = if enable_logging {
-                    zksync_os_multivm::apps::v3::server_app_logging_enabled_path(&app_bin_base_path)
+                    zksync_os_multivm::apps::v4::server_app_logging_enabled_path(&app_bin_base_path)
                 } else {
-                    zksync_os_multivm::apps::v3::server_app_path(&app_bin_base_path)
+                    zksync_os_multivm::apps::v4::server_app_path(&app_bin_base_path)
                 };
 
                 generate_proof_input(

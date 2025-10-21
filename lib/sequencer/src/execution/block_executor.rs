@@ -371,7 +371,8 @@ fn rejection_method(error: &InvalidTransaction) -> TxRejectionMethod {
         | InvalidTransaction::BlobElementIsNotSupported
         | InvalidTransaction::EIP7623IntrinsicGasIsTooLow
         | InvalidTransaction::NativeResourcesAreTooExpensive
-        | InvalidTransaction::OtherUnrecoverable(_) => TxRejectionMethod::Purge,
+        | InvalidTransaction::OtherUnrecoverable(_)
+        | InvalidTransaction::EIP7702HasNullDestination => TxRejectionMethod::Purge,
 
         InvalidTransaction::GasPriceLessThanBasefee
         | InvalidTransaction::LackOfFundForMaxFee { .. }
