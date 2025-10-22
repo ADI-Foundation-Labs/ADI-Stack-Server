@@ -21,10 +21,9 @@ fn main() {
         }
         let tag = match parse_git_tag(&package.id) {
             Ok(tag) => tag,
-            Err(_err) => {
-                "v0.0.27".to_string()
-                // println!("cargo::error=failed to parse forward_system's git tag: {err}");
-                // return;
+            Err(err) => {
+                println!("cargo::error=failed to parse forward_system's git tag: {err}");
+                return;
             }
         };
 
