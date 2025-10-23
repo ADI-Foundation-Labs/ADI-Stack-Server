@@ -40,6 +40,7 @@ pub struct BlockContextProvider<Mempool> {
     fee_collector_address: Address,
     base_fee_override: Option<u64>,
     pubdata_price_override: Option<u64>,
+    current_block_number: Option<u64>,
 }
 
 impl<Mempool: L2TransactionPool> BlockContextProvider<Mempool> {
@@ -73,6 +74,7 @@ impl<Mempool: L2TransactionPool> BlockContextProvider<Mempool> {
             fee_collector_address,
             base_fee_override,
             pubdata_price_override,
+            current_block_number: None,
         }
     }
 
@@ -82,7 +84,12 @@ impl<Mempool: L2TransactionPool> BlockContextProvider<Mempool> {
     ) -> anyhow::Result<PreparedBlockCommand> {
         let prepared_command = match block_command {
             BlockCommand::Produce(produce_command) => {
-                let upgrade_tx = if produce_command.block_number == 1 {
+                let block_number = {
+                    let n = self.current_block_number.unwrap();
+                    self.current_block_number = Some(n + 1);
+                    n + 1
+                };
+                let upgrade_tx = if block_number == 1 {
                     Some(self.genesis.genesis_upgrade_tx().await.tx)
                 } else {
                     None
@@ -99,7 +106,7 @@ impl<Mempool: L2TransactionPool> BlockContextProvider<Mempool> {
                 if stream_closed {
                     return Err(anyhow::anyhow!(
                         "BestTransactionsStream closed unexpectedly for block {}",
-                        produce_command.block_number
+                        block_number
                     ));
                 }
 
@@ -109,7 +116,7 @@ impl<Mempool: L2TransactionPool> BlockContextProvider<Mempool> {
                     native_price: U256::from(1),
                     // todo: make dynamic once zksync-os sets max gas per pubdata >1 for L2 txs
                     pubdata_price: U256::from(self.pubdata_price_override.unwrap_or(1)),
-                    block_number: produce_command.block_number,
+                    block_number,
                     timestamp,
                     chain_id: self.chain_id,
                     coinbase: self.fee_collector_address,
@@ -135,7 +142,45 @@ impl<Mempool: L2TransactionPool> BlockContextProvider<Mempool> {
                     previous_block_timestamp: self.previous_block_timestamp,
                 }
             }
+            BlockCommand::Rebuild(rebuild_command) => {
+                let block_number = {
+                    let n = self.current_block_number.unwrap();
+                    self.current_block_number = Some(n + 1);
+                    n + 1
+                };
+
+                let block_context = BlockContext {
+                    eip1559_basefee: rebuild_command.partial_block_context.eip1559_basefee,
+                    native_price: rebuild_command.partial_block_context.native_price,
+                    pubdata_price: rebuild_command.partial_block_context.pubdata_price,
+                    block_number,
+                    timestamp: rebuild_command.partial_block_context.timestamp,
+                    chain_id: self.chain_id,
+                    coinbase: self.fee_collector_address,
+                    block_hashes: self.block_hashes_for_next_block,
+                    gas_limit: self.gas_limit,
+                    pubdata_limit: self.pubdata_limit,
+                    // todo: initialize as source of randomness, i.e. the value of prevRandao
+                    mix_hash: Default::default(),
+                    execution_version: rebuild_command.partial_block_context.execution_version,
+                };
+                PreparedBlockCommand {
+                    block_context,
+                    tx_source: rebuild_command.txs,
+                    metrics_label: "produce",
+                    starting_l1_priority_id: self.next_l1_priority_id,
+                    node_version: self.node_version.clone(),
+                    expected_block_output_hash: None,
+                    previous_block_timestamp: self.previous_block_timestamp,
+                    // TODO: maybe get rid of these 2 fields and pass produce/rebuild/replay as an enum instead
+                    // rebuild should behave as `InvalidTxPolicy::RejectAndContinue`,
+                    // and for seal policy it should both Decide but also tolerate exhausted tx source.
+                    invalid_tx_policy: InvalidTxPolicy::RejectAndContinue,
+                    seal_policy: SealPolicy::UntilExhausted,
+                }
+            }
             BlockCommand::Replay(record) => {
+                self.current_block_number = Some(record.block_context.block_number);
                 for tx in &record.transactions {
                     match tx.envelope() {
                         ZkEnvelope::L1(l1_tx) => {

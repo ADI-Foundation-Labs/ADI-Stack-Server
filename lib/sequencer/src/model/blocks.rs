@@ -1,6 +1,10 @@
-use alloy::primitives::B256;
+use alloy::primitives::{B256, U256};
+use futures::Stream;
+use std::collections::VecDeque;
 use std::fmt::Display;
 use std::pin::Pin;
+use std::sync::{Arc, Mutex};
+use std::task::{Context, Poll};
 use std::time::Duration;
 use zksync_os_interface::types::BlockContext;
 use zksync_os_mempool::TxStream;
@@ -13,7 +17,7 @@ use zksync_os_types::{L1TxSerialId, ZkTransaction};
 ///
 /// Downstream transform:
 /// `BlockTransactionProvider: (L1Mempool/L1Watcher, L2Mempool, BlockCommand) -> (PreparedBlockCommand)`
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub enum BlockCommand {
     /// Replay a block from block replay storage.
     Replay(Box<ReplayRecord>),
@@ -21,23 +25,54 @@ pub enum BlockCommand {
     /// Second argument - local seal criteria - target block time and max transaction number
     /// (Avoid container struct for now)
     Produce(ProduceCommand),
+    Rebuild(RebuildCommand),
 }
 
 /// Command to produce a new block.
 #[derive(Clone, Debug)]
 pub struct ProduceCommand {
-    pub block_number: u64,
     pub block_time: Duration,
     pub max_transactions_in_block: usize,
 }
 
-impl BlockCommand {
-    pub fn block_number(&self) -> u64 {
-        match self {
-            BlockCommand::Replay(record) => record.block_context.block_number,
-            BlockCommand::Produce(command) => command.block_number,
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct PartialBlockContext {
+    pub timestamp: u64,
+    pub eip1559_basefee: U256,
+    pub pubdata_price: U256,
+    pub native_price: U256,
+    pub execution_version: u32,
+}
+
+#[derive(Debug)]
+pub struct TxRebuildStream {
+    pub txs: Arc<Mutex<VecDeque<ZkTransaction>>>,
+}
+
+impl Stream for TxRebuildStream {
+    type Item = ZkTransaction;
+
+    fn poll_next(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let this = self.get_mut();
+        let mut txs_lock = this.txs.lock().unwrap();
+        if let Some(tx) = txs_lock.pop_front() {
+            Poll::Ready(Some(tx))
+        } else {
+            Poll::Ready(None)
         }
     }
+}
+
+impl TxStream for TxRebuildStream {
+    fn mark_last_tx_as_invalid(self: Pin<&mut Self>) {
+        // No-op for rebuild stream
+    }
+}
+
+#[derive(Debug)]
+pub struct RebuildCommand {
+    pub partial_block_context: PartialBlockContext,
+    pub txs: Pin<Box<TxRebuildStream>>,
 }
 
 impl Display for BlockCommand {
@@ -51,6 +86,7 @@ impl Display for BlockCommand {
                 record.starting_l1_priority_id,
             ),
             BlockCommand::Produce(command) => write!(f, "Produce block: {command:?}"),
+            BlockCommand::Rebuild(command) => todo!()
         }
     }
 }

@@ -72,7 +72,6 @@ where
             let Some(cmd) = input.recv().await else {
                 anyhow::bail!("inbound channel closed");
             };
-            let block_number = cmd.block_number();
 
             // For Produce commands: check limit (will await indefinitely if limit reached) and increment counter
             if matches!(cmd, BlockCommand::Produce(_))
@@ -89,15 +88,15 @@ where
             }
 
             tracing::info!(
-                block_number,
                 cmd = cmd.to_string(),
                 "starting command. Turning into PreparedCommand.."
             );
             latency_tracker.enter_state(SequencerState::BlockContextTxs);
 
             let prepared_command = self.block_context_provider.prepare_command(cmd).await?;
+            let block_number = prepared_command.block_context.block_number;
 
-            tracing::debug!(
+            tracing::info!(
                 block_number,
                 starting_l1_priority_id = prepared_command.starting_l1_priority_id,
                 "Prepared command. Executing..",

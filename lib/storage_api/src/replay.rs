@@ -59,11 +59,12 @@ pub trait ReadReplay: Send + Sync + 'static {
 
 /// Extension methods for [`ReadReplay`].
 pub trait ReadReplayExt: ReadReplay {
-    /// Streams all replay records with block_number ≥ `start`, in ascending block order. Finishes
-    /// after reaching the latest stored record. Used to replay all blocks when recovering state.
-    fn stream_from(&self, start: u64) -> BoxStream<ReplayRecord> {
+    /// Streams replay records with block_number in range [`start`, `end`], in ascending block order.
+    /// Used to replay blocks when recovering state.
+    fn stream_from(&self, start: u64, end: u64) -> BoxStream<ReplayRecord> {
         let latest = self.latest_record();
-        let stream = futures::stream::iter(start..=latest).filter_map(move |block_num| {
+        assert!(end <= latest);
+        let stream = futures::stream::iter(start..=end).filter_map(move |block_num| {
             let record = self.get_replay_record(block_num);
             match record {
                 Some(record) => futures::future::ready(Some(record)),
