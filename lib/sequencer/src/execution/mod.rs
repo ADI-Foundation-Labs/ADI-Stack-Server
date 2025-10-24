@@ -87,6 +87,7 @@ where
                 .await;
                 produced_blocks_count += 1;
             }
+            let replay_record_override_allowed = matches!(cmd, BlockCommand::Rebuild(_));
 
             tracing::info!(
                 block_number,
@@ -121,7 +122,8 @@ where
             tracing::debug!(block_number, "Executed. Adding to block replay storage...");
             latency_tracker.enter_state(SequencerState::AddingToReplayStorage);
 
-            self.replay.append(replay_record.clone());
+            self.replay
+                .write(replay_record.clone(), replay_record_override_allowed);
 
             tracing::debug!(block_number, "Added to replay storage. Adding to state...",);
             latency_tracker.enter_state(SequencerState::AddingToState);
@@ -141,7 +143,7 @@ where
             // todo: do not call if api is not enabled.
             self.repositories
                 .populate(block_output.clone(), replay_record.transactions.clone())
-                .await;
+                .await?;
 
             tracing::debug!(block_number, "Added to repos. Updating mempools...",);
             latency_tracker.enter_state(SequencerState::UpdatingMempool);

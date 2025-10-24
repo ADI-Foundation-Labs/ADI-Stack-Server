@@ -63,23 +63,30 @@ impl FullDiffsStorage {
     }
 
     pub fn add_block(&self, block_number: u64, writes: Vec<StorageWrite>) -> anyhow::Result<()> {
-        let latest_block = self.latest_block();
-        // We always persist genesis data because there is currently no way to distinguish between
+        let mut latest_block = self.latest_block();
+
+        if block_number <= latest_block {
+            tracing::info!(
+                "Rolling back state for block range [{}; {}]",
+                block_number,
+                latest_block
+            );
+            let mut batch = self.rocks.new_write_batch();
+            // Iterate through all keys and delete those with block_number >= the given block_number
+            for (k, _v) in self.rocks.prefix_iterator_cf(StorageCF::Data, &[]) {
+                let key_block_number = u64::from_be_bytes(k[32..40].try_into()?);
+                if key_block_number >= block_number {
+                    batch.delete_cf(StorageCF::Data, &k);
+                }
+            }
+            self.rocks.write(batch)?;
+            latest_block = block_number.saturating_sub(1);
+        }
+        // We cannot validate number for genesis block because there is currently no way to distinguish between
         // initialized empty storage and initialized storage with just genesis (both have latest block
         // equal to 0).
         // todo: distinguish between empty state and state with just genesis
         if block_number != 0 {
-            if block_number <= latest_block {
-                for write in writes {
-                    let expected_value = self.read_at(block_number, write.key).unwrap_or_default();
-                    assert_eq!(
-                        expected_value, write.value,
-                        "historical write discrepancy for key={} at block_number={}",
-                        write.key, block_number
-                    );
-                }
-                return Ok(());
-            }
             assert_eq!(
                 block_number,
                 latest_block + 1,

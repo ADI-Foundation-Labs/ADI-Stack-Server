@@ -1,8 +1,9 @@
+use crate::command_source::RebuildOptions;
 use alloy::primitives::Address;
 use serde::{Deserialize, Serialize};
 use smart_config::metadata::TimeUnit;
 use smart_config::value::SecretString;
-use smart_config::{DescribeConfig, DeserializeConfig, Serde, de::Optional};
+use smart_config::{DescribeConfig, DeserializeConfig, Serde, de::{Optional, Delimited}};
 use std::{path::PathBuf, time::Duration};
 use zksync_os_l1_sender::commands::commit::CommitCommand;
 use zksync_os_l1_sender::commands::execute::ExecuteCommand;
@@ -124,6 +125,13 @@ pub struct StatusServerConfig {
 }
 
 #[derive(Clone, Debug, DescribeConfig, DeserializeConfig)]
+pub struct RebuildBlocksConfig {
+    pub rebuild_from_block: u64,
+    #[config(default, with = Delimited(","))]
+    pub blocks_to_empty: Vec<u64>,
+}
+
+#[derive(Clone, Debug, DescribeConfig, DeserializeConfig)]
 #[config(derive(Default))]
 pub struct SequencerConfig {
     /// Where to download replays instead of actually running blocks.
@@ -187,6 +195,9 @@ pub struct SequencerConfig {
     /// blocking process and the overhead should be small.
     #[config(default_t = false)]
     pub revm_consistency_checker_enabled: bool,
+
+    #[config(nest)]
+    pub block_rebuild: Option<RebuildBlocksConfig>,
 }
 
 impl SequencerConfig {
@@ -528,6 +539,15 @@ impl From<TxValidatorConfig> for zksync_os_mempool::TxValidatorConfig {
     fn from(c: TxValidatorConfig) -> Self {
         Self {
             max_input_bytes: c.max_input_bytes,
+        }
+    }
+}
+
+impl From<RebuildBlocksConfig> for RebuildOptions {
+    fn from(c: RebuildBlocksConfig) -> Self {
+        Self {
+            rebuild_from_block: c.rebuild_from_block,
+            blocks_to_empty: c.blocks_to_empty.into_iter().collect(),
         }
     }
 }

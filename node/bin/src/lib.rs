@@ -582,6 +582,11 @@ async fn run_main_node_pipeline(
             starting_block,
             block_time: config.sequencer_config.block_time,
             max_transactions_in_block: config.sequencer_config.max_transactions_in_block,
+            rebuild_options: config
+                .sequencer_config
+                .block_rebuild
+                .clone()
+                .map(Into::into),
         })
         .pipe(Sequencer {
             block_context_provider,
