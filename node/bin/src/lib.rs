@@ -100,9 +100,6 @@ pub async fn run<State: ReadStateHistory + WriteState + StateInitializer + Clone
             .unwrap()
             .as_secs() as i64,
     );
-    if !config.l1_sender_config.enabled {
-        unimplemented!("running without L1 Senders is temporarily not supported");
-    }
     tracing::info!(version = %node_version, role, "Initializing Node");
 
     let (bridgehub_address, chain_id, genesis_input_source) =

@@ -1,4 +1,5 @@
 use alloy::consensus::constants::GWEI_TO_WEI;
+use alloy::primitives::Address;
 use secrecy::SecretString;
 use std::marker::PhantomData;
 use std::time::Duration;
@@ -21,6 +22,15 @@ pub struct L1SenderConfig<Input> {
 
     /// How often to poll L1 for new blocks.
     pub poll_interval: Duration,
+
+    /// If true, use eth_call to simulate the transaction instead of sending it onchain.
+    /// The result will be logged and the batch will be passed downstream regardless of the simulation result.
+    pub dry_run: bool,
+
+    /// Optional operator address to use in dry-run mode.
+    /// If set, this address will be used for eth_call simulation instead of deriving from operator_pk.
+    /// This allows running dry-run mode without access to private keys.
+    pub dry_run_operator_address: Option<Address>,
 
     pub phantom_data: PhantomData<Input>,
 }

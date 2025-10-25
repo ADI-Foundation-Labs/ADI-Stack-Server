@@ -260,12 +260,32 @@ pub struct L1SenderConfig {
     #[config(default_t = Duration::from_millis(100))]
     pub poll_interval: Duration,
 
-    /// Whether L1 senders are enabled.
-    /// Only affects the Main Node.
-    /// Only useful for debug. When L1 senders are disabled,
-    /// the node will eventually halt as produced batches are not processed further.
-    #[config(default_t = true)]
-    pub enabled: bool,
+    /// If true, commit sender will use eth_call to simulate the transaction instead of sending it onchain.
+    /// The result will be logged and the batch will be passed downstream. Useful for mitigation or debugging.
+    #[config(default_t = false)]
+    pub commit_dry_run: bool,
+
+    /// Operator address to use in commit dry-run mode. If set, allows running without commit private key.
+    #[config(default_t = None)]
+    pub commit_dry_run_operator_address: Option<String>,
+
+    /// If true, prove sender will use eth_call to simulate the transaction instead of sending it onchain.
+    /// The result will be logged and the batch will be passed downstream. Useful for mitigation or debugging.
+    #[config(default_t = false)]
+    pub prove_dry_run: bool,
+
+    /// Operator address to use in prove dry-run mode. If set, allows running without prove private key.
+    #[config(default_t = None)]
+    pub prove_dry_run_operator_address: Option<String>,
+
+    /// If true, execute sender will use eth_call to simulate the transaction instead of sending it onchain.
+    /// The result will be logged and the batch will be passed downstream. Useful for mitigation or debugging.
+    #[config(default_t = false)]
+    pub execute_dry_run: bool,
+
+    /// Operator address to use in execute dry-run mode. If set, allows running without execute private key.
+    #[config(default_t = None)]
+    pub execute_dry_run_operator_address: Option<String>,
 }
 
 #[derive(Clone, Debug, DescribeConfig, DeserializeConfig)]
@@ -466,13 +486,20 @@ impl L1SenderConfig {
     fn into_lib_l1_sender_config<Input>(
         self,
         operator_pk: SecretString,
+        dry_run: bool,
+        dry_run_operator_address: Option<String>,
     ) -> zksync_os_l1_sender::config::L1SenderConfig<Input> {
+        let parsed_address = dry_run_operator_address
+            .map(|s| s.parse().expect("Failed to parse dry_run_operator_address"));
+
         zksync_os_l1_sender::config::L1SenderConfig {
             operator_pk,
             max_fee_per_gas_gwei: self.max_fee_per_gas_gwei,
             max_priority_fee_per_gas_gwei: self.max_priority_fee_per_gas_gwei,
             command_limit: self.command_limit,
             poll_interval: self.poll_interval,
+            dry_run,
+            dry_run_operator_address: parsed_address,
             phantom_data: Default::default(),
         }
     }
@@ -480,20 +507,26 @@ impl L1SenderConfig {
 impl From<L1SenderConfig> for zksync_os_l1_sender::config::L1SenderConfig<CommitCommand> {
     fn from(c: L1SenderConfig) -> Self {
         let pk = c.operator_commit_pk.clone();
-        c.into_lib_l1_sender_config(pk)
+        let dry_run = c.commit_dry_run;
+        let dry_run_address = c.commit_dry_run_operator_address.clone();
+        c.into_lib_l1_sender_config(pk, dry_run, dry_run_address)
     }
 }
 
 impl From<L1SenderConfig> for zksync_os_l1_sender::config::L1SenderConfig<ProofCommand> {
     fn from(c: L1SenderConfig) -> Self {
         let pk = c.operator_prove_pk.clone();
-        c.into_lib_l1_sender_config(pk)
+        let dry_run = c.prove_dry_run;
+        let dry_run_address = c.prove_dry_run_operator_address.clone();
+        c.into_lib_l1_sender_config(pk, dry_run, dry_run_address)
     }
 }
 impl From<L1SenderConfig> for zksync_os_l1_sender::config::L1SenderConfig<ExecuteCommand> {
     fn from(c: L1SenderConfig) -> Self {
         let pk = c.operator_execute_pk.clone();
-        c.into_lib_l1_sender_config(pk)
+        let dry_run = c.execute_dry_run;
+        let dry_run_address = c.execute_dry_run_operator_address.clone();
+        c.into_lib_l1_sender_config(pk, dry_run, dry_run_address)
     }
 }
 

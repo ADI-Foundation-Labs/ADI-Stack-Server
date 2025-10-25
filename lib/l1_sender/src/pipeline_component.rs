@@ -1,7 +1,7 @@
 use crate::batcher_model::{BatchEnvelope, FriProof};
 use crate::commands::L1SenderCommand;
 use crate::config::L1SenderConfig;
-use crate::run_l1_sender;
+use crate::{run_l1_sender, run_l1_sender_dry_run};
 use alloy::network::EthereumWallet;
 use alloy::primitives::Address;
 use alloy::providers::{Provider, WalletProvider};
@@ -34,6 +34,12 @@ where
         input: PeekableReceiver<Self::Input>,
         output: mpsc::Sender<Self::Output>,
     ) -> anyhow::Result<()> {
-        run_l1_sender(input, output, self.to_address, self.provider, self.config).await
+        if self.config.dry_run {
+            let command_name = Self::Input::NAME;
+            tracing::warn!(command_name, "Running in dry run mode");
+            run_l1_sender_dry_run(input, output, self.to_address, self.provider, self.config).await
+        } else {
+            run_l1_sender(input, output, self.to_address, self.provider, self.config).await
+        }
     }
 }
