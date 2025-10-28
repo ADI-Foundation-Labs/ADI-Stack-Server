@@ -65,18 +65,18 @@ regex = "1.11.3"
 zksync_os_evm_errors = { version = "0.0.7" }
 zksync_os_interface = { version = "0.0.7" }
 
-zk_os_forward_system = { package = "forward_system", git = "https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS", tag = "v0.0.26-a", features = ["evm-compatibility", "no_print"] }
-zk_ee = { package = "zk_ee", git = "https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS", tag = "v0.0.26-a" }
-zk_os_basic_system = { package = "basic_system", git = "https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS", tag = "v0.0.26-a" }
-zk_os_api = { package = "zksync_os_api", git = "https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS", tag = "v0.0.26-a" }
+zk_os_forward_system = { package = "forward_system", git = "https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS", tag = "v0.0.26-b", features = ["evm-compatibility", "no_print"] }
+zk_ee = { package = "zk_ee", git = "https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS", tag = "v0.0.26-b" }
+zk_os_basic_system = { package = "basic_system", git = "https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS", tag = "v0.0.26-b" }
+zk_os_api = { package = "zksync_os_api", git = "https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS", tag = "v0.0.26-b" }
 
 #execution_utils = { package = "execution_utils", path = "../zksync-airbender/execution_utils" }
 #full_statement_verifier = { package = "full_statement_verifier", path = "../zksync-airbender/full_statement_verifier" }
 
-execution_utils = { package = "execution_utils", git = "https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git", tag = "v0.4.5-a" }
-full_statement_verifier = { package = "full_statement_verifier", git = "https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git", tag = "v0.4.5-a" }
+execution_utils = { package = "execution_utils", git = "https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git", tag = "v0.4.5-b" }
+full_statement_verifier = { package = "full_statement_verifier", git = "https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git", tag = "v0.4.5-b" }
 
-zksync_os_prover_service = { git = "https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-Prover.git", tag = "v0.4.7-a" }
+zksync_os_prover_service = { git = "https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-Prover.git", tag = "v0.4.7-b" }
 
 tokio = "1.45.1"
 tokio-stream = "0.1.17"

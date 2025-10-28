@@ -2107,7 +2107,7 @@ checksum = "55248b47b0caf0546f7988906588779981c43bb1bc9d0c44087278f80cdb44ba"
 [[package]]
 name = "basic_bootloader"
 version = "0.1.0"
-source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.26-a#f3939b3591fffec51eee320fa134f0c1533cac3d"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.26-b#bbf24c42b591f5d2027d6b7afeba39182a7ed234"
 dependencies = [
  "arrayvec 0.7.6",
  "basic_system",
@@ -2125,7 +2125,7 @@ dependencies = [
 [[package]]
 name = "basic_system"
 version = "0.1.0"
-source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.26-a#f3939b3591fffec51eee320fa134f0c1533cac3d"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.26-b#bbf24c42b591f5d2027d6b7afeba39182a7ed234"
 dependencies = [
  "arrayvec 0.7.6",
  "cfg-if",
@@ -2147,44 +2147,44 @@ dependencies = [
 [[package]]
 name = "bigint_with_control"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3#c23fd0085ee87872e25ff83f780d2d0ee102a166"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b#0e5ed18ff282e620b6da359be97ea8499052f66d"
 dependencies = [
- "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
  "serde",
  "serde_json",
- "verifier_generator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
+ "verifier_generator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
 ]
 
 [[package]]
 name = "bigint_with_control"
 version = "0.1.0"
-source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a#6cc83584123585f9ecaf81d89d605b95432c84d1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b#785ba3b5383d6f55c21466c43b5b95f7fa719d00"
 dependencies = [
- "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
  "serde",
  "serde_json",
- "verifier_generator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
+ "verifier_generator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
 ]
 
 [[package]]
 name = "bigint_with_control"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0#a3c74040d2f994608f451550232392333400bbf1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b#7d4d12c226207d19475698b992d5a8f36bc7e1c8"
 dependencies = [
- "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
  "serde",
  "serde_json",
- "verifier_generator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "verifier_generator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
 ]
 
 [[package]]
 name = "bigint_with_control_verifier"
 version = "0.1.0"
-source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a#6cc83584123585f9ecaf81d89d605b95432c84d1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b#785ba3b5383d6f55c21466c43b5b95f7fa719d00"
 dependencies = [
- "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
+ "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
  "unroll",
- "verifier_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
+ "verifier_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
 ]
 
 [[package]]
@@ -2344,54 +2344,54 @@ dependencies = [
 [[package]]
 name = "blake2_with_compression"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3#c23fd0085ee87872e25ff83f780d2d0ee102a166"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b#0e5ed18ff282e620b6da359be97ea8499052f66d"
 dependencies = [
- "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
  "serde",
  "serde_json",
- "verifier_generator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
+ "verifier_generator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
 ]
 
 [[package]]
 name = "blake2_with_compression"
 version = "0.1.0"
-source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a#6cc83584123585f9ecaf81d89d605b95432c84d1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b#785ba3b5383d6f55c21466c43b5b95f7fa719d00"
 dependencies = [
- "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
  "serde",
  "serde_json",
- "verifier_generator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
+ "verifier_generator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
 ]
 
 [[package]]
 name = "blake2_with_compression"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0#a3c74040d2f994608f451550232392333400bbf1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b#7d4d12c226207d19475698b992d5a8f36bc7e1c8"
 dependencies = [
- "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
  "serde",
  "serde_json",
- "verifier_generator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "verifier_generator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
 ]
 
 [[package]]
 name = "blake2_with_compression_verifier"
 version = "0.1.0"
-source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a#6cc83584123585f9ecaf81d89d605b95432c84d1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b#785ba3b5383d6f55c21466c43b5b95f7fa719d00"
 dependencies = [
- "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
+ "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
  "unroll",
- "verifier_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
+ "verifier_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
 ]
 
 [[package]]
 name = "blake2_with_compression_verifier"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0#a3c74040d2f994608f451550232392333400bbf1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b#7d4d12c226207d19475698b992d5a8f36bc7e1c8"
 dependencies = [
- "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
  "unroll",
- "verifier_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "verifier_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
 ]
 
 [[package]]
@@ -2408,7 +2408,7 @@ dependencies = [
 [[package]]
 name = "blake2s_u32"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3#c23fd0085ee87872e25ff83f780d2d0ee102a166"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b#0e5ed18ff282e620b6da359be97ea8499052f66d"
 dependencies = [
  "unroll",
 ]
@@ -2416,7 +2416,7 @@ dependencies = [
 [[package]]
 name = "blake2s_u32"
 version = "0.1.0"
-source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a#6cc83584123585f9ecaf81d89d605b95432c84d1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b#785ba3b5383d6f55c21466c43b5b95f7fa719d00"
 dependencies = [
  "unroll",
 ]
@@ -2424,7 +2424,7 @@ dependencies = [
 [[package]]
 name = "blake2s_u32"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0#a3c74040d2f994608f451550232392333400bbf1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b#7d4d12c226207d19475698b992d5a8f36bc7e1c8"
 dependencies = [
  "unroll",
 ]
@@ -2593,13 +2593,13 @@ dependencies = [
 [[package]]
 name = "callable_oracles"
 version = "0.1.0"
-source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.26-a#f3939b3591fffec51eee320fa134f0c1533cac3d"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.26-b#bbf24c42b591f5d2027d6b7afeba39182a7ed234"
 dependencies = [
  "crypto",
  "num-bigint 0.4.6",
  "num-traits",
  "oracle_provider",
- "risc_v_simulator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
+ "risc_v_simulator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
  "ruint",
  "zk_ee",
 ]
@@ -2734,31 +2734,31 @@ dependencies = [
 [[package]]
 name = "circuit_common"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3#c23fd0085ee87872e25ff83f780d2d0ee102a166"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b#0e5ed18ff282e620b6da359be97ea8499052f66d"
 dependencies = [
- "fft 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
- "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
- "worker 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
+ "fft 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
+ "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
+ "worker 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
 ]
 
 [[package]]
 name = "circuit_common"
 version = "0.1.0"
-source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a#6cc83584123585f9ecaf81d89d605b95432c84d1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b#785ba3b5383d6f55c21466c43b5b95f7fa719d00"
 dependencies = [
- "fft 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
- "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
- "worker 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
+ "fft 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
+ "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
+ "worker 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
 ]
 
 [[package]]
 name = "circuit_common"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0#a3c74040d2f994608f451550232392333400bbf1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b#7d4d12c226207d19475698b992d5a8f36bc7e1c8"
 dependencies = [
- "fft 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
- "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
- "worker 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "fft 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
+ "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
+ "worker 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
 ]
 
 [[package]]
@@ -2790,10 +2790,10 @@ dependencies = [
 [[package]]
 name = "circuit_mersenne_field"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zkos-wrapper.git?tag=v0.5.0#c437db61466d266a0461062d2334e5050e147365"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS-Wrapper.git?tag=v0.5.0-b#76c95577f3849d200ed76608b3daac0906643640"
 dependencies = [
  "boojum",
- "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
  "rand 0.8.5",
 ]
 
@@ -2851,26 +2851,26 @@ checksum = "a1d728cc89cf3aee9ff92b05e62b19ee65a02b5702cff7d5a377e32c6ae29d8d"
 [[package]]
 name = "cli"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0#a3c74040d2f994608f451550232392333400bbf1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b#7d4d12c226207d19475698b992d5a8f36bc7e1c8"
 dependencies = [
  "base64 0.21.7",
- "blake2s_u32 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "blake2s_u32 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
  "clap",
  "env_logger",
- "execution_utils 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
- "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "execution_utils 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
+ "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
  "gpu_prover",
- "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
- "prover_examples 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
+ "prover_examples 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
  "reqwest",
- "risc_v_cycles 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "risc_v_cycles 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
  "serde",
  "serde_json",
- "setups 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "setups 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
  "sha3_ce",
- "trace_and_split 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
- "verifier_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
- "worker 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "trace_and_split 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
+ "verifier_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
+ "worker 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
 ]
 
 [[package]]
@@ -3229,7 +3229,7 @@ checksum = "460fbee9c2c2f33933d720630a6a0bac33ba7053db5344fac858d4b8952d77d5"
 [[package]]
 name = "crypto"
 version = "0.1.0"
-source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.26-a#f3939b3591fffec51eee320fa134f0c1533cac3d"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.26-b#bbf24c42b591f5d2027d6b7afeba39182a7ed234"
 dependencies = [
  "ark-bls12-381",
  "ark-bn254",
@@ -3288,16 +3288,16 @@ dependencies = [
 [[package]]
 name = "cs"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3#c23fd0085ee87872e25ff83f780d2d0ee102a166"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b#0e5ed18ff282e620b6da359be97ea8499052f66d"
 dependencies = [
  "arrayvec 0.7.6",
  "bincode 1.3.3",
- "blake2s_u32 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
+ "blake2s_u32 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
  "derivative",
  "divrem",
- "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
+ "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
  "itertools 0.14.0",
- "poseidon2 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
+ "poseidon2 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
  "proc-macro2 1.0.103",
  "quote 1.0.41",
  "rayon",
@@ -3313,16 +3313,16 @@ dependencies = [
 [[package]]
 name = "cs"
 version = "0.1.0"
-source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a#6cc83584123585f9ecaf81d89d605b95432c84d1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b#785ba3b5383d6f55c21466c43b5b95f7fa719d00"
 dependencies = [
  "arrayvec 0.7.6",
  "bincode 1.3.3",
- "blake2s_u32 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
+ "blake2s_u32 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
  "derivative",
  "divrem",
- "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
+ "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
  "itertools 0.14.0",
- "poseidon2 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
+ "poseidon2 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
  "proc-macro2 1.0.103",
  "quote 1.0.41",
  "rayon",
@@ -3338,16 +3338,16 @@ dependencies = [
 [[package]]
 name = "cs"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0#a3c74040d2f994608f451550232392333400bbf1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b#7d4d12c226207d19475698b992d5a8f36bc7e1c8"
 dependencies = [
  "arrayvec 0.7.6",
  "bincode 1.3.3",
- "blake2s_u32 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "blake2s_u32 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
  "derivative",
  "divrem",
- "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
  "itertools 0.14.0",
- "poseidon2 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "poseidon2 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
  "proc-macro2 1.0.103",
  "quote 1.0.41",
  "rayon",
@@ -3373,7 +3373,7 @@ dependencies = [
 [[package]]
 name = "cycle_marker"
 version = "0.0.0"
-source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.26-a#f3939b3591fffec51eee320fa134f0c1533cac3d"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.26-b#bbf24c42b591f5d2027d6b7afeba39182a7ed234"
 
 [[package]]
 name = "darling"
@@ -3774,7 +3774,7 @@ dependencies = [
 [[package]]
 name = "evm_interpreter"
 version = "0.1.0"
-source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.26-a#f3939b3591fffec51eee320fa134f0c1533cac3d"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.26-b#bbf24c42b591f5d2027d6b7afeba39182a7ed234"
 dependencies = [
  "arrayvec 0.7.6",
  "crypto",
@@ -3790,39 +3790,39 @@ dependencies = [
 [[package]]
 name = "execution_utils"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3#c23fd0085ee87872e25ff83f780d2d0ee102a166"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b#0e5ed18ff282e620b6da359be97ea8499052f66d"
 dependencies = [
- "risc_v_simulator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
+ "risc_v_simulator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
  "serde",
  "serde_json",
- "trace_and_split 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
- "verifier_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
+ "trace_and_split 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
+ "verifier_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
 ]
 
 [[package]]
 name = "execution_utils"
 version = "0.1.0"
-source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a#6cc83584123585f9ecaf81d89d605b95432c84d1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b#785ba3b5383d6f55c21466c43b5b95f7fa719d00"
 dependencies = [
  "clap",
- "risc_v_simulator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
+ "risc_v_simulator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
  "serde",
  "serde_json",
- "trace_and_split 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
- "verifier_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
+ "trace_and_split 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
+ "verifier_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
 ]
 
 [[package]]
 name = "execution_utils"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0#a3c74040d2f994608f451550232392333400bbf1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b#7d4d12c226207d19475698b992d5a8f36bc7e1c8"
 dependencies = [
  "clap",
- "risc_v_simulator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "risc_v_simulator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
  "serde",
  "serde_json",
- "trace_and_split 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
- "verifier_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "trace_and_split 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
+ "verifier_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
 ]
 
 [[package]]
@@ -3907,49 +3907,49 @@ dependencies = [
 [[package]]
 name = "fft"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3#c23fd0085ee87872e25ff83f780d2d0ee102a166"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b#0e5ed18ff282e620b6da359be97ea8499052f66d"
 dependencies = [
- "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
+ "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
  "itertools 0.14.0",
  "rayon",
  "seq-macro",
- "trace_holder 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
+ "trace_holder 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
  "unroll",
- "worker 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
+ "worker 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
 ]
 
 [[package]]
 name = "fft"
 version = "0.1.0"
-source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a#6cc83584123585f9ecaf81d89d605b95432c84d1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b#785ba3b5383d6f55c21466c43b5b95f7fa719d00"
 dependencies = [
- "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
+ "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
  "itertools 0.14.0",
  "rayon",
  "seq-macro",
- "trace_holder 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
+ "trace_holder 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
  "unroll",
- "worker 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
+ "worker 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
 ]
 
 [[package]]
 name = "fft"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0#a3c74040d2f994608f451550232392333400bbf1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b#7d4d12c226207d19475698b992d5a8f36bc7e1c8"
 dependencies = [
- "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
  "itertools 0.14.0",
  "rayon",
  "seq-macro",
- "trace_holder 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "trace_holder 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
  "unroll",
- "worker 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "worker 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
 ]
 
 [[package]]
 name = "field"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3#c23fd0085ee87872e25ff83f780d2d0ee102a166"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b#0e5ed18ff282e620b6da359be97ea8499052f66d"
 dependencies = [
  "rand 0.9.2",
  "seq-macro",
@@ -3959,7 +3959,7 @@ dependencies = [
 [[package]]
 name = "field"
 version = "0.1.0"
-source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a#6cc83584123585f9ecaf81d89d605b95432c84d1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b#785ba3b5383d6f55c21466c43b5b95f7fa719d00"
 dependencies = [
  "rand 0.9.2",
  "seq-macro",
@@ -3969,7 +3969,7 @@ dependencies = [
 [[package]]
 name = "field"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0#a3c74040d2f994608f451550232392333400bbf1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b#7d4d12c226207d19475698b992d5a8f36bc7e1c8"
 dependencies = [
  "rand 0.9.2",
  "seq-macro",
@@ -3979,57 +3979,57 @@ dependencies = [
 [[package]]
 name = "final_reduced_risc_v_machine"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3#c23fd0085ee87872e25ff83f780d2d0ee102a166"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b#0e5ed18ff282e620b6da359be97ea8499052f66d"
 dependencies = [
- "circuit_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
- "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
+ "circuit_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
  "serde",
  "serde_json",
- "verifier_generator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
+ "verifier_generator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
 ]
 
 [[package]]
 name = "final_reduced_risc_v_machine"
 version = "0.1.0"
-source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a#6cc83584123585f9ecaf81d89d605b95432c84d1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b#785ba3b5383d6f55c21466c43b5b95f7fa719d00"
 dependencies = [
- "circuit_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
- "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
+ "circuit_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
  "serde",
  "serde_json",
- "verifier_generator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
+ "verifier_generator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
 ]
 
 [[package]]
 name = "final_reduced_risc_v_machine"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0#a3c74040d2f994608f451550232392333400bbf1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b#7d4d12c226207d19475698b992d5a8f36bc7e1c8"
 dependencies = [
- "circuit_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
- "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "circuit_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
  "serde",
  "serde_json",
- "verifier_generator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "verifier_generator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
 ]
 
 [[package]]
 name = "final_reduced_risc_v_machine_verifier"
 version = "0.1.0"
-source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a#6cc83584123585f9ecaf81d89d605b95432c84d1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b#785ba3b5383d6f55c21466c43b5b95f7fa719d00"
 dependencies = [
- "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
+ "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
  "unroll",
- "verifier_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
+ "verifier_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
 ]
 
 [[package]]
 name = "final_reduced_risc_v_machine_verifier"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0#a3c74040d2f994608f451550232392333400bbf1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b#7d4d12c226207d19475698b992d5a8f36bc7e1c8"
 dependencies = [
- "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
  "unroll",
- "verifier_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "verifier_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
 ]
 
 [[package]]
@@ -4123,7 +4123,7 @@ dependencies = [
 [[package]]
 name = "forward_system"
 version = "0.1.0"
-source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.26-a#f3939b3591fffec51eee320fa134f0c1533cac3d"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.26-b#bbf24c42b591f5d2027d6b7afeba39182a7ed234"
 dependencies = [
  "alloy",
  "arrayvec 0.7.6",
@@ -4202,15 +4202,15 @@ checksum = "a06f77d526c1a601b7c4cdd98f54b5eaabffc14d5f2f0296febdc7f357c6d3ba"
 [[package]]
 name = "full_statement_verifier"
 version = "0.1.0"
-source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a#6cc83584123585f9ecaf81d89d605b95432c84d1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b#785ba3b5383d6f55c21466c43b5b95f7fa719d00"
 dependencies = [
  "bigint_with_control_verifier",
- "blake2_with_compression_verifier 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
- "final_reduced_risc_v_machine_verifier 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
- "reduced_risc_v_log_23_machine_verifier 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
+ "blake2_with_compression_verifier 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
+ "final_reduced_risc_v_machine_verifier 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
+ "reduced_risc_v_log_23_machine_verifier 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
  "reduced_risc_v_machine_verifier",
  "risc_v_cycles_verifier",
- "verifier_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
+ "verifier_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
 ]
 
 [[package]]
@@ -4493,26 +4493,26 @@ dependencies = [
 [[package]]
 name = "gpu_prover"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0#a3c74040d2f994608f451550232392333400bbf1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b#7d4d12c226207d19475698b992d5a8f36bc7e1c8"
 dependencies = [
- "blake2s_u32 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "blake2s_u32 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
  "cmake",
  "crossbeam-channel",
  "crossbeam-utils",
- "cs 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "cs 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
  "era_cudart",
  "era_cudart_sys",
- "fft 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
- "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "fft 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
+ "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
  "itertools 0.14.0",
  "log",
  "nvtx",
- "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
  "rayon",
- "setups 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
- "trace_and_split 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "setups 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
+ "trace_and_split 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
  "transpose",
- "worker 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "worker 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
 ]
 
 [[package]]
@@ -5653,37 +5653,37 @@ dependencies = [
 [[package]]
 name = "machine_without_signed_mul_div"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3#c23fd0085ee87872e25ff83f780d2d0ee102a166"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b#0e5ed18ff282e620b6da359be97ea8499052f66d"
 dependencies = [
- "circuit_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
- "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
+ "circuit_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
  "serde",
  "serde_json",
- "verifier_generator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
+ "verifier_generator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
 ]
 
 [[package]]
 name = "machine_without_signed_mul_div"
 version = "0.1.0"
-source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a#6cc83584123585f9ecaf81d89d605b95432c84d1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b#785ba3b5383d6f55c21466c43b5b95f7fa719d00"
 dependencies = [
- "circuit_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
- "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
+ "circuit_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
  "serde",
  "serde_json",
- "verifier_generator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
+ "verifier_generator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
 ]
 
 [[package]]
 name = "machine_without_signed_mul_div"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0#a3c74040d2f994608f451550232392333400bbf1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b#7d4d12c226207d19475698b992d5a8f36bc7e1c8"
 dependencies = [
- "circuit_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
- "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "circuit_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
  "serde",
  "serde_json",
- "verifier_generator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "verifier_generator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
 ]
 
 [[package]]
@@ -5815,7 +5815,7 @@ dependencies = [
 [[package]]
 name = "modexp"
 version = "0.1.0"
-source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.26-a#f3939b3591fffec51eee320fa134f0c1533cac3d"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.26-b#bbf24c42b591f5d2027d6b7afeba39182a7ed234"
 
 [[package]]
 name = "modular-bitfield"
@@ -5887,17 +5887,17 @@ dependencies = [
 [[package]]
 name = "non_determinism_source"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3#c23fd0085ee87872e25ff83f780d2d0ee102a166"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b#0e5ed18ff282e620b6da359be97ea8499052f66d"
 
 [[package]]
 name = "non_determinism_source"
 version = "0.1.0"
-source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a#6cc83584123585f9ecaf81d89d605b95432c84d1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b#785ba3b5383d6f55c21466c43b5b95f7fa719d00"
 
 [[package]]
 name = "non_determinism_source"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0#a3c74040d2f994608f451550232392333400bbf1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b#7d4d12c226207d19475698b992d5a8f36bc7e1c8"
 
 [[package]]
 name = "nu-ansi-term"
@@ -6231,9 +6231,9 @@ dependencies = [
 [[package]]
 name = "oracle_provider"
 version = "0.1.0"
-source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.26-a#f3939b3591fffec51eee320fa134f0c1533cac3d"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.26-b#bbf24c42b591f5d2027d6b7afeba39182a7ed234"
 dependencies = [
- "risc_v_simulator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
+ "risc_v_simulator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
  "zk_ee",
 ]
 
@@ -6581,10 +6581,10 @@ dependencies = [
 [[package]]
 name = "poseidon2"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3#c23fd0085ee87872e25ff83f780d2d0ee102a166"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b#0e5ed18ff282e620b6da359be97ea8499052f66d"
 dependencies = [
- "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
- "non_determinism_source 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
+ "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
+ "non_determinism_source 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
  "rand 0.9.2",
  "unroll",
 ]
@@ -6592,10 +6592,10 @@ dependencies = [
 [[package]]
 name = "poseidon2"
 version = "0.1.0"
-source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a#6cc83584123585f9ecaf81d89d605b95432c84d1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b#785ba3b5383d6f55c21466c43b5b95f7fa719d00"
 dependencies = [
- "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
- "non_determinism_source 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
+ "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
+ "non_determinism_source 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
  "rand 0.9.2",
  "unroll",
 ]
@@ -6603,10 +6603,10 @@ dependencies = [
 [[package]]
 name = "poseidon2"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0#a3c74040d2f994608f451550232392333400bbf1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b#7d4d12c226207d19475698b992d5a8f36bc7e1c8"
 dependencies = [
- "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
- "non_determinism_source 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
+ "non_determinism_source 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
  "rand 0.9.2",
  "unroll",
 ]
@@ -6883,120 +6883,120 @@ dependencies = [
 [[package]]
 name = "prover"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3#c23fd0085ee87872e25ff83f780d2d0ee102a166"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b#0e5ed18ff282e620b6da359be97ea8499052f66d"
 dependencies = [
  "bit-set",
- "blake2s_u32 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
- "cs 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
- "fft 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
- "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
+ "blake2s_u32 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
+ "cs 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
+ "fft 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
+ "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
  "itertools 0.14.0",
  "lib-rv32-asm",
- "non_determinism_source 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
- "poseidon2 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
+ "non_determinism_source 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
+ "poseidon2 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
  "proc-macro2 1.0.103",
  "quote 1.0.41",
  "rayon",
- "risc_v_simulator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
+ "risc_v_simulator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
  "seq-macro",
  "serde",
  "serde_json",
  "syn 2.0.108",
- "trace_holder 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
- "transcript 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
+ "trace_holder 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
+ "transcript 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
  "unroll",
- "worker 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
+ "worker 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
 ]
 
 [[package]]
 name = "prover"
 version = "0.1.0"
-source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a#6cc83584123585f9ecaf81d89d605b95432c84d1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b#785ba3b5383d6f55c21466c43b5b95f7fa719d00"
 dependencies = [
  "bit-set",
- "blake2s_u32 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
- "cs 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
- "fft 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
- "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
+ "blake2s_u32 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
+ "cs 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
+ "fft 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
+ "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
  "itertools 0.14.0",
  "lib-rv32-asm",
- "non_determinism_source 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
- "poseidon2 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
+ "non_determinism_source 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
+ "poseidon2 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
  "proc-macro2 1.0.103",
  "quote 1.0.41",
  "rayon",
- "risc_v_simulator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
+ "risc_v_simulator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
  "seq-macro",
  "serde",
  "serde_json",
  "syn 2.0.108",
- "trace_holder 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
- "transcript 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
+ "trace_holder 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
+ "transcript 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
  "unroll",
- "worker 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
+ "worker 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
 ]
 
 [[package]]
 name = "prover"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0#a3c74040d2f994608f451550232392333400bbf1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b#7d4d12c226207d19475698b992d5a8f36bc7e1c8"
 dependencies = [
  "bincode 1.3.3",
  "bit-set",
- "blake2s_u32 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
- "cs 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
- "fft 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
- "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "blake2s_u32 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
+ "cs 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
+ "fft 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
+ "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
  "itertools 0.14.0",
  "lib-rv32-asm",
- "non_determinism_source 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
- "poseidon2 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "non_determinism_source 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
+ "poseidon2 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
  "proc-macro2 1.0.103",
  "quote 1.0.41",
  "rayon",
- "risc_v_simulator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "risc_v_simulator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
  "seq-macro",
  "serde",
  "serde_json",
  "syn 2.0.108",
- "trace_holder 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
- "transcript 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "trace_holder 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
+ "transcript 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
  "unroll",
- "worker 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "worker 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
 ]
 
 [[package]]
 name = "prover_examples"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3#c23fd0085ee87872e25ff83f780d2d0ee102a166"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b#0e5ed18ff282e620b6da359be97ea8499052f66d"
 dependencies = [
  "bincode 1.3.3",
  "itertools 0.14.0",
- "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
- "risc_v_cycles 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
+ "risc_v_cycles 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
  "serde",
  "serde_json",
- "setups 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
- "trace_and_split 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
+ "setups 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
+ "trace_and_split 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
  "transpose",
 ]
 
 [[package]]
 name = "prover_examples"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0#a3c74040d2f994608f451550232392333400bbf1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b#7d4d12c226207d19475698b992d5a8f36bc7e1c8"
 dependencies = [
  "bincode 1.3.3",
- "cs 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "cs 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
  "gpu_prover",
  "itertools 0.14.0",
  "nvtx",
- "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
- "risc_v_cycles 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
+ "risc_v_cycles 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
  "serde",
  "serde_json",
- "setups 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
- "trace_and_split 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "setups 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
+ "trace_and_split 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
  "transpose",
 ]
 
@@ -7200,103 +7200,103 @@ dependencies = [
 [[package]]
 name = "reduced_risc_v_log_23_machine"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3#c23fd0085ee87872e25ff83f780d2d0ee102a166"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b#0e5ed18ff282e620b6da359be97ea8499052f66d"
 dependencies = [
- "circuit_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
- "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
+ "circuit_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
  "serde",
  "serde_json",
- "verifier_generator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
+ "verifier_generator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
 ]
 
 [[package]]
 name = "reduced_risc_v_log_23_machine"
 version = "0.1.0"
-source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a#6cc83584123585f9ecaf81d89d605b95432c84d1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b#785ba3b5383d6f55c21466c43b5b95f7fa719d00"
 dependencies = [
- "circuit_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
- "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
+ "circuit_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
  "serde",
  "serde_json",
- "verifier_generator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
+ "verifier_generator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
 ]
 
 [[package]]
 name = "reduced_risc_v_log_23_machine"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0#a3c74040d2f994608f451550232392333400bbf1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b#7d4d12c226207d19475698b992d5a8f36bc7e1c8"
 dependencies = [
- "circuit_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
- "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "circuit_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
  "serde",
  "serde_json",
- "verifier_generator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "verifier_generator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
 ]
 
 [[package]]
 name = "reduced_risc_v_log_23_machine_verifier"
 version = "0.1.0"
-source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a#6cc83584123585f9ecaf81d89d605b95432c84d1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b#785ba3b5383d6f55c21466c43b5b95f7fa719d00"
 dependencies = [
- "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
+ "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
  "unroll",
- "verifier_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
+ "verifier_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
 ]
 
 [[package]]
 name = "reduced_risc_v_log_23_machine_verifier"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0#a3c74040d2f994608f451550232392333400bbf1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b#7d4d12c226207d19475698b992d5a8f36bc7e1c8"
 dependencies = [
- "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
  "unroll",
- "verifier_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "verifier_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
 ]
 
 [[package]]
 name = "reduced_risc_v_machine"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3#c23fd0085ee87872e25ff83f780d2d0ee102a166"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b#0e5ed18ff282e620b6da359be97ea8499052f66d"
 dependencies = [
- "circuit_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
- "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
+ "circuit_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
  "serde",
  "serde_json",
- "verifier_generator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
+ "verifier_generator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
 ]
 
 [[package]]
 name = "reduced_risc_v_machine"
 version = "0.1.0"
-source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a#6cc83584123585f9ecaf81d89d605b95432c84d1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b#785ba3b5383d6f55c21466c43b5b95f7fa719d00"
 dependencies = [
- "circuit_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
- "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
+ "circuit_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
  "serde",
  "serde_json",
- "verifier_generator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
+ "verifier_generator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
 ]
 
 [[package]]
 name = "reduced_risc_v_machine"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0#a3c74040d2f994608f451550232392333400bbf1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b#7d4d12c226207d19475698b992d5a8f36bc7e1c8"
 dependencies = [
- "circuit_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
- "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "circuit_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
  "serde",
  "serde_json",
- "verifier_generator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "verifier_generator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
 ]
 
 [[package]]
 name = "reduced_risc_v_machine_verifier"
 version = "0.1.0"
-source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a#6cc83584123585f9ecaf81d89d605b95432c84d1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b#785ba3b5383d6f55c21466c43b5b95f7fa719d00"
 dependencies = [
- "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
+ "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
  "unroll",
- "verifier_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
+ "verifier_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
 ]
 
 [[package]]
@@ -8170,62 +8170,62 @@ dependencies = [
 [[package]]
 name = "risc_v_cycles"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3#c23fd0085ee87872e25ff83f780d2d0ee102a166"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b#0e5ed18ff282e620b6da359be97ea8499052f66d"
 dependencies = [
- "circuit_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
- "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
+ "circuit_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
  "serde",
  "serde_json",
- "verifier_generator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
+ "verifier_generator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
 ]
 
 [[package]]
 name = "risc_v_cycles"
 version = "0.1.0"
-source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a#6cc83584123585f9ecaf81d89d605b95432c84d1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b#785ba3b5383d6f55c21466c43b5b95f7fa719d00"
 dependencies = [
- "circuit_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
- "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
+ "circuit_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
  "serde",
  "serde_json",
- "verifier_generator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
+ "verifier_generator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
 ]
 
 [[package]]
 name = "risc_v_cycles"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0#a3c74040d2f994608f451550232392333400bbf1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b#7d4d12c226207d19475698b992d5a8f36bc7e1c8"
 dependencies = [
- "circuit_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
- "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "circuit_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
  "serde",
  "serde_json",
- "verifier_generator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "verifier_generator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
 ]
 
 [[package]]
 name = "risc_v_cycles_verifier"
 version = "0.1.0"
-source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a#6cc83584123585f9ecaf81d89d605b95432c84d1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b#785ba3b5383d6f55c21466c43b5b95f7fa719d00"
 dependencies = [
- "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
+ "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
  "unroll",
- "verifier_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
+ "verifier_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
 ]
 
 [[package]]
 name = "risc_v_simulator"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3#c23fd0085ee87872e25ff83f780d2d0ee102a166"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b#0e5ed18ff282e620b6da359be97ea8499052f66d"
 dependencies = [
  "addr2line 0.22.0",
- "blake2s_u32 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
- "cs 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
- "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
+ "blake2s_u32 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
+ "cs 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
+ "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
  "inferno",
  "memmap2",
  "object 0.37.3",
- "poseidon2 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
+ "poseidon2 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
  "rand 0.9.2",
  "ringbuffer",
  "ruint",
@@ -8235,16 +8235,16 @@ dependencies = [
 [[package]]
 name = "risc_v_simulator"
 version = "0.1.0"
-source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a#6cc83584123585f9ecaf81d89d605b95432c84d1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b#785ba3b5383d6f55c21466c43b5b95f7fa719d00"
 dependencies = [
  "addr2line 0.22.0",
- "blake2s_u32 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
- "cs 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
- "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
+ "blake2s_u32 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
+ "cs 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
+ "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
  "inferno",
  "memmap2",
  "object 0.37.3",
- "poseidon2 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
+ "poseidon2 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
  "rand 0.9.2",
  "ringbuffer",
  "ruint",
@@ -8254,16 +8254,16 @@ dependencies = [
 [[package]]
 name = "risc_v_simulator"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0#a3c74040d2f994608f451550232392333400bbf1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b#7d4d12c226207d19475698b992d5a8f36bc7e1c8"
 dependencies = [
  "addr2line 0.22.0",
- "blake2s_u32 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
- "cs 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
- "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "blake2s_u32 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
+ "cs 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
+ "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
  "inferno",
  "memmap2",
  "object 0.37.3",
- "poseidon2 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "poseidon2 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
  "rand 0.9.2",
  "ringbuffer",
  "ruint",
@@ -9028,64 +9028,64 @@ dependencies = [
 [[package]]
 name = "setups"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3#c23fd0085ee87872e25ff83f780d2d0ee102a166"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b#0e5ed18ff282e620b6da359be97ea8499052f66d"
 dependencies = [
- "bigint_with_control 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
- "blake2_with_compression 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
- "final_reduced_risc_v_machine 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
- "machine_without_signed_mul_div 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
+ "bigint_with_control 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
+ "blake2_with_compression 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
+ "final_reduced_risc_v_machine 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
+ "machine_without_signed_mul_div 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
  "proc-macro2 1.0.103",
- "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
  "quote 1.0.41",
- "reduced_risc_v_log_23_machine 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
- "reduced_risc_v_machine 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
- "risc_v_cycles 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
+ "reduced_risc_v_log_23_machine 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
+ "reduced_risc_v_machine 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
+ "risc_v_cycles 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
  "serde",
  "serde_json",
  "syn 2.0.108",
- "verifier_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
+ "verifier_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
 ]
 
 [[package]]
 name = "setups"
 version = "0.1.0"
-source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a#6cc83584123585f9ecaf81d89d605b95432c84d1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b#785ba3b5383d6f55c21466c43b5b95f7fa719d00"
 dependencies = [
- "bigint_with_control 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
- "blake2_with_compression 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
- "final_reduced_risc_v_machine 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
- "machine_without_signed_mul_div 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
+ "bigint_with_control 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
+ "blake2_with_compression 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
+ "final_reduced_risc_v_machine 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
+ "machine_without_signed_mul_div 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
  "proc-macro2 1.0.103",
- "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
  "quote 1.0.41",
- "reduced_risc_v_log_23_machine 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
- "reduced_risc_v_machine 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
- "risc_v_cycles 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
+ "reduced_risc_v_log_23_machine 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
+ "reduced_risc_v_machine 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
+ "risc_v_cycles 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
  "serde",
  "serde_json",
  "syn 2.0.108",
- "verifier_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
+ "verifier_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
 ]
 
 [[package]]
 name = "setups"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0#a3c74040d2f994608f451550232392333400bbf1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b#7d4d12c226207d19475698b992d5a8f36bc7e1c8"
 dependencies = [
- "bigint_with_control 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
- "blake2_with_compression 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
- "final_reduced_risc_v_machine 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
- "machine_without_signed_mul_div 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "bigint_with_control 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
+ "blake2_with_compression 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
+ "final_reduced_risc_v_machine 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
+ "machine_without_signed_mul_div 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
  "proc-macro2 1.0.103",
- "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
  "quote 1.0.41",
- "reduced_risc_v_log_23_machine 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
- "reduced_risc_v_machine 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
- "risc_v_cycles 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "reduced_risc_v_log_23_machine 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
+ "reduced_risc_v_machine 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
+ "risc_v_cycles 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
  "serde",
  "serde_json",
  "syn 2.0.108",
- "verifier_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "verifier_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
 ]
 
 [[package]]
@@ -9382,7 +9382,7 @@ checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 [[package]]
 name = "storage_models"
 version = "0.1.0"
-source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.26-a#f3939b3591fffec51eee320fa134f0c1533cac3d"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.26-b#bbf24c42b591f5d2027d6b7afeba39182a7ed234"
 dependencies = [
  "crypto",
  "zk_ee",
@@ -9533,7 +9533,7 @@ dependencies = [
 [[package]]
 name = "system_hooks"
 version = "0.1.0"
-source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.26-a#f3939b3591fffec51eee320fa134f0c1533cac3d"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.26-b#bbf24c42b591f5d2027d6b7afeba39182a7ed234"
 dependencies = [
  "arrayvec 0.7.6",
  "cycle_marker",
@@ -9985,64 +9985,64 @@ dependencies = [
 [[package]]
 name = "trace_and_split"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3#c23fd0085ee87872e25ff83f780d2d0ee102a166"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b#0e5ed18ff282e620b6da359be97ea8499052f66d"
 dependencies = [
- "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
  "serde",
  "serde_json",
- "setups 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
- "worker 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
+ "setups 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
+ "worker 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
 ]
 
 [[package]]
 name = "trace_and_split"
 version = "0.1.0"
-source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a#6cc83584123585f9ecaf81d89d605b95432c84d1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b#785ba3b5383d6f55c21466c43b5b95f7fa719d00"
 dependencies = [
- "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
  "serde",
  "serde_json",
- "setups 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
- "worker 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
+ "setups 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
+ "worker 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
 ]
 
 [[package]]
 name = "trace_and_split"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0#a3c74040d2f994608f451550232392333400bbf1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b#7d4d12c226207d19475698b992d5a8f36bc7e1c8"
 dependencies = [
- "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
  "serde",
  "serde_json",
- "setups 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
- "worker 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "setups 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
+ "worker 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
 ]
 
 [[package]]
 name = "trace_holder"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3#c23fd0085ee87872e25ff83f780d2d0ee102a166"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b#0e5ed18ff282e620b6da359be97ea8499052f66d"
 dependencies = [
- "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
- "worker 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
+ "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
+ "worker 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
 ]
 
 [[package]]
 name = "trace_holder"
 version = "0.1.0"
-source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a#6cc83584123585f9ecaf81d89d605b95432c84d1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b#785ba3b5383d6f55c21466c43b5b95f7fa719d00"
 dependencies = [
- "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
- "worker 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
+ "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
+ "worker 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
 ]
 
 [[package]]
 name = "trace_holder"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0#a3c74040d2f994608f451550232392333400bbf1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b#7d4d12c226207d19475698b992d5a8f36bc7e1c8"
 dependencies = [
- "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
- "worker 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
+ "worker 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
 ]
 
 [[package]]
@@ -10154,31 +10154,31 @@ dependencies = [
 [[package]]
 name = "transcript"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3#c23fd0085ee87872e25ff83f780d2d0ee102a166"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b#0e5ed18ff282e620b6da359be97ea8499052f66d"
 dependencies = [
- "blake2s_u32 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
+ "blake2s_u32 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
  "unroll",
- "worker 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
+ "worker 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
 ]
 
 [[package]]
 name = "transcript"
 version = "0.1.0"
-source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a#6cc83584123585f9ecaf81d89d605b95432c84d1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b#785ba3b5383d6f55c21466c43b5b95f7fa719d00"
 dependencies = [
- "blake2s_u32 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
+ "blake2s_u32 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
  "unroll",
- "worker 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
+ "worker 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
 ]
 
 [[package]]
 name = "transcript"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0#a3c74040d2f994608f451550232392333400bbf1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b#7d4d12c226207d19475698b992d5a8f36bc7e1c8"
 dependencies = [
- "blake2s_u32 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "blake2s_u32 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
  "unroll",
- "worker 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "worker 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
 ]
 
 [[package]]
@@ -10442,59 +10442,59 @@ checksum = "accd4ea62f7bb7a82fe23066fb0957d48ef677f6eeb8215f372f52e48bb32426"
 [[package]]
 name = "verifier_common"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3#c23fd0085ee87872e25ff83f780d2d0ee102a166"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b#0e5ed18ff282e620b6da359be97ea8499052f66d"
 dependencies = [
- "blake2s_u32 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
- "cs 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
- "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
- "non_determinism_source 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
- "poseidon2 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
- "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
+ "blake2s_u32 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
+ "cs 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
+ "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
+ "non_determinism_source 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
+ "poseidon2 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
  "serde",
- "transcript 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
+ "transcript 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
  "unroll",
 ]
 
 [[package]]
 name = "verifier_common"
 version = "0.1.0"
-source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a#6cc83584123585f9ecaf81d89d605b95432c84d1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b#785ba3b5383d6f55c21466c43b5b95f7fa719d00"
 dependencies = [
- "blake2s_u32 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
- "cs 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
- "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
- "non_determinism_source 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
- "poseidon2 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
- "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
+ "blake2s_u32 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
+ "cs 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
+ "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
+ "non_determinism_source 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
+ "poseidon2 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
  "serde",
- "transcript 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
+ "transcript 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
  "unroll",
 ]
 
 [[package]]
 name = "verifier_common"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0#a3c74040d2f994608f451550232392333400bbf1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b#7d4d12c226207d19475698b992d5a8f36bc7e1c8"
 dependencies = [
- "blake2s_u32 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
- "cs 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
- "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
- "non_determinism_source 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
- "poseidon2 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
- "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "blake2s_u32 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
+ "cs 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
+ "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
+ "non_determinism_source 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
+ "poseidon2 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
  "serde",
- "transcript 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "transcript 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
  "unroll",
 ]
 
 [[package]]
 name = "verifier_generator"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3#c23fd0085ee87872e25ff83f780d2d0ee102a166"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b#0e5ed18ff282e620b6da359be97ea8499052f66d"
 dependencies = [
  "proc-macro-error2",
  "proc-macro2 1.0.103",
- "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
  "quote 1.0.41",
  "serde",
  "serde_json",
@@ -10504,11 +10504,11 @@ dependencies = [
 [[package]]
 name = "verifier_generator"
 version = "0.1.0"
-source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a#6cc83584123585f9ecaf81d89d605b95432c84d1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b#785ba3b5383d6f55c21466c43b5b95f7fa719d00"
 dependencies = [
  "proc-macro-error2",
  "proc-macro2 1.0.103",
- "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
  "quote 1.0.41",
  "serde",
  "serde_json",
@@ -10518,11 +10518,11 @@ dependencies = [
 [[package]]
 name = "verifier_generator"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0#a3c74040d2f994608f451550232392333400bbf1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b#7d4d12c226207d19475698b992d5a8f36bc7e1c8"
 dependencies = [
  "proc-macro-error2",
  "proc-macro2 1.0.103",
- "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
  "quote 1.0.41",
  "serde",
  "serde_json",
@@ -11144,7 +11144,7 @@ checksum = "f17a85883d4e6d00e8a97c586de764dabcc06133f7f1d55dce5cdc070ad7fe59"
 [[package]]
 name = "worker"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3#c23fd0085ee87872e25ff83f780d2d0ee102a166"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b#0e5ed18ff282e620b6da359be97ea8499052f66d"
 dependencies = [
  "num_cpus",
  "rayon",
@@ -11153,7 +11153,7 @@ dependencies = [
 [[package]]
 name = "worker"
 version = "0.1.0"
-source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a#6cc83584123585f9ecaf81d89d605b95432c84d1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b#785ba3b5383d6f55c21466c43b5b95f7fa719d00"
 dependencies = [
  "num_cpus",
  "rayon",
@@ -11162,7 +11162,7 @@ dependencies = [
 [[package]]
 name = "worker"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0#a3c74040d2f994608f451550232392333400bbf1"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b#7d4d12c226207d19475698b992d5a8f36bc7e1c8"
 dependencies = [
  "num_cpus",
  "rayon",
@@ -11329,7 +11329,7 @@ dependencies = [
 [[package]]
 name = "zk_ee"
 version = "0.1.0"
-source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.26-a#f3939b3591fffec51eee320fa134f0c1533cac3d"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.26-b#bbf24c42b591f5d2027d6b7afeba39182a7ed234"
 dependencies = [
  "arrayvec 0.7.6",
  "bitflags 2.10.0",
@@ -11414,20 +11414,20 @@ dependencies = [
 [[package]]
 name = "zkos-wrapper"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zkos-wrapper.git?tag=v0.5.0#c437db61466d266a0461062d2334e5050e147365"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS-Wrapper.git?tag=v0.5.0-b#76c95577f3849d200ed76608b3daac0906643640"
 dependencies = [
- "blake2_with_compression_verifier 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "blake2_with_compression_verifier 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
  "boojum",
  "circuit_mersenne_field",
  "clap",
- "execution_utils 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
- "final_reduced_risc_v_machine_verifier 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "execution_utils 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
+ "final_reduced_risc_v_machine_verifier 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
  "proof-compression",
- "reduced_risc_v_log_23_machine_verifier 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "reduced_risc_v_log_23_machine_verifier 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
  "rescue_poseidon",
  "serde",
  "serde_json",
- "setups 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "setups 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
  "sha3 0.10.8",
  "shivini",
  "snark_wrapper",
@@ -11533,7 +11533,7 @@ dependencies = [
 [[package]]
 name = "zksync_os_api"
 version = "0.1.0"
-source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.26-a#f3939b3591fffec51eee320fa134f0c1533cac3d"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.26-b#bbf24c42b591f5d2027d6b7afeba39182a7ed234"
 dependencies = [
  "alloy",
  "basic_system",
@@ -11542,7 +11542,7 @@ dependencies = [
  "evm_interpreter",
  "forward_system",
  "oracle_provider",
- "risc_v_simulator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
+ "risc_v_simulator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
  "ruint",
  "zk_ee",
  "zksync_os_runner",
@@ -11578,14 +11578,14 @@ checksum = "4c8927d36dbdd25c8ffa58eb6f88d7bd6815f833272ba46da4d7382d0ce5ffd1"
 [[package]]
 name = "zksync_os_fri_prover"
 version = "0.1.0"
-source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-Prover.git?tag=v0.4.7-a#c95c4afcb87ddc6b4e30c7ba649418a9888e254d"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-Prover.git?tag=v0.4.7-b#172f40d9e76e621b7b9f15f61a43448726ee6115"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
  "bincode 2.0.1",
  "clap",
  "cli",
- "execution_utils 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "execution_utils 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
  "reqwest",
  "serde",
  "serde_json",
@@ -11857,14 +11857,14 @@ dependencies = [
 [[package]]
 name = "zksync_os_prover_service"
 version = "0.1.0"
-source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-Prover.git?tag=v0.4.7-a#c95c4afcb87ddc6b4e30c7ba649418a9888e254d"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-Prover.git?tag=v0.4.7-b#172f40d9e76e621b7b9f15f61a43448726ee6115"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
  "bincode 2.0.1",
  "clap",
  "cli",
- "execution_utils 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "execution_utils 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
  "serde",
  "serde_json",
  "tokio",
@@ -11938,12 +11938,12 @@ dependencies = [
 [[package]]
 name = "zksync_os_runner"
 version = "0.1.0"
-source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.26-a#f3939b3591fffec51eee320fa134f0c1533cac3d"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.26-b#bbf24c42b591f5d2027d6b7afeba39182a7ed234"
 dependencies = [
  "cycle_marker",
- "execution_utils 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
- "prover_examples 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
- "risc_v_simulator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.4.3)",
+ "execution_utils 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
+ "prover_examples 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
+ "risc_v_simulator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.3-b)",
 ]
 
 [[package]]
@@ -11991,7 +11991,7 @@ dependencies = [
  "bincode 2.0.1",
  "blake2 0.10.6",
  "dashmap",
- "execution_utils 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-a)",
+ "execution_utils 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.4.5-b)",
  "forward_system",
  "full_statement_verifier",
  "futures",
@@ -12041,12 +12041,12 @@ dependencies = [
 [[package]]
 name = "zksync_os_snark_prover"
 version = "0.1.0"
-source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-Prover.git?tag=v0.4.7-a#c95c4afcb87ddc6b4e30c7ba649418a9888e254d"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-Prover.git?tag=v0.4.7-b#172f40d9e76e621b7b9f15f61a43448726ee6115"
 dependencies = [
  "anyhow",
  "clap",
  "cli",
- "execution_utils 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "execution_utils 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
  "proof-compression",
  "serde",
  "serde_json",
@@ -12195,7 +12195,7 @@ dependencies = [
 [[package]]
 name = "zksync_sequencer_proof_client"
 version = "0.1.0"
-source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-Prover.git?tag=v0.4.7-a#c95c4afcb87ddc6b4e30c7ba649418a9888e254d"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-Prover.git?tag=v0.4.7-b#172f40d9e76e621b7b9f15f61a43448726ee6115"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -12203,7 +12203,7 @@ dependencies = [
  "bincode 2.0.1",
  "circuit_definitions",
  "clap",
- "execution_utils 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.0)",
+ "execution_utils 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.0-b)",
  "reqwest",
  "serde",
  "serde_json",
