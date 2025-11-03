@@ -285,6 +285,14 @@ pub struct L1WatcherConfig {
     /// How often to poll L1 for new priority requests.
     #[config(default_t = 100 * TimeUnit::Millis)]
     pub poll_interval: Duration,
+
+    /// Grace period for proof storage lookups on External Nodes.
+    /// When a batch is discovered on L1 but not yet in local proof storage,
+    /// the node will retry for this duration before panicking.
+    /// This allows time for a sidecar sync process to fetch proofs from the main node.
+    /// Default: 10 minutes
+    #[config(default_t = 10 * TimeUnit::Minutes)]
+    pub proof_storage_grace_period: Duration,
 }
 
 #[derive(Clone, Debug, DescribeConfig, DeserializeConfig)]
@@ -502,6 +510,7 @@ impl From<L1WatcherConfig> for zksync_os_l1_watcher::L1WatcherConfig {
         Self {
             max_blocks_to_process: c.max_blocks_to_process,
             poll_interval: c.poll_interval,
+            proof_storage_grace_period: c.proof_storage_grace_period,
         }
     }
 }

@@ -15,6 +15,7 @@ pub struct L1CommitWatcher<Finality, BatchStorage> {
     next_batch_number: u64,
     finality: Finality,
     batch_storage: BatchStorage,
+    grace_period: std::time::Duration,
 }
 
 impl<Finality: WriteFinality, BatchStorage: ReadBatch> L1CommitWatcher<Finality, BatchStorage> {
@@ -54,6 +55,7 @@ impl<Finality: WriteFinality, BatchStorage: ReadBatch> L1CommitWatcher<Finality,
             next_batch_number: last_committed_batch + 1,
             finality,
             batch_storage,
+            grace_period: config.proof_storage_grace_period,
         };
         let l1_watcher = L1Watcher::new(
             zk_chain,
@@ -110,11 +112,14 @@ impl<Finality: WriteFinality, BatchStorage: ReadBatch> ProcessL1Event
                 ?batch_commitment,
                 "discovered committed batch"
             );
-            let (_, last_committed_block) = self
-                .batch_storage
-                .get_batch_range_by_number(batch_number)
-                .await?
-                .expect("committed batch is missing");
+            let batch_storage = &self.batch_storage;
+            let (_, last_committed_block) = util::retry_with_grace_period(
+                || async move { batch_storage.get_batch_range_by_number(batch_number).await },
+                self.grace_period,
+                std::time::Duration::from_secs(5),
+                &format!("committed batch {}", batch_number),
+            )
+            .await?;
             self.finality.update_finality_status(|finality| {
                 assert!(
                     batch_number > finality.last_committed_batch,
