@@ -5,12 +5,13 @@ use crate::rpc_storage::ReadRpcStorage;
 use crate::sandbox::{call_trace_simulate, execute};
 use alloy::consensus::transaction::Recovered;
 use alloy::consensus::{SignableTransaction, TxEip1559, TxEip2930, TxLegacy, TxType};
-use alloy::eips::BlockId;
+use alloy::eips::{BlockId, BlockNumberOrTag};
 use alloy::network::TransactionBuilder;
 use alloy::primitives::{Address, B256, Bytes, Signature, TxKind, U256};
 use alloy::rpc::types::state::StateOverride;
 use alloy::rpc::types::trace::geth::{CallConfig, GethTrace};
 use alloy::rpc::types::{BlockOverrides, TransactionRequest};
+use tokio::sync::watch;
 use zk_os_api::helpers::{get_balance, get_nonce};
 use zksync_os_interface::types::ExecutionOutput;
 use zksync_os_interface::{
@@ -33,6 +34,7 @@ pub struct EthCallHandler<RpcStorage> {
     config: RpcConfig,
     storage: RpcStorage,
     chain_id: u64,
+    pending_block_context: watch::Receiver<Option<BlockContext>>,
 }
 
 struct ExecutionEnv {
@@ -41,11 +43,17 @@ struct ExecutionEnv {
 }
 
 impl<RpcStorage: ReadRpcStorage> EthCallHandler<RpcStorage> {
-    pub fn new(config: RpcConfig, storage: RpcStorage, chain_id: u64) -> Self {
+    pub fn new(
+        config: RpcConfig,
+        storage: RpcStorage,
+        chain_id: u64,
+        pending_block_context: watch::Receiver<Option<BlockContext>>,
+    ) -> Self {
         Self {
             config,
             storage,
             chain_id,
+            pending_block_context,
         }
     }
 
@@ -53,6 +61,7 @@ impl<RpcStorage: ReadRpcStorage> EthCallHandler<RpcStorage> {
         &self,
         request: TransactionRequest,
         block_context: &BlockContext,
+        for_estimate_gas: bool,
     ) -> Result<ZkTransaction, EthCallError> {
         let tx_type = request.minimal_tx_type();
 
@@ -98,6 +107,7 @@ impl<RpcStorage: ReadRpcStorage> EthCallHandler<RpcStorage> {
             max_fee_per_gas,
             max_priority_fee_per_gas,
             block_context.eip1559_basefee.saturating_to(),
+            for_estimate_gas,
         )?;
         let chain_id = chain_id.unwrap_or(self.chain_id);
         let from = from.unwrap_or_default();
@@ -204,7 +214,7 @@ impl<RpcStorage: ReadRpcStorage> EthCallHandler<RpcStorage> {
             .get_context(block_number)
             .ok_or(EthCallError::BlockNotFound(block_id))?;
 
-        let transaction = self.create_tx_from_request(request, &block_context)?;
+        let transaction = self.create_tx_from_request(request, &block_context, false)?;
 
         Ok(ExecutionEnv {
             transaction,
@@ -219,11 +229,12 @@ impl<RpcStorage: ReadRpcStorage> EthCallHandler<RpcStorage> {
         state_overrides: Option<StateOverride>,
         block_overrides: Option<Box<BlockOverrides>>,
     ) -> Result<Bytes, EthCallError> {
-        let execution_env = self.prepare_execution_env(request, block, block_overrides)?;
+        let mut execution_env = self.prepare_execution_env(request, block, block_overrides)?;
         let storage_view = self
             .storage
             .state_view_at(execution_env.block_context.block_number)?;
 
+        execution_env.block_context.eip1559_basefee = U256::from(0);
         let res = match state_overrides {
             Some(overrides) => execute(
                 execution_env.transaction,
@@ -288,17 +299,36 @@ impl<RpcStorage: ReadRpcStorage> EthCallHandler<RpcStorage> {
         state_override: Option<StateOverride>,
     ) -> Result<U256, EthCallError> {
         let block_id = block_number.unwrap_or_default();
-        let Some(block_number) = self.storage.resolve_block_number(block_id)? else {
-            return Err(EthCallError::BlockNotFound(block_id));
+
+        let block_context = {
+            let Some(resolved_block_number) = self.storage.resolve_block_number(block_id)? else {
+                return Err(EthCallError::BlockNotFound(block_id));
+            };
+            match block_id {
+                BlockId::Number(BlockNumberOrTag::Pending) => {
+                    if let Some(mut pending_block_context) = *self.pending_block_context.borrow() {
+                        if pending_block_context.block_number > resolved_block_number {
+                            // Decrease block number so we get latest available state view
+                            pending_block_context.block_number = resolved_block_number;
+                        }
+                        pending_block_context
+                    } else {
+                        self.storage
+                            .replay_storage()
+                            .get_context(resolved_block_number)
+                            .ok_or(EthCallError::BlockNotFound(block_id))?
+                    }
+                }
+                block_id => self
+                    .storage
+                    .replay_storage()
+                    .get_context(resolved_block_number)
+                    .ok_or(EthCallError::BlockNotFound(block_id))?,
+            }
         };
-        let block_context = self
-            .storage
-            .replay_storage()
-            .get_context(block_number)
-            .ok_or(EthCallError::BlockNotFound(block_id))?;
 
         // Choose storage view (with optional overrides) once and reuse it throughout.
-        let base_view = self.storage.state_view_at(block_number)?;
+        let base_view = self.storage.state_view_at(block_context.block_number)?;
         match state_override {
             Some(overrides) => self.estimate_gas_with_view(
                 request,
@@ -379,7 +409,7 @@ impl<RpcStorage: ReadRpcStorage> EthCallHandler<RpcStorage> {
                 .unwrap_or(highest_gas_limit)
                 .min(highest_gas_limit),
         );
-        let tx = self.create_tx_from_request(request, &block_context)?;
+        let tx = self.create_tx_from_request(request, &block_context, true)?;
 
         // Execute the transaction with the highest possible gas limit.
         let mut res = execute(tx.clone(), block_context, storage_view.clone())
@@ -502,6 +532,10 @@ impl<RpcStorage: ReadRpcStorage> EthCallHandler<RpcStorage> {
         }
 
         Ok(U256::from(highest_gas_limit))
+    }
+
+    pub fn pending_block_context(&self) -> Option<BlockContext> {
+        *self.pending_block_context.borrow()
     }
 }
 
