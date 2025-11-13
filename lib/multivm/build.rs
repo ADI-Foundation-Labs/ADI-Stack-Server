@@ -35,7 +35,7 @@ fn main() {
             "singleblock_batch_logging_enabled",
         ] {
             let url = format!(
-                "https://github.com/matter-labs/zksync-os/releases/download/{tag}/{variant}.bin"
+                "https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS/releases/download/{tag}/{variant}.bin"
             );
             let path = format!("{dir}/{variant}.bin");
             if std::fs::exists(&path).expect("failed to check file existence") {

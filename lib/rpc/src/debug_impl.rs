@@ -153,6 +153,7 @@ impl<RpcStorage: ReadRpcStorage> DebugNamespace<RpcStorage> {
             state_overrides,
             block_overrides,
             tx_index,
+            ..
         } = opts;
         if tx_index.is_some() {
             return Err(DebugError::UnsupportedTxIndex);
