@@ -15,6 +15,7 @@ pub struct L1ExecuteWatcher<Finality, BatchStorage> {
     next_batch_number: u64,
     finality: Finality,
     batch_storage: BatchStorage,
+    grace_period: std::time::Duration,
 }
 
 impl<Finality: WriteFinality, BatchStorage: ReadBatch> L1ExecuteWatcher<Finality, BatchStorage> {
@@ -54,6 +55,7 @@ impl<Finality: WriteFinality, BatchStorage: ReadBatch> L1ExecuteWatcher<Finality
             next_batch_number: last_executed_batch + 1,
             finality,
             batch_storage,
+            grace_period: config.proof_storage_grace_period,
         };
         let l1_watcher = L1Watcher::new(
             zk_chain,
@@ -104,11 +106,14 @@ impl<Finality: WriteFinality, BatchStorage: ReadBatch> ProcessL1Event
                 "skipping already processed executed batch",
             );
         } else {
-            let (_, last_executed_block) = self
-                .batch_storage
-                .get_batch_range_by_number(batch_number)
-                .await?
-                .expect("executed batch is missing");
+            let batch_storage = &self.batch_storage;
+            let (_, last_executed_block) = util::retry_with_grace_period(
+                || async move { batch_storage.get_batch_range_by_number(batch_number).await },
+                self.grace_period,
+                std::time::Duration::from_secs(5),
+                &format!("executed batch {}", batch_number),
+            )
+            .await?;
             self.finality.update_finality_status(|finality| {
                 assert!(
                     batch_number > finality.last_executed_batch,

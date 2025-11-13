@@ -25,15 +25,30 @@ where
         batch_storage: BatchStorage,
         finality: Finality,
         last_ready_block: u64,
+        grace_period: std::time::Duration,
     ) -> anyhow::Result<Self> {
-        let batch_of_last_ready_block = batch_storage
-            .get_batch_by_block_number(last_ready_block, &finality)
-            .await?
-            .unwrap();
-        let batch_range = batch_storage
-            .get_batch_range_by_number(batch_of_last_ready_block)
-            .await?
-            .unwrap();
+        let batch_of_last_ready_block = zksync_os_l1_watcher::util::retry_with_grace_period(
+            || async {
+                batch_storage
+                    .get_batch_by_block_number(last_ready_block, &finality)
+                    .await
+            },
+            grace_period,
+            std::time::Duration::from_secs(5),
+            &format!("batch for block {} during priority tree initialization", last_ready_block),
+        )
+        .await?;
+        let batch_range = zksync_os_l1_watcher::util::retry_with_grace_period(
+            || async {
+                batch_storage
+                    .get_batch_range_by_number(batch_of_last_ready_block)
+                    .await
+            },
+            grace_period,
+            std::time::Duration::from_secs(5),
+            &format!("batch range for batch {} during priority tree initialization", batch_of_last_ready_block),
+        )
+        .await?;
         let last_ready_batch = if last_ready_block == batch_range.1 {
             batch_of_last_ready_block
         } else {

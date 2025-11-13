@@ -59,7 +59,7 @@ use zksync_os_l1_sender::batcher_model::BatchMetadata;
 use zksync_os_l1_sender::commands::commit::CommitCommand;
 use zksync_os_l1_sender::commands::prove::ProofCommand;
 use zksync_os_l1_sender::pipeline_component::L1Sender;
-use zksync_os_l1_watcher::{L1CommitWatcher, L1ExecuteWatcher, L1TxWatcher};
+use zksync_os_l1_watcher::{L1CommitWatcher, L1ExecuteWatcher, L1TxWatcher, util};
 use zksync_os_mempool::L2TransactionPool;
 use zksync_os_merkle_tree::{MerkleTree, RocksDBWrapper};
 use zksync_os_object_store::ObjectStoreFactory;
@@ -218,7 +218,7 @@ pub async fn run<State: ReadStateHistory + WriteState + StateInitializer + Clone
     );
 
     let (last_l1_committed_block, last_l1_proved_block, last_l1_executed_block) =
-        commit_proof_execute_block_numbers(&l1_state, &batch_storage).await;
+        commit_proof_execute_block_numbers(&l1_state, &batch_storage, config.l1_watcher_config.proof_storage_grace_period).await;
 
     let node_startup_state = NodeStateOnStartup {
         is_main_node: config.sequencer_config.is_main_node(),
@@ -719,6 +719,7 @@ async fn run_en_pipeline(
         node_state_on_startup
             .last_l1_executed_block
             .min(node_state_on_startup.block_replay_storage_last_block),
+        config.l1_watcher_config.proof_storage_grace_period,
     )
     .await
     .unwrap();
@@ -750,39 +751,70 @@ fn report_exit<T, E: std::fmt::Debug>(name: &'static str) -> impl Fn(Result<T, E
 async fn commit_proof_execute_block_numbers(
     l1_state: &L1State,
     batch_storage: &ProofStorage,
+    grace_period: std::time::Duration,
 ) -> (u64, u64, u64) {
     let last_committed_block = if l1_state.last_committed_batch == 0 {
         0
     } else {
-        batch_storage
-            .get_batch_with_proof(l1_state.last_committed_batch)
-            .await
-            .expect("Failed to get last committed block from proof storage")
-            .map(|envelope| envelope.batch.last_block_number)
-            .expect("Committed batch is not present in proof storage")
+        let batch_num = l1_state.last_committed_batch;
+        util::retry_with_grace_period(
+            || async move {
+                Ok::<_, anyhow::Error>(batch_storage
+                    .get_batch_with_proof(batch_num)
+                    .await
+                    .expect("Failed to get last committed block from proof storage"))
+            },
+            grace_period,
+            std::time::Duration::from_secs(5),
+            &format!("committed batch {} in proof storage", batch_num),
+        )
+        .await
+        .expect("Failed during retry of committed batch lookup")
+        .batch
+        .last_block_number
     };
 
     // only used to log on node startup
     let last_proved_block = if l1_state.last_proved_batch == 0 {
         0
     } else {
-        batch_storage
-            .get_batch_with_proof(l1_state.last_proved_batch)
-            .await
-            .expect("Failed to get last proved block from proof storage")
-            .map(|envelope| envelope.batch.last_block_number)
-            .expect("Proved batch is not present in proof storage")
+        let batch_num = l1_state.last_proved_batch;
+        util::retry_with_grace_period(
+            || async move {
+                Ok::<_, anyhow::Error>(batch_storage
+                    .get_batch_with_proof(batch_num)
+                    .await
+                    .expect("Failed to get last proved block from proof storage"))
+            },
+            grace_period,
+            std::time::Duration::from_secs(5),
+            &format!("proved batch {} in proof storage", batch_num),
+        )
+        .await
+        .expect("Failed during retry of proved batch lookup")
+        .batch
+        .last_block_number
     };
 
     let last_executed_block = if l1_state.last_executed_batch == 0 {
         0
     } else {
-        batch_storage
-            .get_batch_with_proof(l1_state.last_executed_batch)
-            .await
-            .expect("Failed to get last proved block from execute storage")
-            .map(|envelope| envelope.batch.last_block_number)
-            .expect("Execute batch is not present in proof storage")
+        let batch_num = l1_state.last_executed_batch;
+        util::retry_with_grace_period(
+            || async move {
+                Ok::<_, anyhow::Error>(batch_storage
+                    .get_batch_with_proof(batch_num)
+                    .await
+                    .expect("Failed to get last executed block from proof storage"))
+            },
+            grace_period,
+            std::time::Duration::from_secs(5),
+            &format!("executed batch {} in proof storage", batch_num),
+        )
+        .await
+        .expect("Failed during retry of executed batch lookup")
+        .batch
+        .last_block_number
     };
     (last_committed_block, last_proved_block, last_executed_block)
 }
