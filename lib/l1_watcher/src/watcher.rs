@@ -126,7 +126,7 @@ pub enum L1WatcherError {
     #[error(transparent)]
     Contract(#[from] zksync_os_contract_interface::Error),
     #[error(transparent)]
-    Other(anyhow::Error),
+    Other(#[from] anyhow::Error),
     #[error("output has been closed")]
     OutputClosed,
 }

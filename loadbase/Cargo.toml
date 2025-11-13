@@ -3,8 +3,8 @@
 name = "loadbase"
 
 edition = "2021"
-authors = ["ADI Foundation"]
-homepage = "https://adi.foundation/"
+authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
+homepage = "https://zksync.io/"
 repository = "https://github.com/ADI-Foundation-Labs/ADI-Stack-Server"
 license = "MIT OR Apache-2.0"
 keywords = ["blockchain", "zksync"]
