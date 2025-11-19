@@ -256,13 +256,39 @@ impl EvmTracer for CallTracer {
     fn finish_tx(&mut self) {
         assert_eq!(self.current_call_depth, 0);
         assert!(self.unfinished_calls.is_empty());
-        assert_eq!(self.finished_calls.len(), 1);
 
         // Sanity check
         assert!(self.create_operation_requested.is_none());
 
-        self.transactions
-            .push(self.finished_calls.pop().expect("Should exist"));
+        // Handle transactions that fail before any execution frames are created
+        // (e.g., insufficient gas, validation errors, etc.)
+        let call_frame = if self.finished_calls.is_empty() {
+            // Create an empty call frame for transactions that failed early
+            CallFrame {
+                from: Address::ZERO,
+                gas: U256::ZERO,
+                gas_used: U256::ZERO,
+                to: None,
+                input: Bytes::default(),
+                output: None,
+                error: Some("transaction failed before execution".to_string()),
+                revert_reason: None,
+                calls: vec![],
+                logs: vec![],
+                value: None,
+                typ: "CALL".to_string(),
+            }
+        } else {
+            assert_eq!(
+                self.finished_calls.len(),
+                1,
+                "Expected exactly one finished call, got {}",
+                self.finished_calls.len()
+            );
+            self.finished_calls.pop().expect("Should exist")
+        };
+
+        self.transactions.push(call_frame);
     }
 
     fn on_event(&mut self, address: Address, topics: Vec<B256>, data: &[u8]) {
