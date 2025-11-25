@@ -468,6 +468,10 @@ impl<RpcStorage: ReadRpcStorage> EthCallHandler<RpcStorage> {
                     .saturating_to(),
             );
         }
+
+        let tx_value = request.value.unwrap_or_default();
+        let from_address = request.from.unwrap_or_default();
+
         request.set_gas_limit(
             request
                 .gas
@@ -475,9 +479,23 @@ impl<RpcStorage: ReadRpcStorage> EthCallHandler<RpcStorage> {
                 .min(highest_gas_limit),
         );
         let tx = self.create_tx_from_request(request, &block_context, true)?;
+ 
+        // Create a balance override to ensure the sender has enough funds for gas estimation.
+        let required_balance = tx_value
+            + U256::from(highest_gas_limit) * (block_context.eip1559_basefee + U256::from(1))
+            + U256::from(1);
+        let mut balance_override = StateOverride::default();
+        balance_override.insert(
+            from_address,
+            alloy::rpc::types::state::AccountOverride {
+                balance: Some(required_balance),
+                ..Default::default()
+            },
+        );
+        let estimation_view = OverriddenStateView::new(storage_view.clone(), balance_override);
 
         // Execute the transaction with the highest possible gas limit.
-        let mut res = execute(tx.clone(), block_context, storage_view.clone())
+        let mut res = execute(tx.clone(), block_context, estimation_view)
             .map_err(EthCallError::ForwardSubsystemError)?
             .map_err(EthCallError::InvalidTransaction)?;
         match res.execution_result {
