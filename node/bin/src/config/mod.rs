@@ -14,7 +14,7 @@ use zksync_os_batch_verification;
 use zksync_os_l1_sender::commands::commit::CommitCommand;
 use zksync_os_l1_sender::commands::execute::ExecuteCommand;
 use zksync_os_l1_sender::commands::prove::ProofCommand;
-use zksync_os_mempool::SubPoolLimit;
+use zksync_os_mempool::{SubPoolLimit, DEFAULT_TX_FEE_CAP};
 use zksync_os_object_store::ObjectStoreConfig;
 use zksync_os_observability::LogFormat;
 use zksync_os_observability::opentelemetry::OpenTelemetryLevel;
@@ -498,6 +498,12 @@ pub struct TxValidatorConfig {
     /// Max input size of a transaction to be accepted by mempool
     #[config(default_t = 128 * 1024 * 1024)]
     pub max_input_bytes: usize,
+
+    /// Maximum transaction fee cap in wei (default: 30 ETH).
+    /// Transactions with fees exceeding this will be rejected by the mempool.
+    /// Set to 0 to disable the cap.
+    #[config(default_t = DEFAULT_TX_FEE_CAP)]
+    pub tx_fee_cap: u128,
 }
 
 /// Only used on the Main Node.
@@ -841,6 +847,7 @@ impl From<TxValidatorConfig> for zksync_os_mempool::TxValidatorConfig {
     fn from(c: TxValidatorConfig) -> Self {
         Self {
             max_input_bytes: c.max_input_bytes,
+            tx_fee_cap: c.tx_fee_cap,
         }
     }
 }

@@ -8,7 +8,7 @@ mod transaction;
 pub use transaction::L2PooledTransaction;
 
 mod config;
-pub use config::TxValidatorConfig;
+pub use config::{TxValidatorConfig, DEFAULT_TX_FEE_CAP};
 
 mod metrics;
 mod reth_state;
@@ -45,9 +45,7 @@ pub fn in_memory<State: ReadStateHistory + Clone, Repository: ReadRepository + C
             EthTransactionValidatorBuilder::new(client)
                 .no_prague()
                 .with_max_tx_input_bytes(validator_config.max_input_bytes)
-                // set tx_fee_cap to 0, effectively disabling the tx fee checks in the reth mempool
-                // this is necessary to process transactions with more than 1e18 tx fee
-                .set_tx_fee_cap(0)
+                .set_tx_fee_cap(validator_config.tx_fee_cap)
                 .build(blob_store),
             CoinbaseTipOrdering::default(),
             blob_store,
