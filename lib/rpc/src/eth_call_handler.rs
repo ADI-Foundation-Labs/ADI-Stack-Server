@@ -407,6 +407,14 @@ impl<RpcStorage: ReadRpcStorage> EthCallHandler<RpcStorage> {
         let tx_value = request.value.unwrap_or_default();
         let from_address = request.from.unwrap_or_default();
 
+        // Get the max gas price from the request for balance override calculation.
+        // Use max_fee_per_gas (EIP-1559) or gas_price (legacy), fallback to base_fee + 1.
+        let max_gas_price: U256 = request
+            .max_fee_per_gas
+            .or(request.gas_price)
+            .map(U256::from)
+            .unwrap_or(block_context.eip1559_basefee + U256::from(1));
+
         request.set_gas_limit(
             request
                 .gas
@@ -417,8 +425,8 @@ impl<RpcStorage: ReadRpcStorage> EthCallHandler<RpcStorage> {
  
         // Create a balance override to ensure the sender has enough funds for gas estimation.
         let required_balance = tx_value
-            + U256::from(highest_gas_limit) * (block_context.eip1559_basefee + U256::from(1))
-            + U256::from(1);
+            + U256::from(highest_gas_limit) * max_gas_price
+            + U256::from(1); // protectional 1 wei
         let mut balance_override = StateOverride::default();
         balance_override.insert(
             from_address,
