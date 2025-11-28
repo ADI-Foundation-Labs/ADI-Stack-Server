@@ -397,10 +397,16 @@ impl<Mempool: L2TransactionPool> BlockContextProvider<Mempool> {
                 balance: diff.balance,
             })
             .collect();
+
+        // Use actual base_fee so reth's pool correctly separates transactions:
+        // - Txs with max_fee >= base_fee go to "pending" pool (returned by best_transactions)
+        // - Txs with max_fee < base_fee go to "basefee" pool (not returned, wait for base_fee drop)
+        let pending_base_fee = block_output.header.base_fee_per_gas.unwrap_or(0);
+
         self.l2_mempool
             .on_canonical_state_change(CanonicalStateUpdate {
                 new_tip: &sealed_block,
-                pending_block_base_fee: 0,
+                pending_block_base_fee: pending_base_fee,
                 pending_block_blob_fee: None,
                 changed_accounts,
                 mined_transactions: l2_transactions,
