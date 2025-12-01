@@ -12,6 +12,7 @@ members = [
     "lib/rocksdb",
     "lib/rpc",
     "lib/rpc_api",
+    "lib/rpc_private",
     "lib/sequencer",
     "lib/state",
     "lib/storage",
@@ -201,6 +202,7 @@ zksync_os_observability = { version = "=0.12.1-non-semver-compat", path = "lib/o
 zksync_os_rocksdb = { version = "=0.12.1-non-semver-compat", path = "lib/rocksdb" }
 zksync_os_rpc = { version = "=0.12.1-non-semver-compat", path = "lib/rpc" }
 zksync_os_rpc_api = { version = "=0.12.1-non-semver-compat", path = "lib/rpc_api" }
+zksync_os_rpc_private = { version = "=0.12.1-non-semver-compat", path = "lib/rpc_private" }
 zksync_os_sequencer = { version = "=0.12.1-non-semver-compat", path = "lib/sequencer" }
 zksync_os_state = { version = "=0.12.1-non-semver-compat", path = "lib/state" }
 zksync_os_state_full_diffs = { version = "=0.12.1-non-semver-compat", path = "lib/state_full_diffs" }

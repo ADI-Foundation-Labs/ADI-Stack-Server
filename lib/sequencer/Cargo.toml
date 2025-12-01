@@ -12,6 +12,7 @@ categories.workspace = true
 [dependencies]
 zksync_os_genesis.workspace = true
 zksync_os_mempool.workspace = true
+zksync_os_rpc_private.workspace = true
 zksync_os_observability.workspace = true
 zksync_os_pipeline.workspace = true
 zksync_os_storage_api.workspace = true

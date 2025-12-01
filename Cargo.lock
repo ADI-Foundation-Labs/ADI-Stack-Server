@@ -13111,6 +13111,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_os_rpc_private"
+version = "0.10.1-non-semver-compat"
+dependencies = [
+ "alloy",
+ "anyhow",
+ "async-trait",
+ "jsonrpsee",
+ "serde",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "zksync_os_runner"
 version = "0.1.0"
 source = "git+https://github.com/matter-labs/zksync-os?tag=v0.0.26-rc2#2d60650b4f91fd03f595b45981856e8f5e1c4900"
@@ -13171,6 +13184,7 @@ dependencies = [
  "zksync_os_multivm",
  "zksync_os_observability",
  "zksync_os_pipeline",
+ "zksync_os_rpc_private",
  "zksync_os_storage_api",
  "zksync_os_types",
 ]
@@ -13232,6 +13246,7 @@ dependencies = [
  "zksync_os_rocksdb",
  "zksync_os_rpc",
  "zksync_os_rpc_api",
+ "zksync_os_rpc_private",
  "zksync_os_sequencer",
  "zksync_os_socket",
  "zksync_os_state",

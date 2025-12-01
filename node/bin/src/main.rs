@@ -9,8 +9,8 @@ use zksync_os_observability::prometheus::PrometheusExporterConfig;
 use zksync_os_server::config::{
     BatchVerificationConfig, BatcherConfig, Config, ConfigArgs, GasAdjusterConfig, GeneralConfig,
     GenesisConfig, L1SenderConfig, L1WatcherConfig, MempoolConfig, ObservabilityConfig,
-    ProverApiConfig, ProverInputGeneratorConfig, RebuildBlocksConfig, RpcConfig, SequencerConfig,
-    StateBackendConfig, StatusServerConfig, TxValidatorConfig,
+    PrivateApiConfig, ProverApiConfig, ProverInputGeneratorConfig, RebuildBlocksConfig, RpcConfig,
+    SequencerConfig, StateBackendConfig, StatusServerConfig, TxValidatorConfig,
 };
 use zksync_os_server::zkstack_config::ZkStackConfig;
 use zksync_os_server::{INTERNAL_CONFIG_FILE_NAME, run};
@@ -182,6 +182,12 @@ fn build_external_config(repo: ConfigRepository<'_>) -> Config {
         .parse()
         .expect("Failed to parse rpc config");
 
+    let private_api_config = repo
+        .single::<PrivateApiConfig>()
+        .expect("Failed to load private_api config")
+        .parse()
+        .expect("Failed to parse private_api config");
+
     let mempool_config = repo
         .single::<MempoolConfig>()
         .expect("Failed to load mempool config")
@@ -217,6 +223,12 @@ fn build_external_config(repo: ConfigRepository<'_>) -> Config {
         .expect("Failed to load L1 watcher config")
         .parse()
         .expect("Failed to parse L1 watcher config");
+
+    let private_api_config = repo
+        .single::<PrivateApiConfig>()
+        .expect("Failed to load Private API config")
+        .parse()
+        .expect("Failed to parse Private API config");
 
     let prover_input_generator_config = repo
         .single::<ProverInputGeneratorConfig>()
@@ -288,6 +300,7 @@ fn build_external_config(repo: ConfigRepository<'_>) -> Config {
         general_config,
         genesis_config,
         rpc_config,
+        private_api_config,
         mempool_config,
         tx_validator_config,
         sequencer_config,
