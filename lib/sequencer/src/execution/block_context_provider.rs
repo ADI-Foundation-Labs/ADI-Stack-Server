@@ -14,6 +14,7 @@ use zksync_os_interface::types::{BlockContext, BlockHashes, BlockOutput};
 use zksync_os_mempool::{
     CanonicalStateUpdate, L2TransactionPool, PoolUpdateKind, ReplayTxStream, best_transactions,
 };
+use zksync_os_rpc_private::ConfigOverrides;
 use zksync_os_storage_api::ReplayRecord;
 use zksync_os_types::{
     ExecutionVersion, L1PriorityEnvelope, L2Envelope, ProtocolSemanticVersion, PubdataMode,
@@ -45,9 +46,7 @@ pub struct BlockContextProvider<Mempool> {
     /// Can change in runtime in case of upgrades.
     protocol_version: ProtocolSemanticVersion,
     fee_collector_address: Address,
-    base_fee_override: Option<U256>,
-    pubdata_price_override: Option<U256>,
-    native_price_override: Option<U256>,
+    config_overrides_receiver: watch::Receiver<ConfigOverrides>,
     pubdata_price_provider: watch::Receiver<Option<u128>>,
     pending_block_context_sender: watch::Sender<Option<BlockContext>>,
     pubdata_mode: PubdataMode,
@@ -68,9 +67,7 @@ impl<Mempool: L2TransactionPool> BlockContextProvider<Mempool> {
         node_version: semver::Version,
         protocol_version: ProtocolSemanticVersion,
         fee_collector_address: Address,
-        base_fee_override: Option<U128>,
-        pubdata_price_override: Option<U128>,
-        native_price_override: Option<U128>,
+        config_overrides_receiver: watch::Receiver<ConfigOverrides>,
         pubdata_price_provider: watch::Receiver<Option<u128>>,
         pending_block_context_sender: watch::Sender<Option<BlockContext>>,
         pubdata_mode: PubdataMode,
@@ -88,9 +85,7 @@ impl<Mempool: L2TransactionPool> BlockContextProvider<Mempool> {
             node_version,
             protocol_version,
             fee_collector_address,
-            base_fee_override: base_fee_override.map(U256::from),
-            pubdata_price_override: pubdata_price_override.map(U256::from),
-            native_price_override: native_price_override.map(U256::from),
+            config_overrides_receiver,
             pubdata_price_provider,
             pending_block_context_sender,
             pubdata_mode,
@@ -156,14 +151,15 @@ impl<Mempool: L2TransactionPool> BlockContextProvider<Mempool> {
                     .try_into()
                     .context("Cannot instantiate a block for unsupported execution version")?;
 
+                let overrides = self.config_overrides_receiver.borrow();
                 let FeeParams {
                     eip1559_basefee,
                     native_price,
                     pubdata_price,
                 } = Self::produce_fee_params(
-                    self.base_fee_override,
-                    self.native_price_override,
-                    self.pubdata_price_override,
+                    overrides.base_fee,
+                    overrides.native_price,
+                    overrides.pubdata_price,
                     self.pubdata_mode,
                     &self.pubdata_price_provider,
                 );

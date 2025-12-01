@@ -78,6 +78,7 @@ use zksync_os_pipeline::Pipeline;
 use zksync_os_revm_consistency_checker::node::RevmConsistencyChecker;
 use zksync_os_rpc::{RpcStorage, run_jsonrpsee_server};
 use zksync_os_rpc_api::eth::EthApiClient;
+use zksync_os_rpc_private::{ConfigOverrides, run_private_rpc_server};
 use zksync_os_sequencer::execution::Sequencer;
 use zksync_os_sequencer::execution::block_context_provider::BlockContextProvider;
 use zksync_os_status_server::run_status_server;
@@ -484,6 +485,18 @@ pub async fn run<State: ReadStateHistory + WriteState + StateInitializer + Clone
         tasks.spawn(gas_adjuster.run().map(report_exit("Gas adjuster server")));
     }
 
+    // ========== Start Private API server for runtime config ===========
+    let config_overrides_receiver = run_private_rpc_server(
+        config.private_api_config.address,
+        ConfigOverrides {
+            base_fee: config.sequencer_config.base_fee_override.map(U256::from),
+            pubdata_price: config.sequencer_config.pubdata_price_override.map(U256::from),
+            native_price: config.sequencer_config.native_price_override.map(U256::from),
+        },
+    )
+    .await
+    .expect("Failed to start private API server");
+
     // ========== Start BlockContextProvider and its state ===========
     tracing::info!("Initializing BlockContextProvider");
 
@@ -517,9 +530,7 @@ pub async fn run<State: ReadStateHistory + WriteState + StateInitializer + Clone
         node_version,
         current_protocol_version.clone(),
         config.sequencer_config.fee_collector_address,
-        config.sequencer_config.base_fee_override,
-        config.sequencer_config.pubdata_price_override,
-        config.sequencer_config.native_price_override,
+        config_overrides_receiver,
         pubdata_price_receiver,
         pending_block_context_sender,
         config.l1_sender_config.pubdata_mode,
