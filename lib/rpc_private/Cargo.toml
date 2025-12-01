@@ -1,0 +1,19 @@
+[package]
+name = "zksync_os_rpc_private"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+alloy = { workspace = true, default-features = false, features = ["rpc-types"] }
+anyhow.workspace = true
+async-trait.workspace = true
+jsonrpsee = { workspace = true, features = ["server", "macros"] }
+serde.workspace = true
+tokio.workspace = true
+tracing.workspace = true

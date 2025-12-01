@@ -3,7 +3,7 @@ use crate::model::blocks::{
     BlockCommand, BlockCommandType, InvalidTxPolicy, PreparedBlockCommand, SealPolicy,
 };
 use alloy::consensus::{Block, BlockBody, Header};
-use alloy::primitives::{Address, BlockHash, TxHash, U128, U256};
+use alloy::primitives::{Address, BlockHash, TxHash, U256};
 use reth_execution_types::ChangedAccount;
 use reth_primitives::SealedBlock;
 use std::sync::Arc;
@@ -16,6 +16,7 @@ use zksync_os_mempool::{
 };
 use zksync_os_multivm::LATEST_EXECUTION_VERSION;
 use zksync_os_storage_api::ReplayRecord;
+use zksync_os_rpc_private::ConfigOverrides;
 use zksync_os_types::{L1PriorityEnvelope, L2Envelope, ZkEnvelope};
 
 /// Component that turns `BlockCommand`s into `PreparedBlockCommand`s.
@@ -40,9 +41,7 @@ pub struct BlockContextProvider<Mempool> {
     node_version: semver::Version,
     genesis: Arc<Genesis>,
     fee_collector_address: Address,
-    base_fee_override: Option<U256>,
-    pubdata_price_override: Option<U256>,
-    native_price_override: Option<U256>,
+    config_overrides_receiver: watch::Receiver<ConfigOverrides>,
     pubdata_price_provider: watch::Receiver<Option<u128>>,
     pending_block_context_sender: watch::Sender<Option<BlockContext>>,
 }
@@ -61,9 +60,7 @@ impl<Mempool: L2TransactionPool> BlockContextProvider<Mempool> {
         node_version: semver::Version,
         genesis: Arc<Genesis>,
         fee_collector_address: Address,
-        base_fee_override: Option<U128>,
-        pubdata_price_override: Option<U128>,
-        native_price_override: Option<U128>,
+        config_overrides_receiver: watch::Receiver<ConfigOverrides>,
         pubdata_price_provider: watch::Receiver<Option<u128>>,
         pending_block_context_sender: watch::Sender<Option<BlockContext>>,
     ) -> Self {
@@ -79,9 +76,7 @@ impl<Mempool: L2TransactionPool> BlockContextProvider<Mempool> {
             node_version,
             genesis,
             fee_collector_address,
-            base_fee_override: base_fee_override.map(U256::from),
-            pubdata_price_override: pubdata_price_override.map(U256::from),
-            native_price_override: native_price_override.map(U256::from),
+            config_overrides_receiver,
             pubdata_price_provider,
             pending_block_context_sender,
         }
@@ -119,14 +114,15 @@ impl<Mempool: L2TransactionPool> BlockContextProvider<Mempool> {
                 const NATIVE_PRICE: u128 = 1_000_000;
                 const NATIVE_PER_GAS: u128 = 100;
                 let eip1559_basefee = NATIVE_PRICE * NATIVE_PER_GAS;
+                let overrides = self.config_overrides_receiver.borrow();
                 let block_context = BlockContext {
-                    eip1559_basefee: self
-                        .base_fee_override
+                    eip1559_basefee: overrides
+                        .base_fee
                         .unwrap_or(U256::from(eip1559_basefee)),
-                    native_price: self
-                        .native_price_override
+                    native_price: overrides
+                        .native_price
                         .unwrap_or(U256::from(NATIVE_PRICE)),
-                    pubdata_price: self.pubdata_price_override.unwrap_or(U256::from(
+                    pubdata_price: overrides.pubdata_price.unwrap_or(U256::from(
                         self.pubdata_price_provider
                             .borrow()
                             .expect("Pubdata price must be available"),

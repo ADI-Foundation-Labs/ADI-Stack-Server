@@ -27,6 +27,7 @@ pub struct Config {
     pub general_config: GeneralConfig,
     pub genesis_config: GenesisConfig,
     pub rpc_config: RpcConfig,
+    pub private_api_config: PrivateApiConfig,
     pub mempool_config: MempoolConfig,
     pub tx_validator_config: TxValidatorConfig,
     pub sequencer_config: SequencerConfig,
@@ -178,6 +179,7 @@ pub struct SequencerConfig {
     pub fee_collector_address: Address,
 
     /// Override for base fee (in wei). If set, base fee will be constant and equal to this value.
+    /// Can be overridden at runtime via private API.
     #[config(default_t = None, with = Optional(Serde![str]))]
     pub base_fee_override: Option<U128>,
 
@@ -253,6 +255,15 @@ pub struct RpcConfig {
     /// Duration since the last filter poll, after which the filter is considered stale
     #[config(default_t = 15 * TimeUnit::Minutes)]
     pub stale_filter_ttl: Duration,
+}
+
+/// Private API configuration for runtime config updates.
+#[derive(Clone, Debug, DescribeConfig, DeserializeConfig)]
+#[config(derive(Default))]
+pub struct PrivateApiConfig {
+    /// Address for private RPC server.
+    #[config(default_t = "127.0.0.1:8546".parse().unwrap())]
+    pub address: std::net::SocketAddr,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]

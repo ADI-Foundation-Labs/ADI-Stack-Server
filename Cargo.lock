@@ -12448,6 +12448,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_os_rpc_private"
+version = "0.10.1-non-semver-compat"
+dependencies = [
+ "alloy",
+ "anyhow",
+ "async-trait",
+ "jsonrpsee",
+ "serde",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "zksync_os_runner"
 version = "0.1.0"
 source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.26-rc1-b#ab47bb7f03e6775d63295fa939a578132bac4533"
@@ -12497,6 +12510,7 @@ dependencies = [
  "zksync_os_multivm",
  "zksync_os_observability",
  "zksync_os_pipeline",
+ "zksync_os_rpc_private",
  "zksync_os_storage_api",
  "zksync_os_types",
 ]
@@ -12559,6 +12573,7 @@ dependencies = [
  "zksync_os_rocksdb",
  "zksync_os_rpc",
  "zksync_os_rpc_api",
+ "zksync_os_rpc_private",
  "zksync_os_sequencer",
  "zksync_os_socket",
  "zksync_os_state",

@@ -7,8 +7,8 @@ use zksync_os_observability::prometheus::PrometheusExporterConfig;
 use zksync_os_server::config::{
     BatchVerificationConfig, BatcherConfig, Config, GasAdjusterConfig, GeneralConfig,
     GenesisConfig, L1SenderConfig, L1WatcherConfig, MempoolConfig, ObservabilityConfig,
-    ProverApiConfig, ProverInputGeneratorConfig, RollupPubdataMode, RpcConfig, SequencerConfig,
-    StateBackendConfig, StatusServerConfig, TxValidatorConfig,
+    PrivateApiConfig, ProverApiConfig, ProverInputGeneratorConfig, RollupPubdataMode, RpcConfig,
+    SequencerConfig, StateBackendConfig, StatusServerConfig, TxValidatorConfig,
 };
 use zksync_os_server::run;
 use zksync_os_server::zkstack_config::ZkStackConfig;
@@ -136,6 +136,9 @@ fn build_configs() -> Config {
         .insert(&RpcConfig::DESCRIPTION, "rpc")
         .expect("Failed to insert rpc config");
     schema
+        .insert(&PrivateApiConfig::DESCRIPTION, "private_api")
+        .expect("Failed to insert private_api config");
+    schema
         .insert(&MempoolConfig::DESCRIPTION, "mempool")
         .expect("Failed to insert mempool config");
     schema
@@ -194,6 +197,12 @@ fn build_configs() -> Config {
         .expect("Failed to load rpc config")
         .parse()
         .expect("Failed to parse rpc config");
+
+    let private_api_config = repo
+        .single::<PrivateApiConfig>()
+        .expect("Failed to load private_api config")
+        .parse()
+        .expect("Failed to parse private_api config");
 
     let mempool_config = repo
         .single::<MempoolConfig>()
@@ -308,6 +317,7 @@ fn build_configs() -> Config {
         general_config,
         genesis_config,
         rpc_config,
+        private_api_config,
         mempool_config,
         tx_validator_config,
         sequencer_config,
