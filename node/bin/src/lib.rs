@@ -84,6 +84,7 @@ const BLOCK_REPLAY_WAL_DB_NAME: &str = "block_replay_wal";
 const STATE_TREE_DB_NAME: &str = "tree";
 const PRIORITY_TREE_DB_NAME: &str = "priority_txs_tree";
 const REPOSITORY_DB_NAME: &str = "repository";
+const CONFIG_OVERRIDES_FILE: &str = "config_overrides.json";
 
 #[allow(clippy::too_many_arguments)]
 pub async fn run<State: ReadStateHistory + WriteState + StateInitializer + Clone>(
@@ -413,6 +414,7 @@ pub async fn run<State: ReadStateHistory + WriteState + StateInitializer + Clone
             pubdata_price: config.sequencer_config.pubdata_price_override.map(U256::from),
             native_price: config.sequencer_config.native_price_override.map(U256::from),
         },
+        config.general_config.rocks_db_path.join(CONFIG_OVERRIDES_FILE),
     )
     .await
     .expect("Failed to start private API server");
