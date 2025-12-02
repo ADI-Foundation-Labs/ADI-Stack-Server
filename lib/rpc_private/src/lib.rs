@@ -1,10 +1,11 @@
 use alloy::primitives::U256;
 use async_trait::async_trait;
+use jsonrpsee::RpcModule;
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use jsonrpsee::server::ServerBuilder;
-use jsonrpsee::RpcModule;
 use std::net::SocketAddr;
+use std::path::PathBuf;
 use tokio::sync::watch;
 
 /// Configuration overrides that can be set via private API.
@@ -13,6 +14,32 @@ pub struct ConfigOverrides {
     pub base_fee: Option<U256>,
     pub pubdata_price: Option<U256>,
     pub native_price: Option<U256>,
+}
+
+impl ConfigOverrides {
+    /// Load config overrides from file if it exists.
+    fn load_from_file(path: &PathBuf) -> anyhow::Result<Self> {
+        let contents = std::fs::read_to_string(path)?;
+        let overrides: Self = serde_json::from_str(&contents)?;
+        tracing::info!(?path, "Loaded config overrides from file");
+        Ok(overrides)
+    }
+
+    /// Save config overrides to file.
+    fn save_to_file(&self, path: &PathBuf) -> anyhow::Result<()> {
+        let json = serde_json::to_string_pretty(self)?;
+        std::fs::write(path, json)?;
+        Ok(())
+    }
+
+    /// Merge with another ConfigOverrides, preferring values from self.
+    fn merge_with(self, fallback: Self) -> Self {
+        Self {
+            base_fee: self.base_fee.or(fallback.base_fee),
+            pubdata_price: self.pubdata_price.or(fallback.pubdata_price),
+            native_price: self.native_price.or(fallback.native_price),
+        }
+    }
 }
 
 /// Private RPC API for runtime configuration.
@@ -60,8 +87,16 @@ impl ConfigApiServer for ConfigNamespace {
 /// Returns a receiver that provides the current config overrides.
 pub async fn run_private_rpc_server(
     address: SocketAddr,
-    initial: ConfigOverrides,
+    fallback: ConfigOverrides,
+    persistence_path: PathBuf,
 ) -> anyhow::Result<watch::Receiver<ConfigOverrides>> {
+    // Load from file if exists, merge with fallback
+    let initial = ConfigOverrides::load_from_file(&persistence_path)
+        .inspect_err(|e| tracing::debug!(?e, "Could not load config overrides from file"))
+        .ok()
+        .unwrap_or_default()
+        .merge_with(fallback);
+
     tracing::info!(%address, ?initial, "Starting private API server");
 
     let (config_namespace, receiver) = ConfigNamespace::new(initial);
@@ -79,6 +114,17 @@ pub async fn run_private_rpc_server(
     tokio::spawn(async move {
         handle.stopped().await;
         tracing::warn!("Private RPC server stopped");
+    });
+
+    // Spawn task to persist config overrides to file on changes
+    let mut persistence_watcher = receiver.clone();
+    tokio::spawn(async move {
+        while persistence_watcher.changed().await.is_ok() {
+            let overrides = persistence_watcher.borrow_and_update().clone();
+            if let Err(e) = overrides.save_to_file(&persistence_path) {
+                tracing::error!(?e, "Failed to persist config overrides");
+            }
+        }
     });
 
     Ok(receiver)
