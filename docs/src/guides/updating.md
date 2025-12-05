@@ -7,7 +7,7 @@ If you did any change to zkos binary (for example including a binary from the ne
 * commit it here & an inside zksync-airbender-prover (you'll be committing multiblock_batch.bin binary).
 * generate verification keys and update era-contracts
     * you can use the tool from https://github.com/mm-zk/zksync_tools/tree/main/zkos/generate_vk
-    * you need to find the latest era-contracts tag that we used (probably on top of [zksync-os-stable branch](https://github.com/matter-labs/era-contracts/tree/zksync-os-stable))
+    * you need to find the latest era-contracts tag that we used (probably on top of [zksync-os-stable branch](https://github.com/ADI-Foundation-Labs/ADI-Stack-Contracts/tree/zksync-os-stable))
     * once the script generate the change, commit it into era-contracts repo.
 
 Then follow instructions below for era-contracts updates.
@@ -33,9 +33,9 @@ There are 3 contracts that are part of genesis -- L2ComplexUpgrader, L2GenesisUp
 Currently it is a little bit of a frustrating process, but we plan to improve it in near future.
 
 * Step 1: run parts from updating era contracts: Run the tool above, and confirm that genesis.json was really updated.
-* Step 2: compute "genesis hash" - when you start the server **with new genesis.json** created in the step above - add a print here: https://github.com/matter-labs/zksync-os-server/blob/main/node/bin/src/batcher/util.rs#L36 to get the hash value.
+* Step 2: compute "genesis hash" - when you start the server **with new genesis.json** created in the step above - add a print here: https://github.com/ADI-Foundation-Labs/ADI-Stack-Server/blob/main/node/bin/src/batcher/util.rs#L36 to get the hash value.
 * Step 3: Put the new hash value into: https://github.com/matter-labs/zksync-era/blob/zksync-os-integration/etc/env/file_based/genesis.yaml
 * Step 4: Re-run the Step 1. Make sure to use zksync-era with the Step3, as new genesis is used inside CTM registration, so it will impact the state.json contents.
 * Step 5: check that everything works -- you should be able to run anvil with the new state (`anvil --load_state zkos-l1-state.json`) and zksync-os-server **with new genesis.json** (it normally loads it from local directory).
 
-https://github.com/matter-labs/zksync-os-server/blob/main/node/bin/src/batcher/util.rs#L36
+https://github.com/ADI-Foundation-Labs/ADI-Stack-Server/blob/main/node/bin/src/batcher/util.rs#L36

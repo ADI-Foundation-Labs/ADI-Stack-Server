@@ -40,7 +40,7 @@ default-members = ["node/bin"]
 version = "0.12.1-non-semver-compat"
 edition = "2024"
 authors = ["The Matter Labs Team <hello@matterlabs.dev>", "ADI Foundation"]
-homepage = "https://zksync.io/"
+homepage = "https://adi.foundation/"
 repository = "https://github.com/ADI-Foundation-Labs/ADI-Stack-Server"
 license = "MIT OR Apache-2.0"
 keywords = ["blockchain", "zksync"]
@@ -187,7 +187,7 @@ reth-storage-api = { git = "https://github.com/paradigmxyz/reth", tag = "v1.9.3"
 reth-transaction-pool = { git = "https://github.com/paradigmxyz/reth", tag = "v1.9.3" }
 reth-execution-types = { git = "https://github.com/paradigmxyz/reth", tag = "v1.9.3" }
 
-zksync-os-revm = { git = "https://github.com/matter-labs/zksync-os-revm", tag = "v0.0.1" }
+zksync-os-revm = { git = "https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS-REVM", branch = "vb-initial-version-for-server-0.12" }
 
 # "Local" dependencies
 zksync_os_contract_interface = { version = "=0.12.1-non-semver-compat", path = "lib/contract_interface" }

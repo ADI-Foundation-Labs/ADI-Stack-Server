@@ -12575,7 +12575,7 @@ dependencies = [
 [[package]]
 name = "zksync-os-revm"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os-revm?tag=v0.0.1#a686621c51fcb62d729cdaa475b9794920091a44"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS-REVM?branch=vb-initial-version-for-server-0.12#ba881e35ca0597c578b4fa5cb22830782a4101a4"
 dependencies = [
  "auto_impl",
  "revm",

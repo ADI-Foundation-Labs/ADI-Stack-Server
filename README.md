@@ -1,14 +1,12 @@
-# ZKsync OS Server
+# ADI Stack Server
 
-[![Logo](.github/assets/zksync-os-logo.png)](https://zksync.io/)
+## What is ADI Stack Server?
 
-## What is ZKsync OS Server?
+ADI Stack Server is the sequencer implementation for the [ADI Stack OS](https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS),
+the new operating system of the ADI Stack.<br>
+The ADI Stack Server design optimizes for throughput, low latency, and a seamless development experience.
 
-ZKsync OS Server is the sequencer implementation for the [ZKsync OS](https://github.com/matter-labs/zksync-os),
-the new operating system of the ZK Stack.<br>
-The ZKsync OS Server design optimizes for throughput, low latency, and a seamless development experience.
-
-## [Install](https://matter-labs.github.io/zksync-os-server/latest/setup) | [User docs](https://docs.zksync.io/zksync-network/zksync-os) | [Developer docs](https://matter-labs.github.io/zksync-os-server/latest/) | [![CI](https://github.com/matter-labs/zksync-os-server/actions/workflows/ci.yml/badge.svg)](https://github.com/matter-labs/zksync-os-server/actions/workflows/ci.yml)
+ADI Stack utilizing the [MatterLabs zkOS stack](https://github.com/matter-labs/zksync-os-server)
 
 ## Design principles
 
@@ -18,7 +16,7 @@ The ZKsync OS Server design optimizes for throughput, low latency, and a seamles
 * Easy to replay arbitrary blocks
   * Sequencer: components are idempotent
   * Batcher: `batcher` component skips all blocks until the first uncommitted batch.
-    Thus, downstream components only receive batches that they need to act upon 
+    Thus, downstream components only receive batches that they need to act upon
 * State - strong separation between
   * Actual state - data needed to execute VM: key-value storage and preimages map
   * Receipts repositories - data only needed in API
@@ -43,24 +41,17 @@ TO=0x5A67EE02274D9Ec050d412b96fE810Be4D71e7A0
 cast send --private-key ${PRIVATE_KEY} --rpc-url http://localhost:3050 ${TO} --value 100
 ```
 
-For more configuration and detailed instructions, check the [developer documentation](https://matter-labs.github.io/zksync-os-server/latest).
-
 ## Contributing
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md) for contribution guidelines.
 
-## Security
-
-See [SECURITY.md](./SECURITY.md) for security policy details.
-
 ## Policies
 
-- [Security policy](SECURITY.md)
 - [Contribution policy](CONTRIBUTING.md)
 
 ## License
 
-ZKsync OS repositories are distributed under the terms of either
+ADI Stack repositories are distributed under the terms of either
 
 - Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or <http://www.apache.org/licenses/LICENSE-2.0>)
 - MIT license ([LICENSE-MIT](LICENSE-MIT) or <https://opensource.org/blog/license/mit/>)
@@ -69,11 +60,10 @@ at your option.
 
 ## Official Links
 
-- [Website](https://zksync.io/)
-- [GitHub](https://github.com/matter-labs)
-- [ZK Credo](https://github.com/zksync/credo)
-- [Twitter](https://twitter.com/zksync)
-- [Twitter for Developers](https://twitter.com/zkSyncDevs)
-- [Discord](https://join.zksync.dev/)
-- [Mirror](https://zksync.mirror.xyz/)
-- [Youtube](https://www.youtube.com/@zksync-io)
+- [Website](https://adi.foundation)
+- [Docs](https://docs.adi.foundation/)
+- [Github](https://github.com/ADI-Foundation-Labs/)
+- [X](https://x.com/adi_foundation)
+- [X for ADI Chain announcements](https://x.com/ADIChain_)
+- [LinkedIn](https://www.linkedin.com/company/adifoundation/)
+- [Discord](http://discord.gg/adi-foundation)
