@@ -8,8 +8,8 @@ title = "ZKsync OS Server Developer Docs"
 [output.html]
 smart-punctuation = true
 mathjax-support = true
-git-repository-url = "https://github.com/matter-labs/zksync-os-server/tree/main/docs"
-edit-url-template = "https://github.com/matter-labs/zksync-os-server/tree/main/docs/{path}"
+git-repository-url = "https://github.com/ADI-Foundation-Labs/ADI-Stack-Server/tree/main/docs"
+edit-url-template = "https://github.com/ADI-Foundation-Labs/ADI-Stack-Server/tree/main/docs/{path}"
 additional-js = ["js/version-box.js", "js/mermaid-init.js"]
 additional-css = ["css/version-box.css", "./css/mdbook-admonish.css"]
 
