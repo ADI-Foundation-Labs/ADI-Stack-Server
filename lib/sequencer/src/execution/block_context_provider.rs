@@ -15,8 +15,8 @@ use zksync_os_mempool::{
     CanonicalStateUpdate, L2TransactionPool, PoolUpdateKind, ReplayTxStream, best_transactions,
 };
 use zksync_os_multivm::LATEST_EXECUTION_VERSION;
-use zksync_os_storage_api::ReplayRecord;
 use zksync_os_rpc_private::ConfigOverrides;
+use zksync_os_storage_api::ReplayRecord;
 use zksync_os_types::{L1PriorityEnvelope, L2Envelope, ZkEnvelope};
 
 /// Component that turns `BlockCommand`s into `PreparedBlockCommand`s.
@@ -42,6 +42,7 @@ pub struct BlockContextProvider<Mempool> {
     genesis: Arc<Genesis>,
     fee_collector_address: Address,
     config_overrides_receiver: watch::Receiver<ConfigOverrides>,
+    #[allow(dead_code)]
     pubdata_price_provider: watch::Receiver<Option<u128>>,
     pending_block_context_sender: watch::Sender<Option<BlockContext>>,
 }
@@ -113,20 +114,27 @@ impl<Mempool: L2TransactionPool> BlockContextProvider<Mempool> {
 
                 const NATIVE_PRICE: u128 = 1_000_000;
                 const NATIVE_PER_GAS: u128 = 100;
-                let eip1559_basefee = NATIVE_PRICE * NATIVE_PER_GAS;
+                const DEFAULT_BASE_FEE: u128 = NATIVE_PRICE * NATIVE_PER_GAS;
                 let overrides = self.config_overrides_receiver.borrow();
+
+                let eip1559_basefee = overrides.base_fee.unwrap_or(U256::from(DEFAULT_BASE_FEE));
+
+                // IMPORTANT: bootloader requires basefee / native_price = 100 (NATIVE_PER_GAS).
+                // If native_price override is set, use it. Otherwise, derive from base_fee.
+                let native_price = overrides
+                    .native_price
+                    .unwrap_or_else(|| eip1559_basefee / U256::from(NATIVE_PER_GAS));
+
+                // IMPORTANT: pubdata_price defaults to 0 unless explicitly overridden.
+                // First reason: working around a bug in the bootloader with pubdata price calculation..
+                // Second reason: base fee includes all extra costs (L1 pubdata price,
+                // infrastructure costs, etc.), so pubdata price is ignored by default.
+                let pubdata_price = overrides.pubdata_price.unwrap_or(U256::ZERO);
+
                 let block_context = BlockContext {
-                    eip1559_basefee: overrides
-                        .base_fee
-                        .unwrap_or(U256::from(eip1559_basefee)),
-                    native_price: overrides
-                        .native_price
-                        .unwrap_or(U256::from(NATIVE_PRICE)),
-                    pubdata_price: overrides.pubdata_price.unwrap_or(U256::from(
-                        self.pubdata_price_provider
-                            .borrow()
-                            .expect("Pubdata price must be available"),
-                    )),
+                    eip1559_basefee,
+                    native_price,
+                    pubdata_price,
                     block_number: produce_command.block_number,
                     timestamp,
                     chain_id: self.chain_id,

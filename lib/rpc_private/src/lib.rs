@@ -10,9 +10,13 @@ use tokio::sync::watch;
 
 /// Configuration overrides that can be set via private API.
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct ConfigOverrides {
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub base_fee: Option<U256>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub pubdata_price: Option<U256>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub native_price: Option<U256>,
 }
 
@@ -40,14 +44,33 @@ impl ConfigOverrides {
             native_price: self.native_price.or(fallback.native_price),
         }
     }
+
+    /// Remove overrides by field name.
+    fn remove_fields(mut self, fields: Vec<String>) -> Self {
+        for field in fields {
+            match field.as_str() {
+                "base_fee" => self.base_fee = None,
+                "pubdata_price" => self.pubdata_price = None,
+                "native_price" => self.native_price = None,
+                _ => tracing::warn!("Unknown field to remove: {}", field),
+            }
+        }
+        self
+    }
 }
 
 /// Private RPC API for runtime configuration.
 #[rpc(server, namespace = "config")]
 pub trait ConfigApi {
-    /// Set configuration overrides.
+    /// Set or update configuration overrides.
+    /// Only fields present in the request will be updated.
+    /// Omitted fields remain unchanged.
     #[method(name = "setOverrides")]
     async fn set_overrides(&self, overrides: ConfigOverrides) -> RpcResult<()>;
+
+    /// Remove configuration overrides by field name.
+    #[method(name = "removeOverrides")]
+    async fn remove_overrides(&self, fields: Vec<String>) -> RpcResult<()>;
 
     /// Get the current configuration overrides.
     #[method(name = "getOverrides")]
@@ -73,8 +96,18 @@ impl ConfigNamespace {
 #[async_trait]
 impl ConfigApiServer for ConfigNamespace {
     async fn set_overrides(&self, overrides: ConfigOverrides) -> RpcResult<()> {
-        self.sender.send_replace(overrides.clone());
-        tracing::info!(?overrides, "config overrides updated via private API");
+        let current = self.receiver.borrow().clone();
+        let updated = overrides.clone().merge_with(current);
+        self.sender.send_replace(updated.clone());
+        tracing::info!(?overrides, ?updated, "config overrides set via private API");
+        Ok(())
+    }
+
+    async fn remove_overrides(&self, fields: Vec<String>) -> RpcResult<()> {
+        let current = self.receiver.borrow().clone();
+        let updated = current.remove_fields(fields.clone());
+        self.sender.send_replace(updated.clone());
+        tracing::info!(?fields, ?updated, "config overrides removed via private API");
         Ok(())
     }
 
@@ -90,14 +123,29 @@ pub async fn run_private_rpc_server(
     fallback: ConfigOverrides,
     persistence_path: PathBuf,
 ) -> anyhow::Result<watch::Receiver<ConfigOverrides>> {
-    // Load from file if exists, merge with fallback
-    let initial = ConfigOverrides::load_from_file(&persistence_path)
-        .inspect_err(|e| tracing::debug!(?e, "Could not load config overrides from file"))
-        .ok()
-        .unwrap_or_default()
-        .merge_with(fallback);
+    tracing::info!(
+        ?fallback,
+        ?persistence_path,
+        "Initializing private API server"
+    );
 
-    tracing::info!(%address, ?initial, "Starting private API server");
+    // Load from file if exists, merge with fallback
+    let loaded = ConfigOverrides::load_from_file(&persistence_path)
+        .inspect_err(|e| tracing::debug!(?e, "Could not load config overrides from file"))
+        .ok();
+
+    let initial = loaded
+        .clone()
+        .unwrap_or_default()
+        .merge_with(fallback.clone());
+
+    tracing::info!(
+        %address,
+        ?loaded,
+        ?fallback,
+        ?initial,
+        "Starting private API server with merged config"
+    );
 
     let (config_namespace, receiver) = ConfigNamespace::new(initial);
 
