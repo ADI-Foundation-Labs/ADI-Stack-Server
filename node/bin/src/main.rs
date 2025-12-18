@@ -182,12 +182,6 @@ fn build_external_config(repo: ConfigRepository<'_>) -> Config {
         .parse()
         .expect("Failed to parse rpc config");
 
-    let private_api_config = repo
-        .single::<PrivateApiConfig>()
-        .expect("Failed to load private_api config")
-        .parse()
-        .expect("Failed to parse private_api config");
-
     let mempool_config = repo
         .single::<MempoolConfig>()
         .expect("Failed to load mempool config")
