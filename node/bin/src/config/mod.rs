@@ -58,6 +58,9 @@ impl Config {
             .insert(&RpcConfig::DESCRIPTION, "rpc")
             .expect("Failed to insert rpc config");
         schema
+            .insert(&PrivateApiConfig::DESCRIPTION, "private_api")
+            .expect("Failed to insert private_api config");
+        schema
             .insert(&MempoolConfig::DESCRIPTION, "mempool")
             .expect("Failed to insert mempool config");
         schema
