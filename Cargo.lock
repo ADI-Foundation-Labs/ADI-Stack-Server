@@ -13112,13 +13112,14 @@ dependencies = [
 
 [[package]]
 name = "zksync_os_rpc_private"
-version = "0.10.1-non-semver-compat"
+version = "0.12.1-non-semver-compat"
 dependencies = [
  "alloy",
  "anyhow",
  "async-trait",
  "jsonrpsee",
  "serde",
+ "serde_json",
  "tokio",
  "tracing",
 ]
