@@ -10,6 +10,11 @@ use zksync_os_pipeline::{PeekableReceiver, PipelineComponent};
 use zksync_os_sequencer::model::blocks::{BlockCommand, ProduceCommand, RebuildCommand};
 use zksync_os_storage_api::{ReadReplay, ReadReplayExt};
 
+/// Configuration for replay stream retry behavior
+const RETRY_INITIAL_DELAY: Duration = Duration::from_millis(500);
+const RETRY_MAX_DELAY: Duration = Duration::from_secs(120);
+const RETRY_BACKOFF_FACTOR: u32 = 2;
+
 /// Main node command source
 #[derive(Debug)]
 pub struct MainNodeCommandSource<Replay> {
@@ -83,39 +88,63 @@ impl PipelineComponent for ExternalNodeCommandSource {
         _input: PeekableReceiver<()>,
         output: mpsc::Sender<BlockCommand>,
     ) -> anyhow::Result<()> {
-        // TODO: no need for a Stream in `replay_receiver` - just send to channel right away instead
-        let mut stream = replay_receiver(
-            self.starting_block,
-            self.record_overrides,
-            &self.replay_download_address,
-        )
-        .await
-        .map_err(|err| {
-            tracing::error!(?err, "Failed to connect to main node to receive blocks");
-            err
-        })?;
+        let mut current_block = self.starting_block;
+        let mut retry_delay = RETRY_INITIAL_DELAY;
 
-        while let Some(command) = stream.next().await {
-            tracing::debug!(?command, "Received block command from main node");
+        loop {
+            tracing::info!(starting_block = current_block, "Connecting to main node");
 
-            if let Some(up_to_block) = self.up_to_block
-                && command.block_number() > up_to_block
+            let mut stream = match replay_receiver(
+                current_block,
+                self.record_overrides.clone(),
+                &self.replay_download_address,
+            )
+            .await
             {
-                tracing::info!(
-                    up_to_block,
-                    "Reached up_to_block, halting external command source"
-                );
-                // Wait for stop signal.
-                let _ = self.stop_receiver.wait_for(|stop| *stop).await;
+                Ok(s) => {
+                    retry_delay = RETRY_INITIAL_DELAY;
+                    s
+                }
+                Err(err) => {
+                    tracing::warn!(?err, ?retry_delay, "Connection failed, retrying...");
+                    tokio::time::sleep(retry_delay).await;
+                    retry_delay = (retry_delay * RETRY_BACKOFF_FACTOR).min(RETRY_MAX_DELAY);
+                    continue;
+                }
+            };
+
+            loop {
+                let Some(item) = stream.next().await else {
+                    tracing::warn!(current_block, "Stream ended unexpectedly");
+                    break;
+                };
+
+                let command = match item {
+                    Ok(cmd) => cmd,
+                    Err(e) => {
+                        tracing::warn!(error = %e, current_block, ?retry_delay, "Stream error, reconnecting...");
+                        break;
+                    }
+                };
+
+                let block_number = command.block_number();
+
+                if self.up_to_block.is_some_and(|up_to| block_number > up_to) {
+                    tracing::info!(block_number, "Reached up_to_block, halting");
+                    let _ = self.stop_receiver.wait_for(|stop| *stop).await;
+                }
+
+                if output.send(command).await.is_err() {
+                    tracing::warn!("Output channel closed, stopping");
+                    return Ok(());
+                }
+
+                current_block = block_number + 1;
             }
 
-            if output.send(command).await.is_err() {
-                tracing::warn!("Command output channel closed, stopping source");
-                break;
-            }
+            tokio::time::sleep(retry_delay).await;
+            retry_delay = (retry_delay * RETRY_BACKOFF_FACTOR).min(RETRY_MAX_DELAY);
         }
-
-        Ok(())
     }
 }
 
