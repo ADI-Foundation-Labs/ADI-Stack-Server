@@ -11,7 +11,7 @@ use zksync_os_sequencer::model::blocks::{BlockCommand, ProduceCommand, RebuildCo
 use zksync_os_storage_api::{ReadReplay, ReadReplayExt};
 
 /// Configuration for replay stream retry behavior
-const RETRY_INITIAL_DELAY: Duration = Duration::from_secs(1);
+const RETRY_INITIAL_DELAY: Duration = Duration::from_millis(500);
 const RETRY_MAX_DELAY: Duration = Duration::from_secs(120);
 const RETRY_BACKOFF_FACTOR: u32 = 2;
 
