@@ -114,30 +114,32 @@ impl PipelineComponent for ExternalNodeCommandSource {
             };
 
             loop {
-                match stream.next().await {
-                    Some(Ok(command)) => {
-                        let block_number = command.block_number();
+                let Some(item) = stream.next().await else {
+                    tracing::warn!(current_block, "Stream ended unexpectedly");
+                    break;
+                };
 
-                        if self.up_to_block.is_some_and(|up_to| block_number > up_to) {
-                            tracing::info!(block_number, "Reached up_to_block, halting");
-                            let _ = self.stop_receiver.wait_for(|stop| *stop).await;
-                        }
-
-                        if output.send(command).await.is_err() {
-                            tracing::warn!("Output channel closed, stopping");
-                            return Ok(());
-                        }
-                        current_block = block_number + 1;
-                    }
-                    Some(Err(e)) => {
+                let command = match item {
+                    Ok(cmd) => cmd,
+                    Err(e) => {
                         tracing::warn!(error = %e, current_block, ?retry_delay, "Stream error, reconnecting...");
                         break;
                     }
-                    None => {
-                        tracing::warn!(current_block, "Stream ended unexpectedly");
-                        break;
-                    }
+                };
+
+                let block_number = command.block_number();
+
+                if self.up_to_block.is_some_and(|up_to| block_number > up_to) {
+                    tracing::info!(block_number, "Reached up_to_block, halting");
+                    let _ = self.stop_receiver.wait_for(|stop| *stop).await;
                 }
+
+                if output.send(command).await.is_err() {
+                    tracing::warn!("Output channel closed, stopping");
+                    return Ok(());
+                }
+
+                current_block = block_number + 1;
             }
 
             tokio::time::sleep(retry_delay).await;
