@@ -75,8 +75,10 @@ pub async fn replay_receiver(
     starting_block: BlockNumber,
     record_overrides: Vec<(u64, Bytes)>,
     address: &str,
-) -> anyhow::Result<BoxStream<'static, BlockCommand>> {
-    let client = reqwest::Client::new();
+) -> anyhow::Result<BoxStream<'static, Result<BlockCommand, std::io::Error>>> {
+    let client = reqwest::Client::builder()
+        .connect_timeout(std::time::Duration::from_secs(30))
+        .build()?;
 
     let query = BlockReplayQuery::new(starting_block, record_overrides);
     let response = client
@@ -98,7 +100,7 @@ pub async fn replay_receiver(
 
     Ok(
         FramedRead::new(reader, BlockReplayDecoder::new(replay_version))
-            .map(|replay| BlockCommand::Replay(Box::new(replay.unwrap())))
+            .map(|replay| replay.map(|record| BlockCommand::Replay(Box::new(record))))
             .boxed(),
     )
 }
