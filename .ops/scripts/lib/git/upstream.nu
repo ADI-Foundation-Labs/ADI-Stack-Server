@@ -75,9 +75,16 @@ export def local-upstream-branch-exists [tag: string] {
   (^git rev-parse --verify $ref | complete).exit_code == 0
 }
 
-# Create integration branch merge/upstream-<tag> from ADI main (runbook step 4).
+# Project name from repo root (basename of git toplevel). Used for worktree path.
+export def git-project-name [] {
+  let root = (^git rev-parse --show-toplevel | str trim)
+  $root | split row (char path_sep) | last
+}
+
+# Create integration branch merge/upstream-<tag> from ADI main in a worktree (runbook step 4).
+# Worktree path: ~/.local/git/wortrees/<project-name>/merge-upstream-<tag>.
 # Optionally merge upstream/<tag> into it (step 5) and/or push to origin.
-# Returns a record: { tag, merge_branch, merged, pushed }.
+# Returns a record: { tag, merge_branch, worktree_path, merged, pushed }.
 export def create-merge-branch-from-tag [
   tag: string
   --merge (-m) = false
@@ -92,22 +99,33 @@ export def create-merge-branch-from-tag [
     }
   }
 
+  let project = (git-project-name)
+  let wt_root = $"($env.HOME)/.local/git/wortrees/($project)"
+  let wt_path = $"($wt_root)/merge-upstream-($tag)"
+
   ^git fetch origin
   ^git checkout main
   ^git pull --ff-only origin main
-  ^git checkout -b $merge_branch
+
+  if ($wt_path | path exists) {
+    error make {
+      msg: $"Worktree path already exists: ($wt_path). Remove it or use a different tag."
+    }
+  }
+  ^mkdir -p $wt_root
+  ^git worktree add -B $merge_branch $wt_path origin/main
 
   mut merged = false
   if $merge {
-    ^git merge --no-ff $upstream_branch
+    ^git -C $wt_path merge --no-ff $upstream_branch
     $merged = true
   }
 
   mut pushed = false
   if $push {
-    ^git push -u origin $merge_branch
+    ^git -C $wt_path push -u origin $merge_branch
     $pushed = true
   }
 
-  { tag: $tag, merge_branch: $merge_branch, merged: $merged, pushed: $pushed }
+  { tag: $tag, merge_branch: $merge_branch, worktree_path: $wt_path, merged: $merged, pushed: $pushed }
 }

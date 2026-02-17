@@ -1,6 +1,7 @@
-# Create merge/upstream-vX.Y.Z from main (runbook step 4); optionally merge upstream (step 5) and push.
+# Create merge/upstream-vX.Y.Z from main in a worktree (runbook step 4); optionally merge (step 5) and push.
+# Worktree: ~/.local/git/wortrees/<project>/merge-upstream-<tag>.
 # Requires: git, upstream/vX.Y.Z branch (create first with task upgrade:create-upstream-branch).
-# Run from repo root. Output: table with tag, merge_branch, merged, pushed.
+# Run from repo root. Output: table with tag, merge_branch, worktree_path, merged, pushed.
 # Usage: nu create-merge-branch-from-tag.nu vX.Y.Z [--merge] [--push]
 
 use lib/git/upstream.nu *
