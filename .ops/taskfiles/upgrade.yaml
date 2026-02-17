@@ -1,0 +1,58 @@
+# https://taskfile.dev
+
+version: '3'
+
+tasks:
+
+  _install-nushell:
+    desc: 'Install Nushell'
+    internal: true
+    status:
+    - command -v nu
+    cmds:
+    - cmd: brew install nushell
+      platforms: [ darwin ]
+    - cmd: curl -fsSL https://apt.fury.io/nushell/gpg.key | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/fury-nushell.gpg && echo 'deb https://apt.fury.io/nushell/' | sudo tee /etc/apt/sources.list.d/fury.list && sudo apt update && sudo apt install nushell"
+      platforms: [ linux ]
+    - cmd: winget install nushell
+      platforms: [ windows ]
+
+  _add-upstream:
+    desc: Add upstream remote
+    internal: true
+    status:
+    - git remote get-url upstream
+    cmds:
+    - git remote add upstream https://github.com/matter-labs/zksync-os-server.git
+  install:prerequisites:
+    desc: Add prerequisites
+    deps:
+    - _add-upstream
+    - _install-nushell
+
+  get:upstream-missing-branches:
+    desc: 'Find upstream release tags missing as origin/upstream/vX.Y.Z branches'
+    dir: '{{.ROOT_DIR}}'
+    deps:
+    - install:prerequisites
+    cmds:
+    - git fetch upstream --tags 2>/dev/null || true
+    - nu .ops/scripts/get-upstream-missing-branches.nu
+
+  create:upstream-branch:
+    desc: 'Create upstream/vX.Y.Z branch from upstream tag and push to origin. Usage: task upgrade:create-upstream-branch -- vX.Y.Z [--no-push]'
+    dir: '{{.ROOT_DIR}}'
+    deps:
+    - install:prerequisites
+    cmds:
+    - git fetch upstream --tags 2>/dev/null || true
+    - nu .ops/scripts/create-upstream-branch-from-tag.nu {{.CLI_ARGS}}
+
+  create:merge-branch:
+    desc: 'Create merge/upstream-vX.Y.Z from main (step 4). Usage: task upgrade:create-merge-branch -- vX.Y.Z [--merge] [--push]'
+    dir: '{{.ROOT_DIR}}'
+    deps:
+    - install:prerequisites
+    cmds:
+    - git fetch origin 2>/dev/null || true
+    - nu .ops/scripts/create-merge-branch-from-tag.nu {{.CLI_ARGS}}
