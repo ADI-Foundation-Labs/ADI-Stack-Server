@@ -1,0 +1,24 @@
+default: claude
+
+agents:
+  # Claude Code CLI (Anthropic)
+  claude:
+    binary: claude
+    args:
+      - --dangerously-skip-permissions
+      - --verbose
+      - -p
+      
+  codex:
+    binary: codex
+    args:
+      - exec
+      - --full-auto
+      - --
+
+  gemini:
+    binary: gemini
+    args:
+      - --yolo
+      - --debug
+      - --prompt

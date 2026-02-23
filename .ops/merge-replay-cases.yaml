@@ -1,0 +1,112 @@
+schema_version: 1
+generated_at: 2026-02-19T13:09:39+01:00
+lineage_file: .ops/release-lineage.yaml
+defaults:
+  include_exact_tags: false
+  assertion_mode: exact_tree
+cases:
+- case_id: v0.10.0-b
+  version: v0.10.0
+  release_tag: v0.10.0-b
+  pre_merge_commit: 6d77eaf65f214a9e1b6895fb832a2f80ebdd6977
+  upstream:
+    tag: v0.10.0
+    commit: e63b9d73b88a5ec96e23c8ea8feac5bdd105ddb6
+    source: origin_exact_tag_fallback
+  expected:
+    commit: 2282379ca33c54208b1bbf92b546739923e2e516
+    tree: 54aa1b9a4ff0aa331e31e7404eb585e57584418c
+  assertions:
+    mode: exact_tree
+    allowed_paths: []
+    ai_assertion: null
+- case_id: v0.10.1-b
+  version: v0.10.1
+  release_tag: v0.10.1-b
+  pre_merge_commit: ca025f4438fa72567aff19cebc2fe98c85de0a5f
+  upstream:
+    tag: v0.10.1
+    commit: 2fc177eaaea1f556a515da5fe48ba3f65b8a3808
+    source: origin_exact_tag_fallback
+  expected:
+    commit: 18cfb9abdc900efa129e9602b336cf97430fe181
+    tree: f10a818b62243a245c3c1d789b8d7128092468b3
+  assertions:
+    mode: exact_tree
+    allowed_paths: []
+    ai_assertion: null
+- case_id: v0.10.1-b2
+  version: v0.10.1
+  release_tag: v0.10.1-b2
+  pre_merge_commit: 18cfb9abdc900efa129e9602b336cf97430fe181
+  upstream:
+    tag: v0.10.1
+    commit: 2fc177eaaea1f556a515da5fe48ba3f65b8a3808
+    source: origin_exact_tag_fallback
+  expected:
+    commit: cecf7ed2076f9cde40bd922fff80f4b43f1b47de
+    tree: 2ac4932f61e60f4abda48ba8ccacc146cc3a2525
+  assertions:
+    mode: exact_tree
+    allowed_paths: []
+    ai_assertion: null
+- case_id: v0.10.1-b3
+  version: v0.10.1
+  release_tag: v0.10.1-b3
+  pre_merge_commit: cecf7ed2076f9cde40bd922fff80f4b43f1b47de
+  upstream:
+    tag: v0.10.1
+    commit: 2fc177eaaea1f556a515da5fe48ba3f65b8a3808
+    source: origin_exact_tag_fallback
+  expected:
+    commit: 7081d7030e753ee5366482df5f19c940d43f0acc
+    tree: 6cffe4a6c227e20573a577004a8e05e21d5a5b10
+  assertions:
+    mode: exact_tree
+    allowed_paths: []
+    ai_assertion: null
+- case_id: v0.10.1-b6
+  version: v0.10.1
+  release_tag: v0.10.1-b6
+  pre_merge_commit: 22948d424a3a32f8a3cb70099fd026415441ffe0
+  upstream:
+    tag: v0.10.1
+    commit: 2fc177eaaea1f556a515da5fe48ba3f65b8a3808
+    source: origin_exact_tag_fallback
+  expected:
+    commit: 148b1aeb45e49f2bf4efa1e6791f7771e1720bf4
+    tree: bbe7263d2ed359ba0ad75300efe53dde0bdc913f
+  assertions:
+    mode: exact_tree
+    allowed_paths: []
+    ai_assertion: null
+- case_id: v0.12.1-b
+  version: v0.12.1
+  release_tag: v0.12.1-b
+  pre_merge_commit: d84993e3897c40945469a0ea874ad30cb2569a65
+  upstream:
+    tag: v0.12.1
+    commit: 99c3da1a5127481717fa590304d8f5d95b9797d3
+    source: origin_exact_tag_fallback
+  expected:
+    commit: aa596019ac2f6dc8299bf6f8c8c5a78572e2f7b3
+    tree: 8b22cc4e710806521509e6aa77b65b09c486d86e
+  assertions:
+    mode: exact_tree
+    allowed_paths: []
+    ai_assertion: null
+- case_id: v0.13.0-b
+  version: v0.13.0
+  release_tag: v0.13.0-b
+  pre_merge_commit: ca8f7e244a8895c889e251c56cc7bbc59ce84b9e
+  upstream:
+    tag: v0.13.0
+    commit: 48650acecd1182c56c0f6d86f3c471f8d72159c6
+    source: origin_exact_tag_fallback
+  expected:
+    commit: a6365b7aa2d95f0dee8f83f8504dc8a19f1bf20f
+    tree: cf5dd89ce933be8a039578d697aa69f698a75f83
+  assertions:
+    mode: exact_tree
+    allowed_paths: []
+    ai_assertion: null

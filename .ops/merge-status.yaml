@@ -1,0 +1,42 @@
+schema_version: 1
+project: ADI-Stack-Server
+updated_at: 2026-02-20T15:26:00+01:00
+tags:
+  previous_upstream_tag: null
+  current_upstream_tag: v0.14.2
+merge:
+  status: merge_attempted
+  base_ref: upstream/v0.14.2
+  target_ref: merge/upstream-v0.14.2
+  upstream_branch: upstream/v0.14.2
+  merge_branch: merge/upstream-v0.14.2
+  worktree_path: /Users/max/.local/git/wortrees/ADI-Stack-Server/merge-upstream-v0.14.2
+  created_at: 2026-02-20T14:15:19+01:00
+  last_radar_at: 2026-02-20T15:26:00+01:00
+  release_tag: null
+  last_merge_at: 2026-02-20T14:16:16+01:00
+  last_merge_exit_code: 1
+  has_conflicts: true
+  conflict_files:
+  - CHANGELOG.md
+  - Cargo.lock
+  - Cargo.toml
+  - lib/l1_watcher/src/commit_watcher.rs
+  - lib/l1_watcher/src/execute_watcher.rs
+  - lib/l1_watcher/src/util.rs
+  - lib/sequencer/src/execution/block_context_provider.rs
+  - node/bin/src/config/mod.rs
+  - node/bin/src/lib.rs
+  - node/bin/src/main.rs
+  - node/bin/src/priority_tree_steps/priority_tree_en_step.rs
+radar:
+  risk_level: HIGH
+  conflict_source: overlap-fallback
+  target_only_commits: 16
+  base_only_commits: 68
+  adi_changed_files: 36
+  upstream_changed_files: 223
+  overlap_files: 19
+  predicted_conflict_files: 19
+  output_dir: /Users/max/git/adi/ADI-Stack-Server/.ops/.tmp/upstream-radar/upstream_v0.14.2__merge_upstream-v0.14.2
+  report: /Users/max/git/adi/ADI-Stack-Server/.ops/.tmp/upstream-radar/upstream_v0.14.2__merge_upstream-v0.14.2/report.md

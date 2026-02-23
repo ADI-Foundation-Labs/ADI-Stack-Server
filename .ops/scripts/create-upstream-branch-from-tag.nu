@@ -4,7 +4,15 @@
 
 use lib/git/upstream.nu *
 
-def main [tag: string, --push (-p) = false] {
-  let result = (create-upstream-branch-from-tag $tag --push $push)
+def main [tag: string, --push (-p), --force (-f)] {
+  let result = if $push and $force {
+    create-upstream-branch-from-tag $tag --push --force
+  } else if $push {
+    create-upstream-branch-from-tag $tag --push
+  } else if $force {
+    create-upstream-branch-from-tag $tag --force
+  } else {
+    create-upstream-branch-from-tag $tag
+  }
   [ $result ] | print
 }

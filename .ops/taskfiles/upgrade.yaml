@@ -24,11 +24,61 @@ tasks:
     - git remote get-url upstream
     cmds:
     - git remote add upstream https://github.com/matter-labs/zksync-os-server.git
+
+  _sync-remotes:
+    desc: Sync upstream/origin tags and branches
+    internal: true
+    deps:
+    - _add-upstream
+    cmds:
+    - git fetch upstream --tags 2>/dev/null || true
+    - git fetch origin --tags 2>/dev/null || true
+
   install:prerequisites:
     desc: Add prerequisites
     deps:
     - _add-upstream
     - _install-nushell
+
+  start:merge:
+    desc: 'Start upstream merge flow end-to-end with guardrails. Creates/refreshes upstream branch, ensures merge worktree, runs merge, updates status, and runs merge radar. Usage: task upgrade:start:merge -- vX.Y.Z [--push-upstream] [--push-merge] [--force] [--skip-radar] [--max-list N]'
+    dir: '{{.ROOT_DIR}}'
+    deps:
+    - status:init
+    - _sync-remotes
+    cmds:
+    - nu .ops/scripts/start-upstream-merge.nu {{.CLI_ARGS}}
+
+  open:merge-worktree:
+    desc: 'Open merge worktree in an IDE binary. Usage: task upgrade:open:merge-worktree -- <ide-binary> [vX.Y.Z] [--dry-run]'
+    dir: '{{.ROOT_DIR}}'
+    deps:
+    - status:init
+    cmds:
+    - nu .ops/scripts/open-merge-worktree.nu {{.CLI_ARGS}}
+
+  history:build-release-lineage:
+    desc: 'Build YAML mapping of origin release tags and upstream tag commits. Usage: task upgrade:history:build-release-lineage -- [--output .ops/release-lineage.yaml]'
+    dir: '{{.ROOT_DIR}}'
+    deps:
+    - install:prerequisites
+    - _sync-remotes
+    cmds:
+    - nu .ops/scripts/build-release-lineage.nu {{.CLI_ARGS}}
+
+  test:build-replay-cases:
+    desc: 'Build replay test cases from release lineage. Usage: task upgrade:test:build-replay-cases -- [--include-exact] [--output .ops/merge-replay-cases.yaml]'
+    dir: '{{.ROOT_DIR}}'
+    cmds:
+    - task upgrade:history:build-release-lineage
+    - nu .ops/scripts/build-merge-replay-cases.nu {{.CLI_ARGS}}
+
+  test:run-replay:
+    desc: 'Replay historical merge cases and assert resulting tree. Usage: task upgrade:test:run-replay -- [--case-id vX.Y.Z-bN] [--limit N] [--keep-worktrees]'
+    dir: '{{.ROOT_DIR}}'
+    cmds:
+    - task upgrade:test:build-replay-cases
+    - nu .ops/scripts/run-merge-replay-tests.nu {{.CLI_ARGS}}
 
   get:upstream-missing-branches:
     desc: 'Find upstream release tags missing as origin/upstream/vX.Y.Z branches'
@@ -40,7 +90,7 @@ tasks:
     - nu .ops/scripts/get-upstream-missing-branches.nu
 
   create:upstream-branch:
-    desc: 'Create upstream/vX.Y.Z branch from upstream tag and push to origin. Usage: task upgrade:create-upstream-branch -- vX.Y.Z [--no-push]'
+    desc: 'Create upstream/vX.Y.Z branch from upstream tag and optionally push to origin. Guarded by active merge state unless --force. Usage: task upgrade:create-upstream-branch -- vX.Y.Z [--push] [--force]'
     dir: '{{.ROOT_DIR}}'
     deps:
     - install:prerequisites
@@ -49,10 +99,158 @@ tasks:
     - nu .ops/scripts/create-upstream-branch-from-tag.nu {{.CLI_ARGS}}
 
   create:merge-branch:
-    desc: 'Create merge/upstream-vX.Y.Z from main (step 4). Usage: task upgrade:create-merge-branch -- vX.Y.Z [--merge] [--push]'
+    desc: 'Create merge/upstream-vX.Y.Z from main (step 4). Also updates .ops/merge-status.yaml. Blocks when another merge is active unless --force. Reset mode recreates merge branch/worktree from scratch (upstream branch is untouched) with confirmation. Usage: task upgrade:create:merge-branch -- vX.Y.Z [--merge] [--push] [--force] [--reset] [-y]'
     dir: '{{.ROOT_DIR}}'
     deps:
     - install:prerequisites
     cmds:
     - git fetch origin 2>/dev/null || true
     - nu .ops/scripts/create-merge-branch-from-tag.nu {{.CLI_ARGS}}
+
+  analyze:merge-radar:
+    desc: 'Visual merge difficulty report + merge status update. Usage: task upgrade:analyze:merge-radar -- [vX.Y.Z | upstream/vX.Y.Z] [target_ref] [--max-list N] [--output-dir PATH] [--no-status]'
+    dir: '{{.ROOT_DIR}}'
+    deps:
+    - install:prerequisites
+    cmds:
+    - git fetch upstream --tags 2>/dev/null || true
+    - git fetch origin --tags 2>/dev/null || true
+    - nu .ops/scripts/merge-radar.nu {{.CLI_ARGS}}
+
+  analyze:conflict-diffs:
+    desc: 'Generate per-conflict ADI/upstream patch artifacts. Usage: task upgrade:analyze:conflict-diffs -- [vX.Y.Z | upstream/vX.Y.Z] [target_ref] [--file PATH] [--output-dir PATH]'
+    dir: '{{.ROOT_DIR}}'
+    deps:
+    - install:prerequisites
+    cmds:
+    - git fetch upstream --tags 2>/dev/null || true
+    - git fetch origin --tags 2>/dev/null || true
+    - nu .ops/scripts/conflict-diffs.nu {{.CLI_ARGS}}
+
+  status:show:
+    desc: 'Show current merge status state (.ops/merge-status.yaml)'
+    dir: '{{.ROOT_DIR}}'
+    deps:
+    - install:prerequisites
+    cmds:
+    - nu .ops/scripts/merge-status.nu
+
+  status:init:
+    desc: 'Initialize merge status file if missing'
+    dir: '{{.ROOT_DIR}}'
+    deps:
+    - install:prerequisites
+    cmds:
+    - nu .ops/scripts/merge-status.nu --init
+
+  status:transition:
+    desc: 'Transition merge lifecycle phase. Usage: task upgrade:status:transition -- <local-tested|ci-passed|merged-main|released|aborted|idle> [--release-tag vX.Y.Z-bN] [--note TEXT]'
+    dir: '{{.ROOT_DIR}}'
+    deps:
+    - install:prerequisites
+    cmds:
+    - nu .ops/scripts/merge-status-transition.nu {{.CLI_ARGS}}
+
+  release:next-tag:
+    desc: 'Compute next release tag vX.Y.Z-bN. Usage: task upgrade:release:next-tag -- [vX.Y.Z]'
+    dir: '{{.ROOT_DIR}}'
+    deps:
+    - install:prerequisites
+    cmds:
+    - nu .ops/scripts/next-release-tag.nu {{.CLI_ARGS}}
+
+  resolve:state:
+    desc: 'Refresh/show step-by-step conflict resolution state from merge status + radar artifacts + live unresolved files. Usage: task upgrade:resolve:state -- [vX.Y.Z] [--batch-size N] [--next] [--json] [--state-file PATH]'
+    dir: '{{.ROOT_DIR}}'
+    deps:
+    - status:init
+    cmds:
+    - nu .ops/scripts/merge-resolution-state.nu {{.CLI_ARGS}}
+
+  resolve:next:
+    desc: 'Show next deterministic conflict batch (single primary rule) from merge state. Usage: task upgrade:resolve:next -- [vX.Y.Z] [--batch-size N] [--json] [--state-file PATH]'
+    dir: '{{.ROOT_DIR}}'
+    deps:
+    - status:init
+    cmds:
+    - nu .ops/scripts/merge-resolution-state.nu --next {{.CLI_ARGS}}
+
+  agent:mode:state:
+    desc: 'Initialize/show mode-based merge agent state file. Usage: task upgrade:agent:mode:state -- [vX.Y.Z] [--state-file PATH] [--json]'
+    dir: '{{.ROOT_DIR}}'
+    deps:
+    - status:init
+    cmds:
+    - nu .ops/scripts/merge-agent-state.nu --init {{.CLI_ARGS}}
+
+  agent:mode:analyze:
+    desc: 'Run mode 1 (initial analyze): classify unresolved files into easy/medium/hard/human_input_needed and update state. Usage: task upgrade:agent:mode:analyze -- vX.Y.Z [agent] [--agent-args -p] [--state-file PATH] [--dry-run]'
+    dir: '{{.ROOT_DIR}}'
+    deps:
+    - status:init
+    cmds:
+    - nu .ops/scripts/run-merge-agent-modes.nu --mode analyze {{.CLI_ARGS}}
+
+  agent:mode:plan-groups:
+    desc: 'Run mode 2 (plan groups): create commit-friendly groups with bounded difficulty and update state. Usage: task upgrade:agent:mode:plan-groups -- vX.Y.Z [agent] [--state-file PATH] [--dry-run]'
+    dir: '{{.ROOT_DIR}}'
+    deps:
+    - status:init
+    cmds:
+    - nu .ops/scripts/run-merge-agent-modes.nu --mode plan-groups {{.CLI_ARGS}}
+
+  agent:mode:resolve-next:
+    desc: 'Run mode 3 (resolve group) for next non-human pending group and create one commit. Usage: task upgrade:agent:mode:resolve-next -- vX.Y.Z [agent] [--state-file PATH] [--dry-run]'
+    dir: '{{.ROOT_DIR}}'
+    deps:
+    - status:init
+    cmds:
+    - nu .ops/scripts/run-merge-agent-modes.nu --mode resolve-group --next-group {{.CLI_ARGS}}
+
+  agent:mode:resolve-group:
+    desc: 'Run mode 3 (resolve group) for an explicit group name and create one commit. Usage: task upgrade:agent:mode:resolve-group -- vX.Y.Z [agent] --group <group-name> [--state-file PATH] [--dry-run]'
+    dir: '{{.ROOT_DIR}}'
+    deps:
+    - status:init
+    cmds:
+    - nu .ops/scripts/run-merge-agent-modes.nu --mode resolve-group {{.CLI_ARGS}}
+
+  agent:mode:resolve-next-human:
+    desc: 'Run mode 4 (resolve human group) for next pending human_input group. Usage: task upgrade:agent:mode:resolve-next-human -- vX.Y.Z [agent] [--state-file PATH] [--dry-run]'
+    dir: '{{.ROOT_DIR}}'
+    deps:
+    - status:init
+    cmds:
+    - nu .ops/scripts/run-merge-agent-modes.nu --mode resolve-human-group --next-group --human {{.CLI_ARGS}}
+
+  agent:mode:resolve-human-group:
+    desc: 'Run mode 4 (resolve human group) for an explicit group name. Usage: task upgrade:agent:mode:resolve-human-group -- vX.Y.Z [agent] --group <group-name> [--state-file PATH] [--dry-run]'
+    dir: '{{.ROOT_DIR}}'
+    deps:
+    - status:init
+    cmds:
+    - nu .ops/scripts/run-merge-agent-modes.nu --mode resolve-human-group {{.CLI_ARGS}}
+
+  agent:resolve:
+    desc: 'Run AI agent conflict resolution in merge worktree. Usage: task upgrade:agent:resolve -- vX.Y.Z [agent] [--agent-args -p] [--next-batch] [--batch-size N] [--state-file PATH] [--dry-run]. Agent defaults to claude.'
+    dir: '{{.ROOT_DIR}}'
+    deps:
+    - status:init
+    cmds:
+    - nu .ops/scripts/run-merge-agent.nu {{.CLI_ARGS}}
+
+  agent:resolve:next:
+    desc: 'Run AI agent conflict resolution for next batch only (state-driven). Usage: task upgrade:agent:resolve:next -- vX.Y.Z [agent] [--batch-size N] [--state-file PATH] [--dry-run]. Agent defaults to claude.'
+    dir: '{{.ROOT_DIR}}'
+    deps:
+    - status:init
+    cmds:
+    - nu .ops/scripts/run-merge-agent.nu --next-batch {{.CLI_ARGS}}
+
+  agent:validate:
+    desc: 'Run AI agent merge validation in merge worktree. Usage: task upgrade:agent:validate -- vX.Y.Z [agent] [--agent-args -p] [--dry-run]. Agent defaults to claude.'
+    dir: '{{.ROOT_DIR}}'
+    deps:
+    - status:init
+    cmds:
+    - nu .ops/scripts/run-merge-agent.nu --validate {{.CLI_ARGS}}
