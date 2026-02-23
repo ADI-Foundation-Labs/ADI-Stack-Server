@@ -32,4 +32,4 @@
   - [Generate L1 State and Genesis](guides/generate_l1_state.md)
   - [Run against Layer 1 (L1)](guides/running_with_l1.md)
   - [Updating Contracts](guides/updating.md)
-
+  - [Upstream Release Strategy](guides/upstream_release_strategy.md)

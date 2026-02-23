@@ -8,8 +8,11 @@ This is the canonical strategy for syncing upstream releases from
 1. `main` stays the ADI branch with the latest ADI changes.
 2. We do not maintain a mirrored upstream `main` in this repository.
 3. We maintain upstream release branches only, named `upstream/vX.Y.Z`.
-4. For every upstream release `vX.Y.Z`, ADI publishes the exact same tag name `vX.Y.Z`.
+4. For every upstream release `vX.Y.Z`, ADI publishes `vX.Y.Z-bN` (`N` increments for repeat release attempts).
 5. Upstream syncs happen via PRs, never direct pushes to `main`.
+6. Merge process state is tracked in `.ops/merge-status.yaml`.
+7. AI merge conflict handling uses mode-based runs with persisted state in `.ops/.tmp/upstream-radar/.../merge-agent-state.yaml`.
+8. Conflict resolution is executed as commit-friendly groups (one group = one commit).
 
 ## Historical Audit (Current Repository)
 
@@ -45,7 +48,7 @@ Chosen model for this repo:
 
 1. Merge-forward into `main` (no history rewrite).
 2. Upstream release branches (`upstream/vX.Y.Z`) as the merge source.
-3. Exact upstream tag parity after merge.
+3. ADI release tags use `vX.Y.Z-bN` after merge to `main`.
 
 Reason: this matches the repo's operating reality and avoids rebasing long-lived ADI history.
 
@@ -65,9 +68,58 @@ Branches:
 
 Tags:
 
-1. Release tag format: `vX.Y.Z` (exactly upstream).
-2. Tag location: merge commit on `main` that contains the upstream sync + ADI changes.
-3. Legacy `-b` tags remain historical and are not reused.
+1. Upstream source tag format: `vX.Y.Z`.
+2. ADI release tag format: `vX.Y.Z-bN` (e.g. `v0.14.2-b1`, `v0.14.2-b2`).
+3. Tag location: merge commit on `main` that contains the upstream sync + ADI changes.
+4. Legacy `-b` tags remain historical; new flow uses explicit numeric suffix (`-b1`, `-b2`, ...).
+
+## Merge State Tracking
+
+Primary state files:
+
+- `.ops/merge-status.yaml`
+- `.ops/.tmp/upstream-radar/<base_slug>__<target_slug>/merge-agent-state.yaml`
+
+Key fields:
+
+1. `tags.previous_upstream_tag`
+2. `tags.current_upstream_tag`
+3. `merge.status`
+4. `merge.base_ref`
+5. `merge.merge_branch`
+6. `merge.worktree_path`
+7. `radar.*` metrics from merge analysis
+8. `analysis.*` in merge-agent-state (`easy`, `medium`, `hard`, `human_input_needed`)
+9. `groups[]` in merge-agent-state (group intent, files, difficulty, status, commit message)
+10. `resolution.next_group` and `resolution.next_human_group` in merge-agent-state
+
+Update behavior:
+
+1. `task upgrade:start:merge -- vX.Y.Z` is the primary entrypoint:
+   - syncs `upstream/vX.Y.Z`
+   - ensures merge worktree `merge/upstream-vX.Y.Z` exists
+   - runs merge in the worktree
+   - updates `merge-status.yaml`
+   - runs merge radar and stores artifacts
+2. `task upgrade:status:show` prints current state.
+3. Artifacts from radar tools are written to `.ops/.tmp/upstream-radar/...`.
+4. `task upgrade:status:transition -- <phase>` enforces lifecycle transitions (`local-tested`, `ci-passed`, `merged-main`, `released`, `aborted`, `idle`).
+
+## AI Conflict Resolution Modes
+
+Mode files live in:
+
+- `.agents/skills/upstream-merge-conflicts/references/mode-initial-analyze.md`
+- `.agents/skills/upstream-merge-conflicts/references/mode-plan-groups.md`
+- `.agents/skills/upstream-merge-conflicts/references/mode-resolve-group.md`
+- `.agents/skills/upstream-merge-conflicts/references/mode-resolve-human-group.md`
+
+Execution model:
+
+1. `analyze`: classify unresolved files into `easy|medium|hard|human_input_needed`.
+2. `plan-groups`: build commit-friendly groups with bounded difficulty.
+3. `resolve-group`: resolve one non-human group and create one commit.
+4. `resolve-human-group`: resolve or explicitly block one human-input group.
 
 ## Standard Runbook (Per Upstream Release)
 
@@ -82,57 +134,71 @@ WT_ROOT="${HOME}/.local/git/wortrees/${PROJECT_NAME}"
 WT_PATH="${WT_ROOT}/merge-upstream-${TAG}"
 ```
 
-1. Prepare remotes and fetch:
+1. Start merge session (from any branch):
 
 ```bash
-git remote add upstream https://github.com/matter-labs/zksync-os-server.git 2>/dev/null || true
-git fetch origin --tags
+task upgrade:start:merge -- vX.Y.Z
 ```
 
-2. Guard: ensure release tag does not already exist in ADI repo:
+This command handles:
+
+1. active merge guardrails
+2. upstream tag/branch sync
+3. merge worktree creation/reuse
+4. merge execution
+5. artifact generation (merge radar & conflict diffs)
+6. merge status updates
+
+> [!NOTE]
+> The `start:merge` command automatically runs `merge-radar` and `conflict-diffs` in the background. From a high level, these tools analyze the complexity of the merge and generate per-conflict patch artifacts (separating ADI vs upstream changes) to help both developers and AI agents understand the diffs better. For more information, see [Fast Merge-Difficulty Analysis](#fast-merge-difficulty-analysis).
+
+Optional flags:
 
 ```bash
-git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null && {
-  echo "Tag ${TAG} already exists in origin; stop."
-  exit 1
-}
+task upgrade:start:merge -- vX.Y.Z --push-upstream --push-merge
 ```
 
-3. Refresh upstream release branch:
+2. Open merge worktree in IDE (optional):
 
 ```bash
-git fetch --force upstream "refs/tags/${TAG}:refs/heads/upstream/${TAG}"
-# optional: publish/update tracking branch in origin
-git push -f origin "upstream/${TAG}"
+task upgrade:open:merge-worktree -- cursor
+# or explicit tag:
+task upgrade:open:merge-worktree -- code vX.Y.Z
 ```
 
-This keeps a deterministic in-repo branch for each upstream release tag.
-
-4. Create integration branch from ADI `main` in a dedicated worktree:
+3. Initialize and inspect mode-based agent state:
 
 ```bash
-git checkout main
-git pull --ff-only origin main
-mkdir -p "${WT_ROOT}"
-git worktree add -B "merge/upstream-${TAG}" "${WT_PATH}" origin/main
-cd "${WT_PATH}"
+task upgrade:agent:mode:state -- vX.Y.Z --json
 ```
 
-5. Merge upstream release branch:
+4. Run mode 1 (initial analyze):
 
 ```bash
-git merge --no-ff "upstream/${TAG}"
+task upgrade:agent:mode:analyze -- vX.Y.Z [agent]
 ```
 
-6. Resolve conflicts:
+5. Run mode 2 (plan groups):
 
-1. Enable `rerere` once:
-   `git config --global rerere.enabled true`
-2. Resolve low-risk conflicts first (lockfiles, metadata, docs).
-3. Resolve core runtime/API logic with human review.
-4. Use AI in suggest-only mode first; patch mode is optional.
+```bash
+task upgrade:agent:mode:plan-groups -- vX.Y.Z [agent]
+```
 
-7. Validate:
+6. Resolve non-human groups (repeat until no pending non-human groups):
+
+```bash
+task upgrade:agent:mode:resolve-next -- vX.Y.Z [agent]
+```
+
+7. Resolve human groups separately (repeat as needed):
+
+```bash
+task upgrade:agent:mode:resolve-next-human -- vX.Y.Z [agent]
+```
+
+`[agent]` is optional; tasks default to `claude`.
+
+8. Validate:
 
 ```bash
 cargo fmt --all --check
@@ -140,37 +206,59 @@ cargo clippy --all-targets --all-features --workspace -- -D warnings
 cargo nextest run --workspace
 ```
 
-8. Open PR from worktree branch:
+9. Mark local validation complete:
+
+```bash
+task upgrade:status:transition -- local-tested
+```
+
+10. Open PR from worktree branch:
 
 1. Source: `merge/upstream-vX.Y.Z`
 2. Target: `main`
 3. Include:
    - upstream tag merged
-   - conflict files list
-   - key manual decisions
+   - group commit summary
+   - blocked human-decision groups (if any)
    - test results
 
-9. After PR merge, create release tag and release from `main`:
+11. After CI succeeds:
 
 ```bash
-cd /path/to/your/main/clone
-git checkout main
-git pull --ff-only origin main
-git tag "vX.Y.Z"
-git push origin "vX.Y.Z"
+task upgrade:status:transition -- ci-passed
 ```
 
-10. Cleanup local worktree:
+12. After PR merge, mark merge state and create release tag:
+
+```bash
+task upgrade:status:transition -- merged-main
+task upgrade:release:next-tag -- vX.Y.Z
+git tag "vX.Y.Z-bN"
+git push origin "vX.Y.Z-bN"
+task upgrade:status:transition -- released --release-tag vX.Y.Z-bN
+```
+
+13. Cleanup local worktree:
 
 ```bash
 git worktree remove "${WT_PATH}"
 ```
 
-11. Publish GitHub Release notes:
+14. Publish GitHub Release notes:
 
 1. Base upstream: `matter-labs/zksync-os-server@vX.Y.Z`
 2. ADI delta summary (what changed on top)
 3. CI/test status
+
+## Conflict Resolution Notes
+
+1. Enable `rerere` once:
+   `git config --global rerere.enabled true`
+2. Always run modes in order: `analyze` -> `plan-groups` -> `resolve-group`/`resolve-human-group`.
+3. Keep each group meaningful and committable; avoid combining multiple hard files in one group.
+4. Create one commit per resolved group.
+5. Keep human-required decisions isolated in human groups with explicit notes.
+6. Do not edit `.ops/merge-status.yaml` manually; use `task upgrade:status:*`.
 
 ## Review and Safety Checks
 
@@ -179,8 +267,87 @@ Use this minimum checklist for every upstream update:
 1. `upstream/vX.Y.Z` branch tip matches upstream tag.
 2. Merge PR to `main` is reviewed by at least one maintainer.
 3. No direct push to `main`.
-4. Tag `vX.Y.Z` is created only after merge to `main`.
+4. Tag `vX.Y.Z-bN` is created only after merge to `main`.
 5. Release notes include upstream base and ADI delta.
+
+## Fast Merge-Difficulty Analysis
+
+The upgrade flow leverages two specialized analysis tools to break down merge complexity before any conflicts are resolved. These tools run automatically during `task upgrade:start:merge`, but can also be triggered manually using the preferred commands:
+
+```bash
+task upgrade:analyze:merge-radar -- vX.Y.Z main
+task upgrade:analyze:conflict-diffs -- vX.Y.Z main
+```
+
+### 1. Merge Radar (`task upgrade:analyze:merge-radar`)
+
+**What it creates:**
+Generates a complexity report (`report.md`) and lists of changed files (categorized into ADI-only, upstream-only, and overlap) under `.ops/.tmp/upstream-radar/<base_slug>__<target_slug>/`.
+
+**How it is used in the upgrade flow:**
+Provides a macro-level structural overview of the merge. It is crucial for both human reviewers (to understand the sheer scale of the upgrade) and the AI agent (which uses this structural data during its initial `analyze` mode to classify files into `easy`, `medium`, `hard`, or `human_input_needed`).
+
+### 2. Conflict Diffs (`task upgrade:analyze:conflict-diffs`)
+
+**What it creates:**
+Extracts clean, per-conflict patch artifacts that isolate the upstream-specific changes from the ADI-specific changes for every file actively in a conflict state. These are stored alongside the radar artifacts.
+
+**How it is used in the upgrade flow:**
+Provides micro-level context. Standard `git diff` during a conflict can be noisy and hard to parse. These isolated patches allow the AI merge agent (and human developers) to see exactly what ADI changed vs what upstream changed, reducing context-window exhaustion and enabling fine-grained, patch-based resolution.
+
+### Opinionated Defaults
+
+When running these commands manually:
+
+1. If `base_ref` is omitted, scripts use `upstream/<current_upstream_tag>` from `.ops/merge-status.yaml`.
+2. If `target_ref` is omitted, scripts use `merge.merge_branch` (if it exists locally), else `main`.
+3. If an active merge exists and refs are omitted, run commands from the active merge worktree path.
+
+## Historical Replay Regression Tests
+
+Goal: prevent regressions in merge tooling (including AI-assisted merge flows) by replaying historical merges.
+
+Build historical mapping:
+
+```bash
+task upgrade:history:build-release-lineage
+```
+
+This generates:
+
+- `.ops/release-lineage.yaml`
+
+Build replay cases:
+
+```bash
+task upgrade:test:build-replay-cases
+```
+
+This generates:
+
+- `.ops/merge-replay-cases.yaml`
+
+Run replay tests:
+
+```bash
+task upgrade:test:run-replay
+```
+
+`upgrade:test:run-replay` exits non-zero when any case fails.
+
+For each case, tooling:
+
+1. checks out `pre_tag_commit` in a temporary clone
+2. merges mapped upstream commit
+3. compares resulting tree to expected historical tagged commit tree
+4. reports pass/fail and writes results under `.ops/.tmp/merge-replay-runs/...`
+
+Assertion modes:
+
+1. `exact_tree` (default): resulting tree hash must match expected tree hash.
+2. `allow_paths_delta`: allow differences only in explicit whitelisted paths (for controlled non-determinism).
+
+AI assertion hooks can be added as a secondary layer, but deterministic git/tree checks remain mandatory baseline assertions.
 
 ## Automation Plan (Recommended)
 
@@ -199,6 +366,6 @@ Use this minimum checklist for every upstream update:
 
 Legacy `-b` tags and side branches are kept for traceability, but future releases follow:
 
-1. exact `vX.Y.Z` tag naming
+1. upstream base tracked as `vX.Y.Z`, ADI releases tagged `vX.Y.Z-bN`
 2. tags cut from `main` only
 3. upstream release branch + PR integration flow only
