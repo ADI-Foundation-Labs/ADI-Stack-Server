@@ -1,0 +1,74 @@
+{
+  "default_guides": [
+    "references/filetypes/fallback.md"
+  ],
+  "rules": [
+    {
+      "id": "cargo-manifests-and-lockfiles",
+      "patterns": [
+        "Cargo.toml",
+        "*/Cargo.toml",
+        "Cargo.lock",
+        "*/Cargo.lock"
+      ],
+      "guides": [
+        "references/filetypes/cargo-manifests-and-lockfiles.md"
+      ]
+    },
+    {
+      "id": "rust-source",
+      "patterns": [
+        "*.rs"
+      ],
+      "guides": [
+        "references/filetypes/rust-source.md"
+      ]
+    },
+    {
+      "id": "ci-and-automation-config",
+      "patterns": [
+        ".github/workflows/*.yml",
+        ".github/workflows/*.yaml",
+        ".ops/*.nu",
+        ".ops/**/*.nu",
+        "Taskfile.yml",
+        "Taskfile.yaml",
+        "*.nu"
+      ],
+      "guides": [
+        "references/filetypes/ci-and-automation-config.md"
+      ]
+    },
+    {
+      "id": "docs-and-markdown",
+      "patterns": [
+        "docs/**",
+        "*.md",
+        "*.rst",
+        "*.txt",
+        "*.png",
+        "*.svg"
+      ],
+      "guides": [
+        "references/filetypes/docs-and-markdown.md"
+      ]
+    },
+    {
+      "id": "repository-meta-files",
+      "patterns": [
+        "CODEOWNERS",
+        "LICENSE*",
+        "SECURITY.md",
+        "CONTRIBUTING.md",
+        "README.md",
+        ".gitignore",
+        ".dockerignore",
+        "codecov.yml",
+        "deny.toml"
+      ],
+      "guides": [
+        "references/filetypes/repository-meta-files.md"
+      ]
+    }
+  ]
+}

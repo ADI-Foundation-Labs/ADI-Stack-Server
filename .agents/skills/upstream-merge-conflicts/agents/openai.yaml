@@ -1,0 +1,4 @@
+interface:
+  display_name: "Upstream Merge Conflicts"
+  short_description: "Mode-based upstream conflict merge workflow"
+  default_prompt: "Run upstream merge conflicts in modes: analyze, plan-groups, resolve-group, and resolve-human-group."
