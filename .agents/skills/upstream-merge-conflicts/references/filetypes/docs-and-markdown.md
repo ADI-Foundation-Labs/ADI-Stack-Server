@@ -25,4 +25,3 @@ Apply this guide for documentation and content files (`docs/**`, `*.md`, `*.rst`
 
 - Spot-check that referenced task names and file paths exist.
 - Ensure docs do not mention deprecated branch/tag conventions after merge.
-

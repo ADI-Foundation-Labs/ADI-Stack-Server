@@ -62,26 +62,6 @@ def unresolved-conflicts [worktree_path: string] {
   normalize-path-list ($run.stdout | lines)
 }
 
-def ensure-worktree [worktree_path: string, tag: string, expected_branch: string] {
-  if not ($worktree_path | path exists) {
-    error make {
-      msg: $"Merge worktree path does not exist: ($worktree_path). Start merge first: task upgrade:start:merge -- ($tag)"
-    }
-  }
-
-  let wt_check = (^git -C $worktree_path rev-parse --is-inside-work-tree | complete)
-  if $wt_check.exit_code != 0 {
-    error make { msg: $"Path is not a git worktree: ($worktree_path)" }
-  }
-
-  let current_branch = (^git -C $worktree_path rev-parse --abbrev-ref HEAD | str trim)
-  if $current_branch != $expected_branch {
-    error make {
-      msg: $"Worktree branch mismatch at ($worktree_path): current=($current_branch), expected=($expected_branch)"
-    }
-  }
-}
-
 def load-yaml-if-exists [path: string] {
   if not ($path | path exists) {
     return null
@@ -306,6 +286,7 @@ def main [
   --init (-i)
   --next-group (-n)
   --human (-H)
+  --analyze (-a)
   --group (-g): string
   --json (-j)
 ] {
@@ -346,10 +327,10 @@ def main [
       msg: "Cannot resolve merge worktree path. Pass --worktree or ensure merge.worktree_path is set."
     }
   }
-  ensure-worktree $worktree_path $tag_value $expected_branch
+  assert-worktree $worktree_path $expected_branch $tag_value
 
   let repo_root = (^git rev-parse --show-toplevel | str trim)
-  let default_radar_dir = $"($repo_root)/.ops/.tmp/upstream-radar/((slugify-ref $base_ref))__((slugify-ref $target_ref))"
+  let default_radar_dir = (radar-output-dir $repo_root $base_ref $target_ref)
   let radar_output_dir = ($status | get --optional radar.output_dir | default $default_radar_dir)
   ^mkdir -p $radar_output_dir
 
@@ -373,7 +354,10 @@ def main [
     let matches = ($groups | where { |g| ($g | get name) == $group })
     if (($matches | length) > 0) { $matches | first } else { null }
   } else if $next_group {
-    let next_name = if $human {
+    let next_name = if $analyze {
+      let pending = ($groups | where { |g| ($g | get status) == "pending" })
+      if (($pending | length) > 0) { $pending | first | get name } else { null }
+    } else if $human {
       $state | get resolution.next_human_group
     } else {
       $state | get resolution.next_group

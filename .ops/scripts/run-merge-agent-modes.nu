@@ -27,31 +27,13 @@ def expected-worktree-path [tag: string, worktree_root?: string] {
   $"($root)/merge-upstream-($tag)"
 }
 
-def validate-worktree [worktree_path: string, expected_branch: string, tag: string] {
-  if not ($worktree_path | path exists) {
-    error make {
-      msg: $"Merge worktree path does not exist: ($worktree_path). Start merge first: task upgrade:start:merge -- ($tag)"
-    }
-  }
-
-  let wt_check = (^git -C $worktree_path rev-parse --is-inside-work-tree | complete)
-  if $wt_check.exit_code != 0 {
-    error make { msg: $"Path is not a git worktree: ($worktree_path)" }
-  }
-
-  let current_branch = (^git -C $worktree_path rev-parse --abbrev-ref HEAD | str trim)
-  if $current_branch != $expected_branch {
-    error make {
-      msg: $"Worktree branch mismatch at ($worktree_path): current=($current_branch), expected=($expected_branch)"
-    }
-  }
-}
-
 def resolve-mode-file [repo_root: string, mode: string] {
   let rel = if $mode == "analyze" {
     ".agents/skills/upstream-merge-conflicts/references/mode-initial-analyze.md"
   } else if $mode == "plan-groups" {
     ".agents/skills/upstream-merge-conflicts/references/mode-plan-groups.md"
+  } else if $mode == "analyze-group" {
+    ".agents/skills/upstream-merge-conflicts/references/mode-analyze-group.md"
   } else if $mode == "resolve-group" {
     ".agents/skills/upstream-merge-conflicts/references/mode-resolve-group.md"
   } else if $mode == "resolve-human-group" {
@@ -136,6 +118,32 @@ def build-plan-prompt [
   ] | str join (char nl)
 }
 
+def build-analyze-group-prompt [
+  mode_file: string
+  tag: string
+  state_file: string
+  group_payload: any
+] {
+  let group_json = (($group_payload | to json --indent 2) + (char nl))
+  let group_name = ($group_payload | get --optional name | default "<unknown>")
+
+  [
+    $"use skill: ($mode_file)"
+    $"Run MODE analyze-group for upstream tag ($tag)."
+    ""
+    $"State file: ($state_file)"
+    $"Target group: ($group_name)"
+    ""
+    "Group payload JSON:"
+    $group_json
+    "Analyze this group using the commit history from both sides."
+    "Do not resolve conflicts yet. Propose resolution strategies."
+    "Update group state with resolve_options (list of strings)."
+    "If exactly one option is provided, set status to 'analyzed'."
+    "If multiple options are provided, set status to 'blocked' and human_input_needed to true."
+  ] | str join (char nl)
+}
+
 def build-resolve-prompt [
   mode_file: string
   tag: string
@@ -180,7 +188,7 @@ def main [
   --agent-args (-A): string = ""
 ] {
   # Parse --agent-args string into list so task can pass e.g. --agent-args '-p'
-  let agent_args = (if ($agent_args | str trim) == "" { [] } else { $agent_args | split row " " | where { |x| ($x | str trim) != "" } })
+  let agent_args = (parse-agent-args $agent_args)
   let parsed_tag = (extract-semver-tag $tag_input)
   if $parsed_tag == null {
     error make {
@@ -189,14 +197,14 @@ def main [
   }
 
   let mode_value = ($mode | str downcase | str trim)
-  let valid_modes = [ "analyze", "plan-groups", "resolve-group", "resolve-human-group" ]
+  let valid_modes = [ "analyze", "plan-groups", "analyze-group", "resolve-group", "resolve-human-group" ]
   if not ($valid_modes | any { |m| $m == $mode_value }) {
-    error make { msg: $"Unsupported mode ($mode_value). Expected one of: analyze, plan-groups, resolve-group, resolve-human-group." }
+    error make { msg: $"Unsupported mode ($mode_value). Expected one of: analyze, plan-groups, analyze-group, resolve-group, resolve-human-group." }
   }
 
-  let require_group = ($mode_value == "resolve-group" or $mode_value == "resolve-human-group")
+  let require_group = ($mode_value == "resolve-group" or $mode_value == "resolve-human-group" or $mode_value == "analyze-group")
   if ($require_group and $group == null and not $next_group) {
-    error make { msg: "Resolve modes require either --group <name> or --next-group." }
+    error make { msg: "Resolve and analyze modes require either --group <name> or --next-group." }
   }
 
   let tag = $parsed_tag
@@ -211,14 +219,10 @@ def main [
   let expected_worktree = (expected-worktree-path $tag $worktree_root)
   let repo_root = (^git rev-parse --show-toplevel | str trim)
 
-  let configs_path = $"($repo_root)/.ops/agent-configs.yaml"
-  let configs = if ($configs_path | path exists) { (open $configs_path) } else { {} }
-  let default_agent = ($configs | get --optional default | default "claude")
-  let target_agent = if $agent_name == null { $default_agent } else { $agent_name }
-  let agent_config = ($configs | get --optional agents | get --optional $target_agent)
-  let agent_binary = if $agent_config != null { ($agent_config | get binary) } else { $target_agent }
-  let config_args = if $agent_config != null { ($agent_config | get --optional args | default [] | each { |x| $x | into string }) } else { [] }
-  let final_agent_args = ($config_args ++ $agent_args)
+  let agent = (resolve-agent-config $repo_root $agent_name $agent_args)
+  let target_agent = $agent.name
+  let agent_binary = $agent.binary
+  let final_agent_args = $agent.args
 
   let worktree_path = if ($tracked_tag == $tag and $tracked_worktree_valid) {
     $tracked_worktree
@@ -236,7 +240,7 @@ def main [
     $expected_branch
   }
 
-  validate-worktree $worktree_path $expected_branch $tag
+  assert-worktree $worktree_path $expected_branch $tag
 
   let agent_check = (^which $agent_binary | complete)
   if $agent_check.exit_code != 0 {
@@ -283,7 +287,9 @@ def main [
       $select_args = ($select_args ++ [ "--group", $group ])
     } else {
       $select_args = ($select_args ++ [ "--next-group" ])
-      if ($mode_value == "resolve-human-group" or $human) {
+      if ($mode_value == "analyze-group") {
+        $select_args = ($select_args ++ [ "--analyze" ])
+      } else if ($mode_value == "resolve-human-group" or $human) {
         $select_args = ($select_args ++ [ "--human" ])
       }
     }
@@ -306,6 +312,8 @@ def main [
     build-analyze-prompt $mode_file $tag $resolved_state_file $base_ref $target_ref
   } else if $mode_value == "plan-groups" {
     build-plan-prompt $mode_file $tag $resolved_state_file
+  } else if $mode_value == "analyze-group" {
+    build-analyze-group-prompt $mode_file $tag $resolved_state_file $selected_group
   } else if $mode_value == "resolve-group" {
     build-resolve-prompt $mode_file $tag $resolved_state_file $selected_group false
   } else {
@@ -313,7 +321,6 @@ def main [
   }
 
   if $dry_run {
-    let args_preview = (if ($final_agent_args | length) > 0 { $" ...($final_agent_args | str join ' ') " } else { " " })
     {
       mode: $mode_value
       tag: $tag
@@ -326,10 +333,33 @@ def main [
       mode_file: $mode_file
       state_file: $resolved_state_file
       selected_group: $selected_group
-      command_preview: $"cd ($worktree_path) && ($agent_binary)($args_preview)<prompt>"
+      command_preview: $"cd ($worktree_path) && ($agent_binary)(agent-args-preview $final_agent_args)<prompt>"
+      prompt_content: $prompt
     } | print
     return
   }
+
+  print $"(ansi blue_bold)================================================================================(ansi reset)"
+  print $"(ansi cyan_bold)🤖 Starting Upstream Merge Agent(ansi reset)"
+  print $"(ansi blue_bold)================================================================================(ansi reset)"
+  print $"(ansi white_bold)Mode:(ansi reset)       ($mode_value)"
+  print $"(ansi white_bold)Tag:(ansi reset)        ($tag)"
+  print $"(ansi white_bold)Worktree:(ansi reset)   ($worktree_path)"
+  print $"(ansi white_bold)Agent:(ansi reset)      ($target_agent) \(($agent_binary)\)"
+  
+  if $selected_group != null {
+      let gname = ($selected_group | get --optional name | default "<unknown>")
+      print $"(ansi white_bold)Group:(ansi reset)      ($gname)"
+  }
+  
+  print ""
+  print $"(ansi cyan_bold)📝 Executing Prompt:(ansi reset)"
+  print $"(ansi dark_gray)--------------------------------------------------------------------------------(ansi reset)"
+  print $"(ansi dark_gray)($prompt)(ansi reset)"
+  print $"(ansi dark_gray)--------------------------------------------------------------------------------(ansi reset)"
+  print ""
+  print $"(ansi cyan_bold)⏳ Waiting for agent response...(ansi reset)"
+  print ""
 
   cd $worktree_path
   exec $agent_binary ...($final_agent_args | append $prompt)

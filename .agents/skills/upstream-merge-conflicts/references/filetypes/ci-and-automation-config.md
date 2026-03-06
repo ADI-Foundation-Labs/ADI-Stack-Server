@@ -26,4 +26,3 @@ Apply this guide for workflow and automation files (`.github/workflows/*`, `.ops
 
 - Run at least one `task upgrade:*` command that exercises modified script/task plumbing.
 - If GitHub workflow files changed, verify job names and referenced actions still exist.
-

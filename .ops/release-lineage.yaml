@@ -1,5 +1,5 @@
 schema_version: 1
-generated_at: 2026-02-19T13:09:39+01:00
+generated_at: 2026-02-25T15:51:44+01:00
 source:
   repository: ADI-Stack-Server
   origin_remote: origin
@@ -10,17 +10,17 @@ versions:
 - version: v0.0.0
   upstream:
     tag: v0.0.0
-    commit: null
-    source: unavailable
-    found_on_upstream: false
-    authoritative: false
-    assumed_commit_from_origin_exact_tag: 941c75267f67f41d6e57efaa110fab70d5b4e54a
+    commit: 941c75267f67f41d6e57efaa110fab70d5b4e54a
+    source: upstream_remote_tag
+    found_on_upstream: true
+    authoritative: true
+    assumed_commit_from_origin_exact_tag: null
   origin_releases:
   - tag: v0.0.0
     tag_object: 941c75267f67f41d6e57efaa110fab70d5b4e54a
     tag_object_type: commit
     commit: 941c75267f67f41d6e57efaa110fab70d5b4e54a
-    commit_date: 2025-08-25T05:42:31Z
+    commit_date: 2025-08-25T05:42:31+00:00
     subject: 'chore: Move CI to use new prover repo (#252)'
     parent_count: 1
     parents:
@@ -31,11 +31,11 @@ versions:
 - version: v0.1.1
   upstream:
     tag: v0.1.1
-    commit: null
-    source: unavailable
-    found_on_upstream: false
-    authoritative: false
-    assumed_commit_from_origin_exact_tag: 196e7cc40c138cbb0008a3d774f49fb6afbbecd4
+    commit: 196e7cc40c138cbb0008a3d774f49fb6afbbecd4
+    source: upstream_remote_tag
+    found_on_upstream: true
+    authoritative: true
+    assumed_commit_from_origin_exact_tag: null
   origin_releases:
   - tag: v0.1.1
     tag_object: 196e7cc40c138cbb0008a3d774f49fb6afbbecd4
@@ -52,11 +52,11 @@ versions:
 - version: v0.1.2
   upstream:
     tag: v0.1.2
-    commit: null
-    source: unavailable
-    found_on_upstream: false
-    authoritative: false
-    assumed_commit_from_origin_exact_tag: 00c8afa678b05f9eeec393a2f992b32e741a606e
+    commit: 00c8afa678b05f9eeec393a2f992b32e741a606e
+    source: upstream_remote_tag
+    found_on_upstream: true
+    authoritative: true
+    assumed_commit_from_origin_exact_tag: null
   origin_releases:
   - tag: v0.1.2
     tag_object: 00c8afa678b05f9eeec393a2f992b32e741a606e
@@ -73,11 +73,11 @@ versions:
 - version: v0.2.0
   upstream:
     tag: v0.2.0
-    commit: null
-    source: unavailable
-    found_on_upstream: false
-    authoritative: false
-    assumed_commit_from_origin_exact_tag: 298329260c6519789d7eb3ce547623755134bbad
+    commit: 298329260c6519789d7eb3ce547623755134bbad
+    source: upstream_remote_tag
+    found_on_upstream: true
+    authoritative: true
+    assumed_commit_from_origin_exact_tag: null
   origin_releases:
   - tag: v0.2.0
     tag_object: 298329260c6519789d7eb3ce547623755134bbad
@@ -94,17 +94,17 @@ versions:
 - version: v0.3.0
   upstream:
     tag: v0.3.0
-    commit: null
-    source: unavailable
-    found_on_upstream: false
-    authoritative: false
-    assumed_commit_from_origin_exact_tag: eb0f01303974551aff6d9fcf246a634bf366006f
+    commit: eb0f01303974551aff6d9fcf246a634bf366006f
+    source: upstream_remote_tag
+    found_on_upstream: true
+    authoritative: true
+    assumed_commit_from_origin_exact_tag: null
   origin_releases:
   - tag: v0.3.0
     tag_object: eb0f01303974551aff6d9fcf246a634bf366006f
     tag_object_type: commit
     commit: eb0f01303974551aff6d9fcf246a634bf366006f
-    commit_date: 2025-09-05T10:34:40Z
+    commit_date: 2025-09-05T10:34:40+00:00
     subject: 'chore(main): release 0.3.0 (#329)'
     parent_count: 1
     parents:
@@ -115,11 +115,11 @@ versions:
 - version: v0.4.0
   upstream:
     tag: v0.4.0
-    commit: null
-    source: unavailable
-    found_on_upstream: false
-    authoritative: false
-    assumed_commit_from_origin_exact_tag: 6b0207d6b1c714750530ca215888c409f4b65efe
+    commit: 6b0207d6b1c714750530ca215888c409f4b65efe
+    source: upstream_remote_tag
+    found_on_upstream: true
+    authoritative: true
+    assumed_commit_from_origin_exact_tag: null
   origin_releases:
   - tag: v0.4.0
     tag_object: 6b0207d6b1c714750530ca215888c409f4b65efe
@@ -136,11 +136,11 @@ versions:
 - version: v0.4.1
   upstream:
     tag: v0.4.1
-    commit: null
-    source: unavailable
-    found_on_upstream: false
-    authoritative: false
-    assumed_commit_from_origin_exact_tag: 3a8861b1e9c48bba16d60113be3d5737851fa1f7
+    commit: 3a8861b1e9c48bba16d60113be3d5737851fa1f7
+    source: upstream_remote_tag
+    found_on_upstream: true
+    authoritative: true
+    assumed_commit_from_origin_exact_tag: null
   origin_releases:
   - tag: v0.4.1
     tag_object: 3a8861b1e9c48bba16d60113be3d5737851fa1f7
@@ -157,11 +157,11 @@ versions:
 - version: v0.4.2
   upstream:
     tag: v0.4.2
-    commit: null
-    source: unavailable
-    found_on_upstream: false
-    authoritative: false
-    assumed_commit_from_origin_exact_tag: ece057c72fe93236c581fb03b230999418355a4f
+    commit: ece057c72fe93236c581fb03b230999418355a4f
+    source: upstream_remote_tag
+    found_on_upstream: true
+    authoritative: true
+    assumed_commit_from_origin_exact_tag: null
   origin_releases:
   - tag: v0.4.2
     tag_object: ece057c72fe93236c581fb03b230999418355a4f
@@ -178,11 +178,11 @@ versions:
 - version: v0.5.0
   upstream:
     tag: v0.5.0
-    commit: null
-    source: unavailable
-    found_on_upstream: false
-    authoritative: false
-    assumed_commit_from_origin_exact_tag: 283e093548f989d539259bdfd31273a29c013aab
+    commit: 283e093548f989d539259bdfd31273a29c013aab
+    source: upstream_remote_tag
+    found_on_upstream: true
+    authoritative: true
+    assumed_commit_from_origin_exact_tag: null
   origin_releases:
   - tag: v0.5.0
     tag_object: 283e093548f989d539259bdfd31273a29c013aab
@@ -199,11 +199,11 @@ versions:
 - version: v0.6.0
   upstream:
     tag: v0.6.0
-    commit: null
-    source: unavailable
-    found_on_upstream: false
-    authoritative: false
-    assumed_commit_from_origin_exact_tag: 3d401f552aa72c0321ae406a8bf217306eedb674
+    commit: 3d401f552aa72c0321ae406a8bf217306eedb674
+    source: upstream_remote_tag
+    found_on_upstream: true
+    authoritative: true
+    assumed_commit_from_origin_exact_tag: null
   origin_releases:
   - tag: v0.6.0
     tag_object: 3d401f552aa72c0321ae406a8bf217306eedb674
@@ -220,11 +220,11 @@ versions:
 - version: v0.6.1
   upstream:
     tag: v0.6.1
-    commit: null
-    source: unavailable
-    found_on_upstream: false
-    authoritative: false
-    assumed_commit_from_origin_exact_tag: 751263ba406eee9801764edf70644835e9fb8fe4
+    commit: 751263ba406eee9801764edf70644835e9fb8fe4
+    source: upstream_remote_tag
+    found_on_upstream: true
+    authoritative: true
+    assumed_commit_from_origin_exact_tag: null
   origin_releases:
   - tag: v0.6.1
     tag_object: 751263ba406eee9801764edf70644835e9fb8fe4
@@ -241,11 +241,11 @@ versions:
 - version: v0.6.2
   upstream:
     tag: v0.6.2
-    commit: null
-    source: unavailable
-    found_on_upstream: false
-    authoritative: false
-    assumed_commit_from_origin_exact_tag: 50ff72e06ac8bab7ea97962c0386a1836a665b4d
+    commit: 50ff72e06ac8bab7ea97962c0386a1836a665b4d
+    source: upstream_remote_tag
+    found_on_upstream: true
+    authoritative: true
+    assumed_commit_from_origin_exact_tag: null
   origin_releases:
   - tag: v0.6.2
     tag_object: 50ff72e06ac8bab7ea97962c0386a1836a665b4d
@@ -262,17 +262,17 @@ versions:
 - version: v0.6.3
   upstream:
     tag: v0.6.3
-    commit: null
-    source: unavailable
-    found_on_upstream: false
-    authoritative: false
-    assumed_commit_from_origin_exact_tag: b39826937571c0918d4016eefef2029716e40298
+    commit: b39826937571c0918d4016eefef2029716e40298
+    source: upstream_remote_tag
+    found_on_upstream: true
+    authoritative: true
+    assumed_commit_from_origin_exact_tag: null
   origin_releases:
   - tag: v0.6.3
     tag_object: b39826937571c0918d4016eefef2029716e40298
     tag_object_type: commit
     commit: b39826937571c0918d4016eefef2029716e40298
-    commit_date: 2025-09-22T13:38:54Z
+    commit_date: 2025-09-22T13:38:54+00:00
     subject: 'chore(main): release 0.6.3 (#400)'
     parent_count: 1
     parents:
@@ -283,11 +283,11 @@ versions:
 - version: v0.6.4
   upstream:
     tag: v0.6.4
-    commit: null
-    source: unavailable
-    found_on_upstream: false
-    authoritative: false
-    assumed_commit_from_origin_exact_tag: 45e07aed267ce8bae744ed05833835e397a7f0ac
+    commit: 45e07aed267ce8bae744ed05833835e397a7f0ac
+    source: upstream_remote_tag
+    found_on_upstream: true
+    authoritative: true
+    assumed_commit_from_origin_exact_tag: null
   origin_releases:
   - tag: v0.6.4
     tag_object: 45e07aed267ce8bae744ed05833835e397a7f0ac
@@ -304,17 +304,17 @@ versions:
 - version: v0.7.0
   upstream:
     tag: v0.7.0
-    commit: null
-    source: unavailable
-    found_on_upstream: false
-    authoritative: false
-    assumed_commit_from_origin_exact_tag: aa8fe43c273a03c98adf0b80c5ca157d3351ce36
+    commit: aa8fe43c273a03c98adf0b80c5ca157d3351ce36
+    source: upstream_remote_tag
+    found_on_upstream: true
+    authoritative: true
+    assumed_commit_from_origin_exact_tag: null
   origin_releases:
   - tag: v0.7.0
     tag_object: aa8fe43c273a03c98adf0b80c5ca157d3351ce36
     tag_object_type: commit
     commit: aa8fe43c273a03c98adf0b80c5ca157d3351ce36
-    commit_date: 2025-09-25T11:50:18Z
+    commit_date: 2025-09-25T11:50:18+00:00
     subject: 'chore(main): release 0.7.0 (#413)'
     parent_count: 1
     parents:
@@ -325,17 +325,17 @@ versions:
 - version: v0.7.1
   upstream:
     tag: v0.7.1
-    commit: null
-    source: unavailable
-    found_on_upstream: false
-    authoritative: false
-    assumed_commit_from_origin_exact_tag: 77f0e3f365301ab72f5a1acdd289e10269a4a58c
+    commit: 77f0e3f365301ab72f5a1acdd289e10269a4a58c
+    source: upstream_remote_tag
+    found_on_upstream: true
+    authoritative: true
+    assumed_commit_from_origin_exact_tag: null
   origin_releases:
   - tag: v0.7.1
     tag_object: 77f0e3f365301ab72f5a1acdd289e10269a4a58c
     tag_object_type: commit
     commit: 77f0e3f365301ab72f5a1acdd289e10269a4a58c
-    commit_date: 2025-09-25T13:47:00Z
+    commit_date: 2025-09-25T13:47:00+00:00
     subject: 'chore(main): release 0.7.1 (#417)'
     parent_count: 1
     parents:
@@ -346,11 +346,11 @@ versions:
 - version: v0.7.2
   upstream:
     tag: v0.7.2
-    commit: null
-    source: unavailable
-    found_on_upstream: false
-    authoritative: false
-    assumed_commit_from_origin_exact_tag: 8db76d42f3f0b4fcdb127c50d58d90e2195a4993
+    commit: 8db76d42f3f0b4fcdb127c50d58d90e2195a4993
+    source: upstream_remote_tag
+    found_on_upstream: true
+    authoritative: true
+    assumed_commit_from_origin_exact_tag: null
   origin_releases:
   - tag: v0.7.2
     tag_object: 8db76d42f3f0b4fcdb127c50d58d90e2195a4993
@@ -367,11 +367,11 @@ versions:
 - version: v0.7.3
   upstream:
     tag: v0.7.3
-    commit: null
-    source: unavailable
-    found_on_upstream: false
-    authoritative: false
-    assumed_commit_from_origin_exact_tag: c35e84ef258df8939024465fd9365164310808c6
+    commit: c35e84ef258df8939024465fd9365164310808c6
+    source: upstream_remote_tag
+    found_on_upstream: true
+    authoritative: true
+    assumed_commit_from_origin_exact_tag: null
   origin_releases:
   - tag: v0.7.3
     tag_object: c35e84ef258df8939024465fd9365164310808c6
@@ -388,11 +388,11 @@ versions:
 - version: v0.7.4
   upstream:
     tag: v0.7.4
-    commit: null
-    source: unavailable
-    found_on_upstream: false
-    authoritative: false
-    assumed_commit_from_origin_exact_tag: 2381843d968c83e1ebbd3c8822ed3d41bed05219
+    commit: 2381843d968c83e1ebbd3c8822ed3d41bed05219
+    source: upstream_remote_tag
+    found_on_upstream: true
+    authoritative: true
+    assumed_commit_from_origin_exact_tag: null
   origin_releases:
   - tag: v0.7.4
     tag_object: 2381843d968c83e1ebbd3c8822ed3d41bed05219
@@ -409,11 +409,11 @@ versions:
 - version: v0.7.5
   upstream:
     tag: v0.7.5
-    commit: null
-    source: unavailable
-    found_on_upstream: false
-    authoritative: false
-    assumed_commit_from_origin_exact_tag: 744c94a9378ec25f9499a360b2fab91c8720725e
+    commit: 744c94a9378ec25f9499a360b2fab91c8720725e
+    source: upstream_remote_tag
+    found_on_upstream: true
+    authoritative: true
+    assumed_commit_from_origin_exact_tag: null
   origin_releases:
   - tag: v0.7.5
     tag_object: 744c94a9378ec25f9499a360b2fab91c8720725e
@@ -430,11 +430,11 @@ versions:
 - version: v0.8.0
   upstream:
     tag: v0.8.0
-    commit: null
-    source: unavailable
-    found_on_upstream: false
-    authoritative: false
-    assumed_commit_from_origin_exact_tag: 1a4c2d57ed0be04b21d8a287448a42c1a52134ff
+    commit: 1a4c2d57ed0be04b21d8a287448a42c1a52134ff
+    source: upstream_remote_tag
+    found_on_upstream: true
+    authoritative: true
+    assumed_commit_from_origin_exact_tag: null
   origin_releases:
   - tag: v0.8.0
     tag_object: 1a4c2d57ed0be04b21d8a287448a42c1a52134ff
@@ -451,11 +451,11 @@ versions:
 - version: v0.8.1
   upstream:
     tag: v0.8.1
-    commit: null
-    source: unavailable
-    found_on_upstream: false
-    authoritative: false
-    assumed_commit_from_origin_exact_tag: 287f17752f3fc975afba84cc6641821c10bcd597
+    commit: 287f17752f3fc975afba84cc6641821c10bcd597
+    source: upstream_remote_tag
+    found_on_upstream: true
+    authoritative: true
+    assumed_commit_from_origin_exact_tag: null
   origin_releases:
   - tag: v0.8.1
     tag_object: 287f17752f3fc975afba84cc6641821c10bcd597
@@ -472,17 +472,17 @@ versions:
 - version: v0.8.2
   upstream:
     tag: v0.8.2
-    commit: null
-    source: unavailable
-    found_on_upstream: false
-    authoritative: false
-    assumed_commit_from_origin_exact_tag: 952827fec9bef9ac5c5100174a5980783c9ca7ec
+    commit: 952827fec9bef9ac5c5100174a5980783c9ca7ec
+    source: upstream_remote_tag
+    found_on_upstream: true
+    authoritative: true
+    assumed_commit_from_origin_exact_tag: null
   origin_releases:
   - tag: v0.8.2
     tag_object: 952827fec9bef9ac5c5100174a5980783c9ca7ec
     tag_object_type: commit
     commit: 952827fec9bef9ac5c5100174a5980783c9ca7ec
-    commit_date: 2025-10-13T09:53:57Z
+    commit_date: 2025-10-13T09:53:57+00:00
     subject: 'chore(main): release 0.8.2 (#513)'
     parent_count: 1
     parents:
@@ -493,11 +493,11 @@ versions:
 - version: v0.8.3
   upstream:
     tag: v0.8.3
-    commit: null
-    source: unavailable
-    found_on_upstream: false
-    authoritative: false
-    assumed_commit_from_origin_exact_tag: 11a3a0142e46977332a15bb2ce563ccdb33222ad
+    commit: 11a3a0142e46977332a15bb2ce563ccdb33222ad
+    source: upstream_remote_tag
+    found_on_upstream: true
+    authoritative: true
+    assumed_commit_from_origin_exact_tag: null
   origin_releases:
   - tag: v0.8.3
     tag_object: 11a3a0142e46977332a15bb2ce563ccdb33222ad
@@ -514,11 +514,11 @@ versions:
 - version: v0.8.4
   upstream:
     tag: v0.8.4
-    commit: null
-    source: unavailable
-    found_on_upstream: false
-    authoritative: false
-    assumed_commit_from_origin_exact_tag: b3655b85c3a22d27dffa3d8c07861a483f727cb1
+    commit: b3655b85c3a22d27dffa3d8c07861a483f727cb1
+    source: upstream_remote_tag
+    found_on_upstream: true
+    authoritative: true
+    assumed_commit_from_origin_exact_tag: null
   origin_releases:
   - tag: v0.8.4
     tag_object: b3655b85c3a22d27dffa3d8c07861a483f727cb1
@@ -535,11 +535,11 @@ versions:
 - version: v0.9.0
   upstream:
     tag: v0.9.0
-    commit: null
-    source: unavailable
-    found_on_upstream: false
-    authoritative: false
-    assumed_commit_from_origin_exact_tag: 47e597d92f187b090e9eb281ab9e9ec46aa5a8b1
+    commit: 47e597d92f187b090e9eb281ab9e9ec46aa5a8b1
+    source: upstream_remote_tag
+    found_on_upstream: true
+    authoritative: true
+    assumed_commit_from_origin_exact_tag: null
   origin_releases:
   - tag: v0.9.0
     tag_object: 47e597d92f187b090e9eb281ab9e9ec46aa5a8b1
@@ -556,17 +556,17 @@ versions:
 - version: v0.9.1
   upstream:
     tag: v0.9.1
-    commit: null
-    source: unavailable
-    found_on_upstream: false
-    authoritative: false
-    assumed_commit_from_origin_exact_tag: f96ba228b364faf39c5f56e38f3e21b09c97a060
+    commit: f96ba228b364faf39c5f56e38f3e21b09c97a060
+    source: upstream_remote_tag
+    found_on_upstream: true
+    authoritative: true
+    assumed_commit_from_origin_exact_tag: null
   origin_releases:
   - tag: v0.9.1
     tag_object: f96ba228b364faf39c5f56e38f3e21b09c97a060
     tag_object_type: commit
     commit: f96ba228b364faf39c5f56e38f3e21b09c97a060
-    commit_date: 2025-10-29T15:51:26Z
+    commit_date: 2025-10-29T15:51:26+00:00
     subject: 'chore(main): release 0.9.1 (#567)'
     parent_count: 1
     parents:
@@ -577,17 +577,17 @@ versions:
 - version: v0.9.2
   upstream:
     tag: v0.9.2
-    commit: null
-    source: unavailable
-    found_on_upstream: false
-    authoritative: false
-    assumed_commit_from_origin_exact_tag: ebf32cefcf36310a521fc9de4a85d2447a27b220
+    commit: ebf32cefcf36310a521fc9de4a85d2447a27b220
+    source: upstream_remote_tag
+    found_on_upstream: true
+    authoritative: true
+    assumed_commit_from_origin_exact_tag: null
   origin_releases:
   - tag: v0.9.2
     tag_object: ebf32cefcf36310a521fc9de4a85d2447a27b220
     tag_object_type: commit
     commit: ebf32cefcf36310a521fc9de4a85d2447a27b220
-    commit_date: 2025-11-06T14:50:10Z
+    commit_date: 2025-11-06T14:50:10+00:00
     subject: 'chore(main): release 0.9.2 (#572)'
     parent_count: 1
     parents:
@@ -598,11 +598,11 @@ versions:
 - version: v0.10.0
   upstream:
     tag: v0.10.0
-    commit: null
-    source: unavailable
-    found_on_upstream: false
-    authoritative: false
-    assumed_commit_from_origin_exact_tag: e63b9d73b88a5ec96e23c8ea8feac5bdd105ddb6
+    commit: e63b9d73b88a5ec96e23c8ea8feac5bdd105ddb6
+    source: upstream_remote_tag
+    found_on_upstream: true
+    authoritative: true
+    assumed_commit_from_origin_exact_tag: null
   origin_releases:
   - tag: v0.10.0
     tag_object: e63b9d73b88a5ec96e23c8ea8feac5bdd105ddb6
@@ -632,17 +632,17 @@ versions:
 - version: v0.10.1
   upstream:
     tag: v0.10.1
-    commit: null
-    source: unavailable
-    found_on_upstream: false
-    authoritative: false
-    assumed_commit_from_origin_exact_tag: 2fc177eaaea1f556a515da5fe48ba3f65b8a3808
+    commit: 2fc177eaaea1f556a515da5fe48ba3f65b8a3808
+    source: upstream_remote_tag
+    found_on_upstream: true
+    authoritative: true
+    assumed_commit_from_origin_exact_tag: null
   origin_releases:
   - tag: v0.10.1
     tag_object: 2fc177eaaea1f556a515da5fe48ba3f65b8a3808
     tag_object_type: commit
     commit: 2fc177eaaea1f556a515da5fe48ba3f65b8a3808
-    commit_date: 2025-11-12T11:12:48Z
+    commit_date: 2025-11-12T11:12:48+00:00
     subject: 'chore(main): release 0.10.1 (#601)'
     parent_count: 1
     parents:
@@ -701,11 +701,11 @@ versions:
 - version: v0.11.0
   upstream:
     tag: v0.11.0
-    commit: null
-    source: unavailable
-    found_on_upstream: false
-    authoritative: false
-    assumed_commit_from_origin_exact_tag: 1eab4f9a389cf03fcaf0a908318c5ca70c9362ef
+    commit: 1eab4f9a389cf03fcaf0a908318c5ca70c9362ef
+    source: upstream_remote_tag
+    found_on_upstream: true
+    authoritative: true
+    assumed_commit_from_origin_exact_tag: null
   origin_releases:
   - tag: v0.11.0
     tag_object: 1eab4f9a389cf03fcaf0a908318c5ca70c9362ef
@@ -722,11 +722,11 @@ versions:
 - version: v0.11.1
   upstream:
     tag: v0.11.1
-    commit: null
-    source: unavailable
-    found_on_upstream: false
-    authoritative: false
-    assumed_commit_from_origin_exact_tag: 0173ecd080f2dbc3bb0f7c460d5fe8da838bac7d
+    commit: 0173ecd080f2dbc3bb0f7c460d5fe8da838bac7d
+    source: upstream_remote_tag
+    found_on_upstream: true
+    authoritative: true
+    assumed_commit_from_origin_exact_tag: null
   origin_releases:
   - tag: v0.11.1
     tag_object: 0173ecd080f2dbc3bb0f7c460d5fe8da838bac7d
@@ -743,11 +743,11 @@ versions:
 - version: v0.12.0
   upstream:
     tag: v0.12.0
-    commit: null
-    source: unavailable
-    found_on_upstream: false
-    authoritative: false
-    assumed_commit_from_origin_exact_tag: 845fd3611e96321c3bfd08f3bf3fd50ae89226e0
+    commit: 845fd3611e96321c3bfd08f3bf3fd50ae89226e0
+    source: upstream_remote_tag
+    found_on_upstream: true
+    authoritative: true
+    assumed_commit_from_origin_exact_tag: null
   origin_releases:
   - tag: v0.12.0
     tag_object: 845fd3611e96321c3bfd08f3bf3fd50ae89226e0
@@ -764,17 +764,17 @@ versions:
 - version: v0.12.1
   upstream:
     tag: v0.12.1
-    commit: aa596019ac2f6dc8299bf6f8c8c5a78572e2f7b3
-    source: local_upstream_branch
-    found_on_upstream: false
-    authoritative: false
+    commit: 99c3da1a5127481717fa590304d8f5d95b9797d3
+    source: upstream_remote_tag
+    found_on_upstream: true
+    authoritative: true
     assumed_commit_from_origin_exact_tag: null
   origin_releases:
   - tag: v0.12.1
     tag_object: 99c3da1a5127481717fa590304d8f5d95b9797d3
     tag_object_type: commit
     commit: 99c3da1a5127481717fa590304d8f5d95b9797d3
-    commit_date: 2025-12-11T09:39:46Z
+    commit_date: 2025-12-11T09:39:46+00:00
     subject: 'chore(main): release 0.12.1 (#694)'
     parent_count: 1
     parents:
@@ -797,17 +797,17 @@ versions:
 - version: v0.13.0
   upstream:
     tag: v0.13.0
-    commit: null
-    source: unavailable
-    found_on_upstream: false
-    authoritative: false
-    assumed_commit_from_origin_exact_tag: 48650acecd1182c56c0f6d86f3c471f8d72159c6
+    commit: 48650acecd1182c56c0f6d86f3c471f8d72159c6
+    source: upstream_remote_tag
+    found_on_upstream: true
+    authoritative: true
+    assumed_commit_from_origin_exact_tag: null
   origin_releases:
   - tag: v0.13.0
     tag_object: 48650acecd1182c56c0f6d86f3c471f8d72159c6
     tag_object_type: commit
     commit: 48650acecd1182c56c0f6d86f3c471f8d72159c6
-    commit_date: 2025-12-22T13:04:39Z
+    commit_date: 2025-12-22T13:04:39+00:00
     subject: 'chore(main): release 0.13.0 (#723)'
     parent_count: 1
     parents:
@@ -819,7 +819,7 @@ versions:
     tag_object: 22cc4533556071c1728ff280bbeb5c53ab17a0a8
     tag_object_type: tag
     commit: a6365b7aa2d95f0dee8f83f8504dc8a19f1bf20f
-    commit_date: 2026-01-15T20:22:10Z
+    commit_date: 2026-01-15T20:22:10+00:00
     subject: 'chore: update deps'
     parent_count: 1
     parents:
@@ -827,20 +827,33 @@ versions:
     pre_tag_commit: ca8f7e244a8895c889e251c56cc7bbc59ce84b9e
     inferred_merge_start_commit: ca8f7e244a8895c889e251c56cc7bbc59ce84b9e
     is_merge_commit: false
+  - tag: v0.13.0-b1
+    tag_object: 28017e7b549503fbd6325f3e1e3aba9367f0da1f
+    tag_object_type: commit
+    commit: 28017e7b549503fbd6325f3e1e3aba9367f0da1f
+    commit_date: 2026-02-04T13:09:36+02:00
+    subject: 'Merge pull request #12 from ADI-Foundation-Labs/fix/replay_conn_drop'
+    parent_count: 2
+    parents:
+    - a6365b7aa2d95f0dee8f83f8504dc8a19f1bf20f
+    - 6a8cac94045e0f93cfe07f2f3ba7afc09e1afe01
+    pre_tag_commit: a6365b7aa2d95f0dee8f83f8504dc8a19f1bf20f
+    inferred_merge_start_commit: a6365b7aa2d95f0dee8f83f8504dc8a19f1bf20f
+    is_merge_commit: true
 - version: v0.14.0
   upstream:
     tag: v0.14.0
-    commit: null
-    source: unavailable
-    found_on_upstream: false
-    authoritative: false
-    assumed_commit_from_origin_exact_tag: 9c9dab618122674636261e44e32d3e366cacdc3b
+    commit: 9c9dab618122674636261e44e32d3e366cacdc3b
+    source: upstream_remote_tag
+    found_on_upstream: true
+    authoritative: true
+    assumed_commit_from_origin_exact_tag: null
   origin_releases:
   - tag: v0.14.0
     tag_object: 9c9dab618122674636261e44e32d3e366cacdc3b
     tag_object_type: commit
     commit: 9c9dab618122674636261e44e32d3e366cacdc3b
-    commit_date: 2026-01-23T13:47:24Z
+    commit_date: 2026-01-23T13:47:24+00:00
     subject: 'chore(main): release 0.14.0 (#750)'
     parent_count: 1
     parents:
@@ -851,11 +864,11 @@ versions:
 - version: v0.14.1
   upstream:
     tag: v0.14.1
-    commit: null
-    source: unavailable
-    found_on_upstream: false
-    authoritative: false
-    assumed_commit_from_origin_exact_tag: 096f722a2ee1a7dffb079efc45d1f5e8c2b06290
+    commit: 096f722a2ee1a7dffb079efc45d1f5e8c2b06290
+    source: upstream_remote_tag
+    found_on_upstream: true
+    authoritative: true
+    assumed_commit_from_origin_exact_tag: null
   origin_releases:
   - tag: v0.14.1
     tag_object: 096f722a2ee1a7dffb079efc45d1f5e8c2b06290
@@ -873,9 +886,9 @@ versions:
   upstream:
     tag: v0.14.2
     commit: 43b639124e6a8e0a4f054cbd4a01a6496c6d6c19
-    source: local_upstream_branch
-    found_on_upstream: false
-    authoritative: false
+    source: upstream_remote_tag
+    found_on_upstream: true
+    authoritative: true
     assumed_commit_from_origin_exact_tag: null
   origin_releases:
   - tag: v0.14.2
@@ -893,17 +906,17 @@ versions:
 - version: v0.15.0
   upstream:
     tag: v0.15.0
-    commit: null
-    source: unavailable
-    found_on_upstream: false
-    authoritative: false
-    assumed_commit_from_origin_exact_tag: 070c81756fb8e99b01f07af034bbe92353a88407
+    commit: 070c81756fb8e99b01f07af034bbe92353a88407
+    source: upstream_remote_tag
+    found_on_upstream: true
+    authoritative: true
+    assumed_commit_from_origin_exact_tag: null
   origin_releases:
   - tag: v0.15.0
     tag_object: 070c81756fb8e99b01f07af034bbe92353a88407
     tag_object_type: commit
     commit: 070c81756fb8e99b01f07af034bbe92353a88407
-    commit_date: 2026-02-10T11:10:05Z
+    commit_date: 2026-02-10T11:10:05+00:00
     subject: 'chore(main): release 0.15.0 (#853)'
     parent_count: 1
     parents:
@@ -914,17 +927,17 @@ versions:
 - version: v0.15.1
   upstream:
     tag: v0.15.1
-    commit: null
-    source: unavailable
-    found_on_upstream: false
-    authoritative: false
-    assumed_commit_from_origin_exact_tag: 8dd37359018f5b75c3218a4679219075922a4d1d
+    commit: 8dd37359018f5b75c3218a4679219075922a4d1d
+    source: upstream_remote_tag
+    found_on_upstream: true
+    authoritative: true
+    assumed_commit_from_origin_exact_tag: null
   origin_releases:
   - tag: v0.15.1
     tag_object: 8dd37359018f5b75c3218a4679219075922a4d1d
     tag_object_type: commit
     commit: 8dd37359018f5b75c3218a4679219075922a4d1d
-    commit_date: 2026-02-10T16:27:06Z
+    commit_date: 2026-02-10T16:27:06+00:00
     subject: 'chore(main): release 0.15.1 (#872)'
     parent_count: 1
     parents:

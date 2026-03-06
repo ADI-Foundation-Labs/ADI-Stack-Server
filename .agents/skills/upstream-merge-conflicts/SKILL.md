@@ -15,6 +15,7 @@ Do not run one large "resolve all conflicts" prompt.
 Load exactly one mode file when the mode is invoked:
 - `references/mode-initial-analyze.md`
 - `references/mode-plan-groups.md`
+- `references/mode-analyze-group.md`
 - `references/mode-resolve-group.md`
 - `references/mode-resolve-human-group.md`
 
@@ -35,6 +36,7 @@ State tracks:
 - analysis categories (`easy`, `medium`, `hard`, `human_input_needed`)
 - planned groups with commit intent and status
 - pending non-human groups vs pending human groups
+- next analyze group
 - last completed group and commit hash
 
 ## Workflow
@@ -58,26 +60,47 @@ task upgrade:agent:mode:analyze -- vX.Y.Z [agent]
 task upgrade:agent:mode:plan-groups -- vX.Y.Z [agent]
 ```
 
-4. Resolve non-human groups one by one, one commit per group:
+4. Run mode `analyze-next-group`:
+
+```bash
+task upgrade:agent:mode:analyze-next-group -- vX.Y.Z [agent]
+```
+
+5. Resolve non-human groups one by one, one commit per group:
 
 ```bash
 task upgrade:agent:mode:resolve-next -- vX.Y.Z [agent]
 ```
 
-5. Process human-input groups separately:
+6. Process human-input groups separately:
 
 ```bash
 task upgrade:agent:mode:resolve-next-human -- vX.Y.Z [agent]
 ```
 
-6. Optionally resolve explicit group names:
+7. Optionally resolve explicit group names:
 
 ```bash
+task upgrade:agent:mode:analyze-group -- vX.Y.Z [agent] --group "<group-name>"
 task upgrade:agent:mode:resolve-group -- vX.Y.Z [agent] --group "<group-name>"
 task upgrade:agent:mode:resolve-human-group -- vX.Y.Z [agent] --group "<group-name>"
 ```
 
-7. Validate and transition status after all required groups are complete.
+8. Validate and transition status after all required groups are complete.
+
+## Proactive Maintenance
+
+Optional tools to reduce merge friction:
+
+1. **Suggest Refactorings**: After resolving a series of conflicts, analyze them to suggest long-term code architecture changes:
+    ```bash
+    task upgrade:analyze:refactoring-suggestions -- vX.Y.Z
+    ```
+
+2. **Predict Conflicts**: Before committing or opening a PR, compare your local ADI modifications against recent upstream changes:
+    ```bash
+    task upgrade:analyze:conflict-prediction -- --upstream-ref upstream/main --adi-ref HEAD
+    ```
 
 ## Resolution Policy
 

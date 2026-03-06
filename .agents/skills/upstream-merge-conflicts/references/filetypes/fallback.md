@@ -20,4 +20,3 @@ Apply this guide when a conflicted file does not match a known file-type rule.
 
 - If file semantics are unclear, defer with a reviewer note rather than guessing.
 - Run targeted tests for subsystems touched by fallback-resolved files.
-

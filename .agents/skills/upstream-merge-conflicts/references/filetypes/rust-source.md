@@ -27,4 +27,3 @@ Apply this guide for `.rs` conflict files.
 
 - Prefer compiling the affected crate after resolving a cluster of Rust files.
 - If method signatures changed upstream, propagate updates to all callers before running full workspace checks.
-

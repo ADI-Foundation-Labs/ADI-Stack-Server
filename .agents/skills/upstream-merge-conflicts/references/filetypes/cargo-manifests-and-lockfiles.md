@@ -37,4 +37,3 @@ cargo generate-lockfile --manifest-path loadbase/Cargo.toml
 
 - Run `cargo check --workspace` after manifest and lockfile resolution.
 - If resolver behavior changes, confirm no unintended crate removals in lockfile diff.
-

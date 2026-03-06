@@ -35,6 +35,8 @@ def main [
   --push-merge (-p)
   --force (-f)
   --skip-radar (-R)
+  --reset (-r)
+  --yes (-y)
   --max-list (-n): int = 40
   --worktree-root (-w): string
 ] {
@@ -54,15 +56,26 @@ def main [
     $worktree_root
   }
   let wt_path = $"($wt_root)/merge-upstream-($tag)"
+  let repo_root = (^git rev-parse --show-toplevel | str trim)
+  let auto_radar_dir = (radar-output-dir $repo_root $upstream_branch $merge_branch)
+
+  if $reset {
+    if not $yes {
+      error make { msg: "Reset requires --yes (-y) to confirm destructive deletion of the merge worktree and branch." }
+    }
+    ^git worktree remove --force $wt_path | ignore
+    ^git branch -D $merge_branch | ignore
+    ^rm -rf $auto_radar_dir
+  }
 
   let st_before = (read-merge-status)
-  let active = (has-active-merge)
-  let active_tag = ($st_before | get --optional tags.current_upstream_tag)
   let active_status = ($st_before | get --optional merge.status | default "idle")
+  let active = (is-active-merge-status $active_status)
+  let active_tag = ($st_before | get --optional tags.current_upstream_tag)
   let active_branch = ($st_before | get --optional merge.merge_branch | default "<unknown>")
   let active_worktree = ($st_before | get --optional merge.worktree_path | default "<unknown>")
 
-  if ($active and not $force) {
+  if ($active and not $force and not $reset) {
     if ($active_tag != $tag) {
       error make {
         msg: $"Active merge detected for ($active_tag) in status ($active_status), branch=($active_branch), worktree=($active_worktree). Finish/abort it first or rerun with --force."
@@ -152,18 +165,17 @@ def main [
   let has_conflicts = (($unresolved_after | length) > 0)
   let merge_failed = (($merge_exit_code != 0) and not $has_conflicts)
 
-  let st = (read-merge-status)
-  let current_tag = ($st | get --optional tags.current_upstream_tag)
-  let previous_tag = ($st | get --optional tags.previous_upstream_tag)
+  let current_tag = ($st_before | get --optional tags.current_upstream_tag)
+  let previous_tag = ($st_before | get --optional tags.previous_upstream_tag)
   let next_previous = if ($current_tag != null and $current_tag != $tag) {
     $current_tag
   } else {
     $previous_tag
   }
-  let created_at = ($st | get --optional merge.created_at | default (now-iso))
+  let created_at = ($st_before | get --optional merge.created_at | default (now-iso))
 
   let next = (
-    $st
+    $st_before
     | upsert tags {
       previous_upstream_tag: $next_previous
       current_upstream_tag: $tag
@@ -176,7 +188,7 @@ def main [
       merge_branch: $merge_branch
       worktree_path: $wt_path
       created_at: $created_at
-      last_radar_at: ($st | get --optional merge.last_radar_at | default null)
+      last_radar_at: ($st_before | get --optional merge.last_radar_at | default null)
       release_tag: null
       last_merge_at: (now-iso)
       last_merge_exit_code: $merge_exit_code
@@ -195,6 +207,10 @@ def main [
 
   mut radar_updated = false
   if not $skip_radar {
+    if $merge_invoked {
+      ^rm -rf $auto_radar_dir
+    }
+
     if $max_list == 40 {
       ^nu .ops/scripts/merge-radar.nu $upstream_branch $merge_branch
     } else {

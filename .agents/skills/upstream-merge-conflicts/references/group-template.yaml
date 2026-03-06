@@ -1,0 +1,11 @@
+- name: "example-group-id"
+  purpose: "One-sentence intent of the group"
+  description: "What this group addresses and resolves"
+  files:
+    - "path/to/file1"
+    - "path/to/file2"
+  difficulty: "easy|medium|hard|human_input_needed"
+  human_input_needed: false
+  status: "pending"
+  commit_message: "chore: resolve dependency conflicts from upstream vX.Y.Z"
+  order: 1

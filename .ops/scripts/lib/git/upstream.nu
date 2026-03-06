@@ -43,45 +43,6 @@ export def upstream-has-tag [tag: string] {
   (^git ls-remote --exit-code upstream $ref | complete).exit_code == 0
 }
 
-# Create local branch upstream/<tag> from upstream tag, optionally push to origin.
-# Returns a record: { tag, branch, pushed }.
-export def create-upstream-branch-from-tag [
-  tag: string
-  --push (-p)
-  --force (-f)
-] {
-  if $force {
-    assert-no-active-merge $tag --force
-  } else {
-    assert-no-active-merge $tag
-  }
-
-  let branch = $"upstream/($tag)"
-  let tag_ref = $"refs/tags/($tag)"
-  let branch_ref = $"refs/heads/($branch)"
-
-  if not (upstream-has-tag $tag) {
-    error make {
-      msg: $"Tag ($tag) not found on upstream. Run: git fetch upstream --tags"
-    }
-  }
-
-  ^git fetch --force upstream $"($tag_ref):($branch_ref)"
-  mut pushed = false
-  if $push {
-    ^git push -f origin $branch
-    $pushed = true
-  }
-
-  { tag: $tag, branch: $branch, pushed: $pushed }
-}
-
-# Check that branch upstream/<tag> exists locally (e.g. after create-upstream-branch-from-tag).
-export def local-upstream-branch-exists [tag: string] {
-  let ref = $"upstream/($tag)"
-  (^git rev-parse --verify $ref | complete).exit_code == 0
-}
-
 # Project name from repo root (basename of git toplevel). Used for worktree path.
 export def git-project-name [] {
   let root = (^git rev-parse --show-toplevel | str trim)
@@ -175,13 +136,69 @@ export def write-merge-status [status: record] {
 
 export def is-active-merge-status [status: string] {
   let active = [
-    "branch_created"
     "merge_attempted"
+    "analysis_only"
     "local_testing_passed"
     "ci_passed"
     "merged_to_main"
   ]
   ($active | any { |s| $s == $status })
+}
+
+# Parse agent args string into list, splitting on spaces.
+export def parse-agent-args [raw: string] {
+  if ($raw | str trim) == "" { [] } else { $raw | split row " " | where { |x| ($x | str trim) != "" } }
+}
+
+# Resolve agent binary and args from .ops/agent-configs.yaml.
+# Returns: { name: string, binary: string, args: list<string> }
+export def resolve-agent-config [
+  repo_root: string
+  agent_name?: string
+  extra_args?: list<string>
+] {
+  let extra = ($extra_args | default [])
+  let configs_path = $"($repo_root)/.ops/agent-configs.yaml"
+  let configs = if ($configs_path | path exists) { (open $configs_path) } else { {} }
+  let default_agent = ($configs | get --optional default | default "claude")
+  let target_agent = if $agent_name == null { $default_agent } else { $agent_name }
+  let agent_config = ($configs | get --optional agents | get --optional $target_agent)
+  let binary = if $agent_config != null { ($agent_config | get binary) } else { $target_agent }
+  let config_args = if $agent_config != null {
+    ($agent_config | get --optional args | default [] | each { |x| $x | into string })
+  } else { [] }
+  { name: $target_agent, binary: $binary, args: ($config_args ++ $extra) }
+}
+
+# Compute the radar output directory path from base and target refs.
+export def radar-output-dir [repo_root: string, base_ref: string, target_ref: string] {
+  $"($repo_root)/.ops/.tmp/upstream-radar/((slugify-ref $base_ref))__((slugify-ref $target_ref))"
+}
+
+# Validate that a worktree exists, is a git worktree, and is on the expected branch.
+export def assert-worktree [worktree_path: string, expected_branch: string, tag: string] {
+  if not ($worktree_path | path exists) {
+    error make {
+      msg: $"Merge worktree path does not exist: ($worktree_path). Start merge first: task upgrade:start:merge -- ($tag)"
+    }
+  }
+
+  let wt_check = (^git -C $worktree_path rev-parse --is-inside-work-tree | complete)
+  if $wt_check.exit_code != 0 {
+    error make { msg: $"Path is not a git worktree: ($worktree_path)" }
+  }
+
+  let current_branch = (^git -C $worktree_path rev-parse --abbrev-ref HEAD | str trim)
+  if $current_branch != $expected_branch {
+    error make {
+      msg: $"Worktree branch mismatch at ($worktree_path): current=($current_branch), expected=($expected_branch)"
+    }
+  }
+}
+
+# Format agent args for dry-run command preview.
+export def agent-args-preview [final_agent_args: list<string>] {
+  if ($final_agent_args | length) > 0 { $" ...($final_agent_args | str join ' ') " } else { " " }
 }
 
 export def has-active-merge [] {
@@ -316,113 +333,6 @@ export def update-merge-status-from-radar [
     | upsert radar $radar_state
   )
   write-merge-status $next
-}
-
-# Create integration branch merge/upstream-<tag> from ADI main in a worktree (runbook step 4).
-# Worktree path: ~/.local/git/wortrees/<project-name>/merge-upstream-<tag>.
-# Optionally merge upstream/<tag> into it (step 5) and/or push to origin.
-# Returns a record: { tag, merge_branch, worktree_path, merged, pushed }.
-export def create-merge-branch-from-tag [
-  tag: string
-  --merge (-m)
-  --push (-p)
-  --force (-f)
-] {
-  if $force {
-    assert-no-active-merge $tag --force
-  } else {
-    assert-no-active-merge $tag
-  }
-
-  let merge_branch = $"merge/upstream-($tag)"
-  let upstream_branch = $"upstream/($tag)"
-
-  if not (local-upstream-branch-exists $tag) {
-    error make {
-      msg: $"Local branch ($upstream_branch) not found. Create it first: task upgrade:create-upstream-branch -- ($tag)"
-    }
-  }
-
-  let project = (git-project-name)
-  let wt_root = $"($env.HOME)/.local/git/wortrees/($project)"
-  let wt_path = $"($wt_root)/merge-upstream-($tag)"
-
-  let fetch_origin = (^git fetch origin | complete)
-  if $fetch_origin.exit_code != 0 {
-    let err = ($fetch_origin.stderr | str trim)
-    let out = ($fetch_origin.stdout | str trim)
-    let msg = if $err != "" { $err } else if $out != "" { $out } else { "Failed to fetch origin" }
-    error make { msg: $msg }
-  }
-
-  if not (git-ref-exists "origin/main") {
-    error make {
-      msg: "origin/main ref is missing after fetch. Ensure origin remote is configured and up to date."
-    }
-  }
-
-  if ($wt_path | path exists) {
-    error make {
-      msg: $"Worktree path already exists: ($wt_path). Remove it or use a different tag."
-    }
-  }
-  ^mkdir -p $wt_root
-  ^git worktree add -B $merge_branch $wt_path origin/main
-
-  mut merged = false
-  if $merge {
-    ^git -C $wt_path merge --no-ff $upstream_branch
-    $merged = true
-  }
-
-  mut pushed = false
-  if $push {
-    ^git -C $wt_path push -u origin $merge_branch
-    $pushed = true
-  }
-
-  let status = (read-merge-status)
-  let current_tag = ($status | get --optional tags.current_upstream_tag)
-  let previous_tag = ($status | get --optional tags.previous_upstream_tag)
-  let next_previous = if ($current_tag != null and $current_tag != $tag) { $current_tag } else { $previous_tag }
-
-  let next = (
-    $status
-    | upsert tags {
-      previous_upstream_tag: $next_previous
-      current_upstream_tag: $tag
-    }
-    | upsert merge {
-      status: (if $merge { "merge_attempted" } else { "branch_created" })
-      base_ref: $upstream_branch
-      target_ref: "main"
-      upstream_branch: $upstream_branch
-      merge_branch: $merge_branch
-      worktree_path: $wt_path
-      created_at: (now-iso)
-      last_radar_at: null
-      release_tag: null
-      last_merge_at: null
-      last_merge_exit_code: null
-      has_conflicts: null
-      conflict_files: []
-    }
-    | upsert radar {
-      risk_level: null
-      conflict_source: null
-      target_only_commits: null
-      base_only_commits: null
-      adi_changed_files: null
-      upstream_changed_files: null
-      overlap_files: null
-      predicted_conflict_files: null
-      output_dir: null
-      report: null
-    }
-  )
-  let status_file = (write-merge-status $next)
-
-  { tag: $tag, merge_branch: $merge_branch, worktree_path: $wt_path, merged: $merged, pushed: $pushed, status_file: $status_file }
 }
 
 # Check that a ref exists and resolves to a commit.

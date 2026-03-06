@@ -102,8 +102,9 @@ Update behavior:
    - updates `merge-status.yaml`
    - runs merge radar and stores artifacts
 2. `task upgrade:status:show` prints current state.
-3. Artifacts from radar tools are written to `.ops/.tmp/upstream-radar/...`.
-4. `task upgrade:status:transition -- <phase>` enforces lifecycle transitions (`local-tested`, `ci-passed`, `merged-main`, `released`, `aborted`, `idle`).
+3. `task upgrade:status:next` prints a dynamic recommendation and a visual flowchart for the next step.
+4. Artifacts from radar tools are written to `.ops/.tmp/upstream-radar/...`.
+5. `task upgrade:status:transition -- <phase>` enforces lifecycle transitions (`local-tested`, `ci-passed`, `merged-main`, `released`, `aborted`, `idle`).
 
 ## AI Conflict Resolution Modes
 
@@ -125,6 +126,44 @@ Execution model:
 
 Assume upstream released `vX.Y.Z`.
 
+### Merge Flow Diagram
+
+```mermaid
+flowchart TD
+    Start([Upstream Release vX.Y.Z]) --> Init
+    
+    subgraph Initialization
+        Init["task upgrade:start:merge"] --> CheckWS["Open Merge Worktree"]
+    end
+    
+    subgraph AI Conflict Resolution
+        CheckWS --> M1["task upgrade:agent:mode:analyze (Mode 1: Classify)"]
+        M1 --> M2["task upgrade:agent:mode:plan-groups (Mode 2: Plan)"]
+        M2 --> M3Loop{"Pending Non-Human?"}
+        
+        M3Loop -->|Yes| M3A["task upgrade:agent:mode:analyze-next-group"]
+        M3A --> M3B["task upgrade:agent:mode:resolve-next (Mode 3: Resolve & Commit)"]
+        M3B --> M3Loop
+        
+        M3Loop -->|No| M4Loop{"Pending Human?"}
+        
+        M4Loop -->|Yes| M4A["task upgrade:agent:mode:resolve-next-human (Mode 4)"]
+        M4A --> M4Loop
+    end
+    
+    subgraph Validation & Release
+        M4Loop -->|No| Val["Validate (fmt, clippy, nextest)"]
+        Val --> T1["transition: local-tested"]
+        T1 --> PR["Open PR to main"]
+        PR --> T2["transition: ci-passed"]
+        T2 --> T3["transition: merged-main"]
+        T3 --> Tag["task upgrade:release:next-tag (git tag vX.Y.Z-bN)"]
+        Tag --> T4["transition: released"]
+    end
+```
+
+### Step-by-Step Execution
+
 0. Define project/worktree paths:
 
 ```bash
@@ -137,17 +176,17 @@ WT_PATH="${WT_ROOT}/merge-upstream-${TAG}"
 1. Start merge session (from any branch):
 
 ```bash
-task upgrade:start:merge -- vX.Y.Z
+task upgrade:start:merge -- ${TAG}
 ```
 
 This command handles:
 
-1. active merge guardrails
-2. upstream tag/branch sync
-3. merge worktree creation/reuse
-4. merge execution
-5. artifact generation (merge radar & conflict diffs)
-6. merge status updates
+- active merge guardrails
+- upstream tag/branch sync
+- merge worktree creation/reuse
+- merge execution
+- artifact generation (merge radar & conflict diffs)
+- merge status updates
 
 > [!NOTE]
 > The `start:merge` command automatically runs `merge-radar` and `conflict-diffs` in the background. From a high level, these tools analyze the complexity of the merge and generate per-conflict patch artifacts (separating ADI vs upstream changes) to help both developers and AI agents understand the diffs better. For more information, see [Fast Merge-Difficulty Analysis](#fast-merge-difficulty-analysis).
@@ -155,7 +194,7 @@ This command handles:
 Optional flags:
 
 ```bash
-task upgrade:start:merge -- vX.Y.Z --push-upstream --push-merge
+task upgrade:start:merge -- ${TAG} --push-upstream --push-merge
 ```
 
 2. Open merge worktree in IDE (optional):
@@ -163,37 +202,37 @@ task upgrade:start:merge -- vX.Y.Z --push-upstream --push-merge
 ```bash
 task upgrade:open:merge-worktree -- cursor
 # or explicit tag:
-task upgrade:open:merge-worktree -- code vX.Y.Z
+task upgrade:open:merge-worktree -- code ${TAG}
 ```
 
-3. Initialize and inspect mode-based agent state:
+3. Run mode 1 (initial analyze):
 
 ```bash
-task upgrade:agent:mode:state -- vX.Y.Z --json
+task upgrade:agent:mode:analyze -- ${TAG} [agent]
 ```
 
-4. Run mode 1 (initial analyze):
+4. Run mode 2 (plan groups):
 
 ```bash
-task upgrade:agent:mode:analyze -- vX.Y.Z [agent]
+task upgrade:agent:mode:plan-groups -- ${TAG} [agent]
 ```
 
-5. Run mode 2 (plan groups):
+5. Analyze next non-human group:
 
 ```bash
-task upgrade:agent:mode:plan-groups -- vX.Y.Z [agent]
+task upgrade:agent:mode:analyze-next-group -- ${TAG} [agent]
 ```
 
-6. Resolve non-human groups (repeat until no pending non-human groups):
+6. Resolve non-human groups (repeat analyze and resolve until no pending non-human groups):
 
 ```bash
-task upgrade:agent:mode:resolve-next -- vX.Y.Z [agent]
+task upgrade:agent:mode:resolve-next -- ${TAG} [agent]
 ```
 
 7. Resolve human groups separately (repeat as needed):
 
 ```bash
-task upgrade:agent:mode:resolve-next-human -- vX.Y.Z [agent]
+task upgrade:agent:mode:resolve-next-human -- ${TAG} [agent]
 ```
 
 `[agent]` is optional; tasks default to `claude`.
@@ -214,13 +253,13 @@ task upgrade:status:transition -- local-tested
 
 10. Open PR from worktree branch:
 
-1. Source: `merge/upstream-vX.Y.Z`
-2. Target: `main`
-3. Include:
-   - upstream tag merged
-   - group commit summary
-   - blocked human-decision groups (if any)
-   - test results
+    - Source: `merge/upstream-vX.Y.Z`
+    - Target: `main`
+    - Include:
+      - upstream tag merged
+      - group commit summary
+      - blocked human-decision groups (if any)
+      - test results
 
 11. After CI succeeds:
 
@@ -232,10 +271,10 @@ task upgrade:status:transition -- ci-passed
 
 ```bash
 task upgrade:status:transition -- merged-main
-task upgrade:release:next-tag -- vX.Y.Z
-git tag "vX.Y.Z-bN"
-git push origin "vX.Y.Z-bN"
-task upgrade:status:transition -- released --release-tag vX.Y.Z-bN
+task upgrade:release:next-tag -- ${TAG}
+git tag "${TAG}-bN"
+git push origin "${TAG}-bN"
+task upgrade:status:transition -- released --release-tag ${TAG}-bN
 ```
 
 13. Cleanup local worktree:
@@ -246,15 +285,15 @@ git worktree remove "${WT_PATH}"
 
 14. Publish GitHub Release notes:
 
-1. Base upstream: `matter-labs/zksync-os-server@vX.Y.Z`
-2. ADI delta summary (what changed on top)
-3. CI/test status
+- Base upstream: `matter-labs/zksync-os-server@vX.Y.Z`
+- ADI delta summary (what changed on top)
+- CI/test status
 
 ## Conflict Resolution Notes
 
 1. Enable `rerere` once:
    `git config --global rerere.enabled true`
-2. Always run modes in order: `analyze` -> `plan-groups` -> `resolve-group`/`resolve-human-group`.
+2. Always run modes in order: `analyze` -> `plan-groups` -> `analyze-group` -> `resolve-group`/`resolve-human-group`.
 3. Keep each group meaningful and committable; avoid combining multiple hard files in one group.
 4. Create one commit per resolved group.
 5. Keep human-required decisions isolated in human groups with explicit notes.
@@ -275,8 +314,8 @@ Use this minimum checklist for every upstream update:
 The upgrade flow leverages two specialized analysis tools to break down merge complexity before any conflicts are resolved. These tools run automatically during `task upgrade:start:merge`, but can also be triggered manually using the preferred commands:
 
 ```bash
-task upgrade:analyze:merge-radar -- vX.Y.Z main
-task upgrade:analyze:conflict-diffs -- vX.Y.Z main
+task upgrade:analyze:merge-radar -- ${TAG} main
+task upgrade:analyze:conflict-diffs -- ${TAG} main
 ```
 
 ### 1. Merge Radar (`task upgrade:analyze:merge-radar`)

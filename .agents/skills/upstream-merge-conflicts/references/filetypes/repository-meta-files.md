@@ -26,4 +26,3 @@ Apply this guide for governance and repository policy files (for example `CODEOW
 
 - Confirm all referenced links and contacts are still valid in this repository context.
 - Re-check release/tag naming (`vX.Y.Z-bN`) in docs after merge.
-
