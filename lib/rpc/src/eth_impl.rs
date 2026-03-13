@@ -22,12 +22,11 @@ use alloy::serde::JsonStorageKey;
 use async_trait::async_trait;
 use jsonrpsee::core::RpcResult;
 use ruint::aliases::B160;
-use std::convert::identity;
 use tokio::sync::watch;
 use zk_ee::common_structs::derive_flat_storage_key;
 use zk_os_api::helpers::{get_balance, get_code};
 use zksync_os_interface::traits::ReadStorage;
-use zksync_os_mempool::L2TransactionPool;
+use zksync_os_mempool::subpools::l2::L2Subpool;
 use zksync_os_rpc_api::eth::EthApiServer;
 use zksync_os_rpc_api::types::{
     RpcBlockConvert, ZkApiBlock, ZkApiTransaction, ZkHeader, ZkTransactionReceipt,
@@ -47,7 +46,7 @@ pub struct EthNamespace<RpcStorage, Mempool> {
     chain_id: u64,
 }
 
-impl<RpcStorage: ReadRpcStorage, Mempool: L2TransactionPool> EthNamespace<RpcStorage, Mempool> {
+impl<RpcStorage: ReadRpcStorage, Mempool: L2Subpool> EthNamespace<RpcStorage, Mempool> {
     pub fn new(
         config: RpcConfig,
         storage: RpcStorage,
@@ -75,7 +74,7 @@ impl<RpcStorage: ReadRpcStorage, Mempool: L2TransactionPool> EthNamespace<RpcSto
     }
 }
 
-impl<RpcStorage: ReadRpcStorage, Mempool: L2TransactionPool> EthNamespace<RpcStorage, Mempool> {
+impl<RpcStorage: ReadRpcStorage, Mempool: L2Subpool> EthNamespace<RpcStorage, Mempool> {
     fn block_number_impl(&self) -> EthResult<U256> {
         Ok(U256::from(self.storage.repository().get_latest_block()))
     }
@@ -323,7 +322,7 @@ impl<RpcStorage: ReadRpcStorage, Mempool: L2TransactionPool> EthNamespace<RpcSto
 
     fn gas_price_impl(&self) -> EthResult<U256> {
         // Only base fee is taken into account, suggested priority fee is zero.
-        if let Some(c) = self.eth_call_handler.pending_block_context() {
+        if let Some(c) = self.eth_call_handler.last_constructed_block_context() {
             Ok(c.eip1559_basefee)
         } else {
             let latest_block_id = BlockId::Number(BlockNumberOrTag::Latest);
@@ -343,7 +342,7 @@ impl<RpcStorage: ReadRpcStorage, Mempool: L2TransactionPool> EthNamespace<RpcSto
         &self,
         block_count: U64,
         mut newest_block: BlockNumberOrTag,
-        _reward_percentiles: Option<Vec<f64>>,
+        reward_percentiles: Option<Vec<f64>>,
     ) -> EthResult<FeeHistory> {
         if block_count == 0 {
             return Ok(FeeHistory::default());
@@ -356,9 +355,33 @@ impl<RpcStorage: ReadRpcStorage, Mempool: L2TransactionPool> EthNamespace<RpcSto
             return Err(EthError::BlockNotFound(newest_block.into()));
         };
 
+        const MAX_FEE_HISTORY_BLOCKS: u64 = 1024;
+        // Ensure that we query at most `MAX_FEE_HISTORY_BLOCKS` block and that we do not query outside of genesis
         let end_block_plus = end_block + 1;
-        // Ensure that we would not be querying outside of genesis
-        let block_count = end_block_plus.min(block_count.try_into().unwrap());
+        let block_count = [
+            end_block_plus,
+            block_count.try_into().unwrap(),
+            MAX_FEE_HISTORY_BLOCKS,
+        ]
+        .into_iter()
+        .min()
+        .unwrap();
+
+        const MAX_REWARD_PERCENTILE_COUNT: usize = 100;
+        if reward_percentiles.as_ref().map(|perc| perc.len()) > Some(MAX_REWARD_PERCENTILE_COUNT) {
+            return Err(EthError::InvalidRewardPercentiles);
+        }
+        // If reward percentiles were specified, we
+        // need to validate that they are monotonically
+        // increasing and 0 <= p <= 100
+        if let Some(percentiles) = &reward_percentiles {
+            let sorted = percentiles.is_sorted();
+            let range_is_correct = percentiles.iter().all(|&p| (0.0..=100.0).contains(&p));
+            if !sorted || !range_is_correct {
+                return Err(EthError::InvalidRewardPercentiles);
+            }
+        }
+
         let start_block = end_block_plus - block_count;
 
         let mut base_fee_per_gas = Vec::with_capacity(block_count as usize + 1);
@@ -380,7 +403,7 @@ impl<RpcStorage: ReadRpcStorage, Mempool: L2TransactionPool> EthNamespace<RpcSto
             .map(|c| c.eip1559_basefee)
         {
             base_fee_per_gas.push(base_fee.saturating_to());
-        } else if let Some(c) = self.eth_call_handler.pending_block_context()
+        } else if let Some(c) = self.eth_call_handler.last_constructed_block_context()
             && c.block_number == end_block_plus
         {
             base_fee_per_gas.push(c.eip1559_basefee.saturating_to());
@@ -389,6 +412,10 @@ impl<RpcStorage: ReadRpcStorage, Mempool: L2TransactionPool> EthNamespace<RpcSto
             base_fee_per_gas.push(*base_fee_per_gas.last().unwrap());
         }
 
+        // ZKsync OS chains are not fully EIP-1559 compliant and using 0 as a priority fee should always work,
+        // so we return zeroes to keep code simpler.
+        let reward = reward_percentiles.map(|p| vec![vec![0; p.len()]; block_count as usize]);
+
         Ok(FeeHistory {
             base_fee_per_gas,
             oldest_block: start_block,
@@ -396,14 +423,13 @@ impl<RpcStorage: ReadRpcStorage, Mempool: L2TransactionPool> EthNamespace<RpcSto
             gas_used_ratio: vec![0.5; block_count as usize],
             base_fee_per_blob_gas: vec![],
             blob_gas_used_ratio: vec![],
-            // TODO: fill reward
-            reward: None,
+            reward,
         })
     }
 }
 
 #[async_trait]
-impl<RpcStorage: ReadRpcStorage, Mempool: L2TransactionPool> EthApiServer
+impl<RpcStorage: ReadRpcStorage, Mempool: L2Subpool> EthApiServer
     for EthNamespace<RpcStorage, Mempool>
 {
     async fn protocol_version(&self) -> RpcResult<String> {
@@ -750,6 +776,28 @@ pub fn build_api_log(
     }
 }
 
+pub fn build_l2_to_l1_api_log(
+    tx_hash: TxHash,
+    primitive_l2_to_l1_log: zksync_os_types::L2ToL1Log,
+    tx_meta: TxMeta,
+    log_index_in_tx: u64,
+) -> zksync_os_rpc_api::types::L2ToL1Log {
+    zksync_os_rpc_api::types::L2ToL1Log {
+        block_hash: Some(tx_meta.block_hash),
+        block_number: Some(tx_meta.block_number),
+        block_timestamp: Some(tx_meta.block_timestamp),
+        transaction_hash: Some(tx_hash),
+        transaction_index: Some(tx_meta.tx_index_in_block),
+        log_index: Some(tx_meta.number_of_logs_before_this_tx + log_index_in_tx),
+        transaction_log_index: Some(log_index_in_tx),
+        shard_id: primitive_l2_to_l1_log.l2_shard_id.into(),
+        is_service: primitive_l2_to_l1_log.is_service,
+        sender: primitive_l2_to_l1_log.sender,
+        key: primitive_l2_to_l1_log.key,
+        value: primitive_l2_to_l1_log.value,
+    }
+}
+
 pub fn build_api_receipt(
     tx_hash: TxHash,
     receipt: ZkReceiptEnvelope,
@@ -757,14 +805,23 @@ pub fn build_api_receipt(
     meta: &TxMeta,
 ) -> ZkTransactionReceipt {
     let mut log_index_in_tx = 0;
+    let mut l2_to_l1_log_index_in_tx = 0;
     let inner = receipt.map_logs(
         |inner_log| {
             let log = build_api_log(tx_hash, inner_log, meta.clone(), log_index_in_tx);
             log_index_in_tx += 1;
             log
         },
-        // todo: convert L2->L1 logs to RPC variant when we have one
-        identity,
+        |inner_l2_to_l1_log| {
+            let l2_to_l1_log = build_l2_to_l1_api_log(
+                tx_hash,
+                inner_l2_to_l1_log,
+                meta.clone(),
+                l2_to_l1_log_index_in_tx,
+            );
+            l2_to_l1_log_index_in_tx += 1;
+            l2_to_l1_log
+        },
     );
     ZkTransactionReceipt {
         inner,
@@ -805,6 +862,9 @@ pub enum EthError {
     /// Incrementing the nonce would lead to invalid state (overflow)
     #[error("nonce has max value")]
     NonceMaxValue,
+    /// When the percentile array is invalid
+    #[error("invalid reward percentiles")]
+    InvalidRewardPercentiles,
 
     #[error(transparent)]
     RpcStorage(#[from] RpcStorageError),

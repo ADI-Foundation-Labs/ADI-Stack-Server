@@ -35,7 +35,7 @@ async fn batch_verification_works() -> anyhow::Result<()> {
         .l2_zk_provider
         .wait_finalized_with_timeout(
             deploy_tx_receipt.block_number.unwrap(),
-            Duration::from_secs(60),
+            zksync_os_integration_tests::assert_traits::DEFAULT_TIMEOUT,
         )
         .await?;
     Ok(())
@@ -63,7 +63,10 @@ async fn batch_verification_without_enough_ens() -> anyhow::Result<()> {
     // First block should not get finalized because EN with 2FA is needed.
     main_node
         .l2_zk_provider
-        .wait_not_finalized(1, Duration::from_secs(60))
+        .wait_not_finalized(
+            1,
+            zksync_os_integration_tests::assert_traits::DEFAULT_TIMEOUT,
+        )
         .await?;
     Ok(())
 }
@@ -84,7 +87,10 @@ async fn batch_verification_with_2_ens() -> anyhow::Result<()> {
     // First block should not get finalized because 2 EN with 2FA are needed.
     main_node
         .l2_zk_provider
-        .wait_not_finalized(1, Duration::from_secs(60))
+        .wait_not_finalized(
+            1,
+            zksync_os_integration_tests::assert_traits::DEFAULT_TIMEOUT,
+        )
         .await?;
 
     let _en2 = main_node
@@ -107,7 +113,7 @@ async fn batch_verification_with_2_ens() -> anyhow::Result<()> {
         .l2_zk_provider
         .wait_finalized_with_timeout(
             deploy_tx_receipt.block_number.unwrap(),
-            Duration::from_secs(60),
+            zksync_os_integration_tests::assert_traits::DEFAULT_TIMEOUT,
         )
         .await?;
     Ok(())
@@ -150,7 +156,7 @@ async fn transaction_replay() -> anyhow::Result<()> {
 
 /// It is easy to write to a channel that the EN doesn't need
 /// which leads to the EN getting stuck when the channel is full.
-#[test_log::test(tokio::test)]
+#[test_log::test(tokio::test(flavor = "multi_thread"))]
 async fn does_not_get_stuck() -> anyhow::Result<()> {
     let main_node = Tester::setup().await?;
     let en1 = main_node.launch_external_node().await?;
@@ -159,9 +165,10 @@ async fn does_not_get_stuck() -> anyhow::Result<()> {
 
     const REPEATS: usize = 200;
 
+    let main_node_provider = main_node.l2_provider.clone();
     tokio::spawn(async move {
         for _ in 0..REPEATS {
-            let deploy_tx_receipt = EventEmitter::deploy_builder(main_node.l2_provider.clone())
+            let deploy_tx_receipt = EventEmitter::deploy_builder(&main_node_provider)
                 .send()
                 .await
                 .unwrap()
@@ -181,6 +188,9 @@ async fn does_not_get_stuck() -> anyhow::Result<()> {
         let contract_address = recv.recv().await.unwrap();
         check_contract_present(&en1, contract_address).await?;
     }
+
+    // Make sure we hold `main_node` until the end of the test
+    drop(main_node);
 
     Ok(())
 }

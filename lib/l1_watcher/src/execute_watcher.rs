@@ -1,26 +1,27 @@
 use crate::watcher::{L1Watcher, L1WatcherError};
-use crate::{L1WatcherConfig, ProcessL1Event, util};
+use crate::{CommittedBatchProvider, L1WatcherConfig, ProcessL1Event, util};
 use alloy::primitives::Address;
 use alloy::providers::{DynProvider, Provider};
 use alloy::rpc::types::Log;
+use std::time::Duration;
 use zksync_os_contract_interface::IExecutor::BlockExecution;
 use zksync_os_contract_interface::ZkChain;
-use zksync_os_storage_api::{ReadBatch, WriteFinality};
+use zksync_os_storage_api::WriteFinality;
 
-pub struct L1ExecuteWatcher<Finality, BatchStorage> {
+pub struct L1ExecuteWatcher<Finality> {
     contract_address: Address,
     next_batch_number: u64,
+    committed_batch_provider: CommittedBatchProvider,
     finality: Finality,
-    batch_storage: BatchStorage,
     grace_period: std::time::Duration,
 }
 
-impl<Finality: WriteFinality, BatchStorage: ReadBatch> L1ExecuteWatcher<Finality, BatchStorage> {
+impl<Finality: WriteFinality> L1ExecuteWatcher<Finality> {
     pub async fn create_watcher(
         config: L1WatcherConfig,
         zk_chain: ZkChain<DynProvider>,
+        committed_batch_provider: CommittedBatchProvider,
         finality: Finality,
-        batch_storage: BatchStorage,
     ) -> anyhow::Result<L1Watcher> {
         let current_l1_block = zk_chain.provider().get_block_number().await?;
         let last_executed_batch = finality.get_finality_status().last_executed_batch;
@@ -40,8 +41,8 @@ impl<Finality: WriteFinality, BatchStorage: ReadBatch> L1ExecuteWatcher<Finality
         let this = Self {
             contract_address: *zk_chain.address(),
             next_batch_number: last_executed_batch + 1,
+            committed_batch_provider,
             finality,
-            batch_storage,
             grace_period: config.proof_storage_grace_period,
         };
         let l1_watcher = L1Watcher::new(
@@ -59,9 +60,7 @@ impl<Finality: WriteFinality, BatchStorage: ReadBatch> L1ExecuteWatcher<Finality
 }
 
 #[async_trait::async_trait]
-impl<Finality: WriteFinality, BatchStorage: ReadBatch> ProcessL1Event
-    for L1ExecuteWatcher<Finality, BatchStorage>
-{
+impl<Finality: WriteFinality> ProcessL1Event for L1ExecuteWatcher<Finality> {
     const NAME: &'static str = "block_execution";
 
     type SolEvent = BlockExecution;
@@ -87,14 +86,22 @@ impl<Finality: WriteFinality, BatchStorage: ReadBatch> ProcessL1Event
                 "skipping already processed executed batch",
             );
         } else {
-            let batch_storage = &self.batch_storage;
-            let (_, last_executed_block) = util::retry_with_grace_period(
-                || async move { batch_storage.get_batch_range_by_number(batch_number).await },
+            // We might discover batch execute event before we discover commit event. In this case
+            // we retry for up to 30s (enough for two L1 blocks to be mined).
+            let committed_batch_provider = &self.committed_batch_provider;
+            let discovered_batch = util::retry_with_grace_period(
+                || async {
+                    committed_batch_provider
+                        .get(batch_number)
+                        .ok_or_else(|| L1WatcherError::BatchNotCommitted(batch_number))
+                        .map(Some)
+                },
                 self.grace_period,
-                std::time::Duration::from_secs(5),
+                Duration::from_secs(5),
                 &format!("executed batch {}", batch_number),
             )
-            .await?;
+                .await?;
+            let last_executed_block = discovered_batch.last_block_number();
             self.finality.update_finality_status(|finality| {
                 assert!(
                     batch_number > finality.last_executed_batch,

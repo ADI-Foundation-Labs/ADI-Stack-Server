@@ -1,6 +1,6 @@
 use alloy::consensus::{EMPTY_OMMER_ROOT_HASH, Header};
 use alloy::eips::eip1559::INITIAL_BASE_FEE;
-use alloy::primitives::{Address, B64, B256, Bloom, U256};
+use alloy::primitives::{Address, B64, B256, Bloom, Sealable, Sealed, U256};
 use alloy::providers::{DynProvider, Provider};
 use alloy::rpc::types::Filter;
 use alloy::sol_types::SolEvent;
@@ -19,7 +19,7 @@ use zk_os_basic_system::system_implementation::flat_storage_model::{
 use zksync_os_contract_interface::IL1GenesisUpgrade::GenesisUpgrade;
 use zksync_os_contract_interface::ZkChain;
 use zksync_os_interface::types::BlockContext;
-use zksync_os_types::{L1UpgradeEnvelope, ProtocolSemanticVersion};
+use zksync_os_types::{ConfigFormat, L1UpgradeEnvelope, ProtocolSemanticVersion};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GenesisInput {
@@ -58,7 +58,15 @@ pub struct GenesisInput {
 impl GenesisInput {
     pub fn load_from_file(path: &Path) -> anyhow::Result<Self> {
         let file = std::fs::File::open(path).context("Failed to open genesis input file")?;
-        serde_json::from_reader(file).context("Failed to parse genesis input file")
+
+        match ConfigFormat::from_path(path) {
+            ConfigFormat::Yaml => {
+                serde_yaml::from_reader(file).context("Failed to parse YAML genesis input file")
+            }
+            ConfigFormat::Json => {
+                serde_json::from_reader(file).context("Failed to parse JSON genesis input file")
+            }
+        }
     }
 }
 
@@ -170,7 +178,7 @@ pub struct GenesisState {
     /// see `genesis_upgrade_tx` method for details
     pub preimages: Vec<(B256, Vec<u8>)>,
     /// The header of the genesis block.
-    pub header: Header,
+    pub header: Sealed<Header>,
     /// Context of the genesis block.
     pub context: BlockContext,
     /// Expected genesis root (state commitment).
@@ -297,7 +305,7 @@ async fn build_genesis(
     Ok(GenesisState {
         storage_logs: storage_logs.into_iter().collect(),
         preimages,
-        header,
+        header: header.seal_slow(),
         context,
         expected_genesis_root: genesis_input.genesis_root,
     })

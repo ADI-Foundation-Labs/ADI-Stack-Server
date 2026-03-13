@@ -42,10 +42,12 @@ use hyper::Method;
 use jsonrpsee::RpcModule;
 use jsonrpsee::server::{ServerBuilder, ServerConfigBuilder};
 use jsonrpsee::ws_client::RpcServiceBuilder;
+use reth_rpc_eth_types::EthSubscriptionIdProvider;
 use tower_http::cors::{Any, CorsLayer};
 use zksync_os_genesis::GenesisInputSource;
 use zksync_os_interface::types::BlockContext;
-use zksync_os_mempool::L2TransactionPool;
+use zksync_os_l1_watcher::CommittedBatchProvider;
+use zksync_os_mempool::subpools::l2::L2Subpool;
 use zksync_os_rpc_api::debug::DebugApiServer;
 use zksync_os_rpc_api::eth::EthApiServer;
 use zksync_os_rpc_api::filter::EthFilterApiServer;
@@ -57,16 +59,17 @@ use zksync_os_rpc_api::zks::ZksApiServer;
 use zksync_os_types::TransactionAcceptanceState;
 
 #[allow(clippy::too_many_arguments)]
-pub async fn run_jsonrpsee_server<RpcStorage: ReadRpcStorage, Mempool: L2TransactionPool>(
+pub async fn run_jsonrpsee_server<RpcStorage: ReadRpcStorage, Mempool: L2Subpool>(
     config: RpcConfig,
     chain_id: u64,
     bridgehub_address: Address,
     bytecode_supplier_address: Address,
+    committed_batch_provider: CommittedBatchProvider,
     storage: RpcStorage,
     mempool: Mempool,
     genesis_input_source: Arc<dyn GenesisInputSource>,
     acceptance_state: watch::Receiver<TransactionAcceptanceState>,
-    pending_block_context: watch::Receiver<Option<BlockContext>>,
+    last_constructed_block_context: watch::Receiver<Option<BlockContext>>,
     tx_forwarder: Option<DynProvider>,
 ) -> anyhow::Result<()> {
     tracing::info!("Starting JSON-RPC server at {}", config.address);
@@ -76,7 +79,7 @@ pub async fn run_jsonrpsee_server<RpcStorage: ReadRpcStorage, Mempool: L2Transac
         config.clone(),
         storage.clone(),
         chain_id,
-        pending_block_context,
+        last_constructed_block_context,
     );
     rpc.merge(
         EthNamespace::new(
@@ -98,6 +101,7 @@ pub async fn run_jsonrpsee_server<RpcStorage: ReadRpcStorage, Mempool: L2Transac
         ZksNamespace::new(
             bridgehub_address,
             bytecode_supplier_address,
+            committed_batch_provider,
             storage.clone(),
             genesis_input_source,
         )
@@ -128,6 +132,8 @@ pub async fn run_jsonrpsee_server<RpcStorage: ReadRpcStorage, Mempool: L2Transac
         .max_connections(config.max_connections)
         .max_request_body_size(config.max_request_size_bytes())
         .max_response_body_size(config.max_response_size_bytes())
+        // `IdProvider` that generates hex-encoded numeric ids as expected in Ethereum
+        .set_id_provider(EthSubscriptionIdProvider::default())
         .build();
     let server_builder = ServerBuilder::default()
         .set_config(server_config)

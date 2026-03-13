@@ -4,12 +4,13 @@ use crate::execution::block_executor::execute_block;
 use crate::execution::metrics::{EXECUTION_METRICS, SequencerState};
 use crate::execution::utils::save_dump;
 use crate::model::blocks::BlockCommand;
+use alloy::consensus::Sealed;
 use anyhow::Context;
 use async_trait::async_trait;
 use tokio::sync::{mpsc::Sender, watch};
 use tokio::time::Instant;
 use zksync_os_interface::types::BlockOutput;
-use zksync_os_mempool::L2TransactionPool;
+use zksync_os_mempool::subpools::l2::L2Subpool;
 use zksync_os_observability::{ComponentStateHandle, ComponentStateReporter};
 use zksync_os_pipeline::{PeekableReceiver, PipelineComponent};
 use zksync_os_storage_api::{
@@ -17,35 +18,38 @@ use zksync_os_storage_api::{
 };
 use zksync_os_types::{NotAcceptingReason, TransactionAcceptanceState};
 
+pub use fee_provider::{FeeConfig, FeeParams, FeeProvider};
+
 pub mod block_context_provider;
 pub mod block_executor;
+mod fee_provider;
 pub(crate) mod metrics;
 pub(crate) mod utils;
 pub mod vm_wrapper;
 
 /// Sequencer pipeline component
 /// Contains all the dependencies needed to run the sequencer
-pub struct Sequencer<Mempool, State, Replay, Repo>
+pub struct Sequencer<Subpool, State, Replay, Repo>
 where
-    Mempool: L2TransactionPool + Send + 'static,
+    Subpool: L2Subpool + Send + 'static,
     State: ReadStateHistory + WriteState + Clone + Send + 'static,
     Replay: WriteReplay + Send + 'static,
     Repo: WriteRepository + Send + 'static,
 {
-    pub block_context_provider: BlockContextProvider<Mempool>,
+    pub block_context_provider: BlockContextProvider<Subpool>,
     pub state: State,
     pub replay: Replay,
     pub repositories: Repo,
-    pub sequencer_config: SequencerConfig,
+    pub config: SequencerConfig,
     /// Controls transaction acceptance state.
     /// When max_blocks_to_produce limit is reached, sequencer sends NotAccepting to stop RPC from accepting new txs.
     pub tx_acceptance_state_sender: watch::Sender<TransactionAcceptanceState>,
 }
 
 #[async_trait]
-impl<Mempool, State, Replay, Repo> PipelineComponent for Sequencer<Mempool, State, Replay, Repo>
+impl<Subpool, State, Replay, Repo> PipelineComponent for Sequencer<Subpool, State, Replay, Repo>
 where
-    Mempool: L2TransactionPool + Send + 'static,
+    Subpool: L2Subpool + Send + 'static,
     State: ReadStateHistory + WriteState + Clone + Send + 'static,
     Replay: WriteReplay + Send + 'static,
     Repo: WriteRepository + Send + 'static,
@@ -77,11 +81,10 @@ where
                 anyhow::bail!("inbound channel closed");
             };
             let block_number = cmd.block_number();
-            let cmd_type = cmd.command_type();
 
             // For Produce commands: check limit (will await indefinitely if limit reached) and increment counter
             if matches!(cmd, BlockCommand::Produce(_))
-                && let Some(limit) = self.sequencer_config.max_blocks_to_produce
+                && let Some(limit) = self.config.max_blocks_to_produce
             {
                 check_block_production_limit(
                     limit,
@@ -94,7 +97,7 @@ where
             }
             let override_allowed = match &cmd {
                 BlockCommand::Rebuild(_) => true,
-                BlockCommand::Replay(_) if self.sequencer_config.is_external_node() => true,
+                BlockCommand::Replay(_) if self.config.node_role.is_external() => true,
                 _ => false,
             };
 
@@ -119,9 +122,7 @@ where
                     .map_err(|dump| {
                         let error = anyhow::anyhow!("{}", dump.error);
                         tracing::info!("Saving dump..");
-                        if let Err(err) =
-                            save_dump(self.sequencer_config.block_dump_path.clone(), dump)
-                        {
+                        if let Err(err) = save_dump(self.config.block_dump_path.clone(), dump) {
                             tracing::error!(?err, "Failed to write block dump");
                         }
                         error
@@ -140,7 +141,10 @@ where
             tracing::debug!(block_number, "Executed. Adding to block replay storage...");
             latency_tracker.enter_state(SequencerState::AddingToReplayStorage);
 
-            self.replay.write(replay_record.clone(), override_allowed);
+            self.replay.write(
+                Sealed::new_unchecked(replay_record.clone(), block_output.header.hash()),
+                override_allowed,
+            );
 
             tracing::debug!(block_number, "Added to replay storage. Adding to state...");
             latency_tracker.enter_state(SequencerState::AddingToState);
@@ -172,10 +176,11 @@ where
 
             // TODO: would updating mempool in parallel with state make sense?
             self.block_context_provider
-                .on_canonical_state_change(&block_output, &replay_record, cmd_type)
+                .on_canonical_state_change(&block_output, &replay_record)
                 .await;
             let purged_txs_hashes = purged_txs.into_iter().map(|(hash, _)| hash).collect();
-            self.block_context_provider.remove_txs(purged_txs_hashes);
+            self.block_context_provider
+                .remove_transactions(purged_txs_hashes);
 
             tracing::debug!(
                 block_number,

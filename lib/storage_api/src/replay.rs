@@ -1,9 +1,10 @@
 use crate::ReplayRecord;
-use alloy::primitives::BlockNumber;
+use alloy::primitives::{BlockNumber, Sealed};
 use futures::Stream;
 use futures::stream::{BoxStream, StreamExt};
 use pin_project::pin_project;
 use std::collections::HashMap;
+use std::fmt::Debug;
 use std::task::Poll;
 use std::time::Duration;
 use tokio::time::{Instant, Sleep};
@@ -26,7 +27,7 @@ use zksync_os_interface::types::BlockContext;
 /// any specific implementation SHOULD declare if it satisfies requirements for a longer period of
 /// time.
 #[auto_impl::auto_impl(&, Box, Arc)]
-pub trait ReadReplay: Send + Sync + 'static {
+pub trait ReadReplay: Debug + Send + Sync + Unpin + 'static {
     /// Get block's execution context. Meant to be used in situations where the full block data is
     /// not needed.
     ///
@@ -91,12 +92,12 @@ pub trait ReadReplayExt: ReadReplay {
     /// Streams replay records with block_number ≥ `start`, in ascending block order.
     /// On reaching the latest stored record continuously waits for new records to appear. Used to send blocks to ENs.
     fn stream_from_forever(
-        &self,
+        self,
         start: BlockNumber,
         db_key_overrides: HashMap<BlockNumber, Vec<u8>>,
-    ) -> BoxStream<ReplayRecord>
+    ) -> BoxStream<'static, ReplayRecord>
     where
-        Self: Clone,
+        Self: Sized,
     {
         #[pin_project]
         struct BlockStream<Replay: ReadReplay> {
@@ -133,7 +134,7 @@ pub trait ReadReplayExt: ReadReplay {
         }
 
         Box::pin(BlockStream {
-            replays: self.clone(),
+            replays: self,
             current_block: start,
             db_key_overrides,
             sleep: tokio::time::sleep(Duration::from_millis(50)),
@@ -163,5 +164,5 @@ pub trait WriteReplay: ReadReplay {
     ///   all [`ReadReplay`] methods should reflect its existence appropriately
     /// * MUST be atomic and always leave storage in a valid state (that satisfies all requirements
     ///   here and in [`ReadReplay`]) regardless of the method's outcome (including panic)
-    fn write(&self, record: ReplayRecord, override_allowed: bool) -> bool;
+    fn write(&self, record: Sealed<ReplayRecord>, override_allowed: bool) -> bool;
 }
