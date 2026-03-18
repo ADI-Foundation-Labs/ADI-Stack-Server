@@ -68,8 +68,9 @@ use zksync_os_l1_sender::pipeline_component::L1Sender;
 use zksync_os_l1_sender::upgrade_gatekeeper::UpgradeGatekeeper;
 use zksync_os_l1_watcher::{
     CommittedBatchProvider, Gateway, GatewayMigrationWatcher, L1, L1CommitWatcher,
-    L1ExecuteWatcher, L1TxWatcher, L1UpgradeTxWatcher, util,
+    L1ExecuteWatcher, L1TxWatcher, L1UpgradeTxWatcher,
 };
+use zksync_os_l1_watcher::util as l1_watcher_util;
 use zksync_os_l1_watcher::{InteropWatcher, L1PersistBatchWatcher};
 use zksync_os_mempool::Pool;
 use zksync_os_mempool::subpools::interop_fee::InteropFeeSubpool;
@@ -1287,7 +1288,7 @@ async fn commit_proof_execute_block_numbers(
         0
     } else {
         let batch_num = l1_state.last_committed_batch;
-        util::retry_with_grace_period(
+        l1_watcher_util::retry_with_grace_period(
             || async move { Ok::<_, anyhow::Error>(committed_batch_provider.get(batch_num)) },
             grace_period,
             Duration::from_secs(5),
@@ -1303,7 +1304,7 @@ async fn commit_proof_execute_block_numbers(
         0
     } else {
         let batch_num = l1_state.last_proved_batch;
-        util::retry_with_grace_period(
+        l1_watcher_util::retry_with_grace_period(
             || async move { Ok::<_, anyhow::Error>(committed_batch_provider.get(batch_num)) },
             grace_period,
             Duration::from_secs(5),
@@ -1318,7 +1319,7 @@ async fn commit_proof_execute_block_numbers(
         0
     } else {
         let batch_num = l1_state.last_executed_batch;
-        util::retry_with_grace_period(
+        l1_watcher_util::retry_with_grace_period(
             || async move { Ok::<_, anyhow::Error>(committed_batch_provider.get(batch_num)) },
             grace_period,
             Duration::from_secs(5),
