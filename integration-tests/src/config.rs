@@ -1,6 +1,4 @@
-use flate2::read::GzDecoder;
 use smart_config::{ConfigRepository, ConfigSources, Json, Yaml};
-use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 use zksync_os_server::config::{Config, GenesisConfig};
@@ -22,7 +20,13 @@ impl<'a> ChainLayout<'a> {
     fn chain_id(self) -> Option<u64> {
         match self {
             ChainLayout::Default { .. } => None,
-            ChainLayout::MultiChain { chain_index, .. } => Some(6565u64 + chain_index as u64),
+            ChainLayout::MultiChain { chain_index, .. } => {
+                if chain_index == 0 {
+                    Some(506u64)
+                } else {
+                    Some(6565u64 - 1 + chain_index as u64)
+                }
+            }
         }
     }
 
@@ -62,15 +66,18 @@ impl<'a> ChainLayout<'a> {
         }
     }
 
+    /// Read the pre-decompressed L1 state JSON.
+    /// Produced by `build.rs` locally, or by a CI step on remote runners.
     pub(crate) fn l1_state(self) -> Vec<u8> {
-        let compressed_path = self.protocol_dir().join("l1-state.json.gz");
-        let data = std::fs::read(&compressed_path).expect("failed to read compressed L1 state");
-        let mut decoder = GzDecoder::new(data.as_slice());
-        let mut decoded_data = Vec::new();
-        decoder
-            .read_to_end(decoded_data.as_mut())
-            .expect("failed to decompress L1 state");
-        decoded_data
+        let json_path = self.protocol_dir().join("l1-state.json");
+        std::fs::read(&json_path).unwrap_or_else(|e| {
+            panic!(
+                "failed to read decompressed L1 state at {}: {e}\n\
+                 hint: build.rs should produce this from l1-state.json.gz; \
+                 on CI runners run `gunzip -k` first",
+                json_path.display()
+            )
+        })
     }
 
     /// Genesis input is always taken from `<version>/default/genesis.json`
@@ -135,7 +142,7 @@ fn load_config_from_path(config_path: &Path) -> Config {
     Config {
         genesis_config,
         l1_sender_config: config_repo.single().unwrap().parse().unwrap(),
-        general_config: Default::default(),
+        general_config: config_repo.single().unwrap().parse().unwrap(),
         network_config: Default::default(),
         rpc_config: Default::default(),
         private_api_config: Default::default(),
@@ -151,7 +158,8 @@ fn load_config_from_path(config_path: &Path) -> Config {
         gas_adjuster_config: Default::default(),
         batch_verification_config: Default::default(),
         base_token_price_updater_config: config_repo.single().unwrap().parse().unwrap(),
-        external_price_api_client_config: config_repo.single().unwrap().parse().unwrap(),
+        interop_fee_updater_config: Default::default(),
+        external_price_api_client_config: Some(config_repo.single().unwrap().parse().unwrap()),
         fee_config: Default::default(),
     }
 }

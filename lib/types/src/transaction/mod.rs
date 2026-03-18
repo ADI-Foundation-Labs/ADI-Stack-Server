@@ -18,9 +18,6 @@ use alloy::primitives::{Address, B256, Bytes, TxNonce, U256};
 use serde::{Deserialize, Serialize};
 use std::hash::Hash;
 
-// `TransactionEnvelope` derive macro below depends on this being present
-use alloy::rlp as alloy_rlp;
-
 /// ZKsync OS transaction envelope describing [EIP-2718] envelopes, custom L1->L2 transaction
 /// envelope and custom transaction envelope for system transactions.
 ///
@@ -215,7 +212,7 @@ impl fmt::Display for ZkTxType {
 mod tests {
     use super::*;
     use alloy::consensus::private::alloy_primitives;
-    use alloy::primitives::{TxKind, address};
+    use alloy::primitives::TxKind;
 
     #[test]
     // Test vector from https://etherscan.io/tx/0x280cde7cdefe4b188750e76c888f13bd05ce9a4d7767730feefe8a0e50ca6fc4

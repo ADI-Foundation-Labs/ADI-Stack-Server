@@ -14,7 +14,7 @@ use tokio::sync::RwLock;
 use tokio::sync::mpsc::{self, Sender};
 use tokio::time::Instant;
 use zksync_os_batch_types::{BatchSignatureSet, ValidatedBatchSignature};
-use zksync_os_contract_interface::l1_discovery::{BatchVerificationL1, L1State};
+use zksync_os_contract_interface::l1_discovery::{BatchVerificationSL, L1State};
 use zksync_os_l1_sender::batcher_metrics::BatchExecutionStage;
 use zksync_os_l1_sender::batcher_model::{
     BatchForSigning, BatchSignatureData, SignedBatchEnvelope,
@@ -51,7 +51,7 @@ impl<E> BatchVerificationPipelineStep<E> {
             .collect();
         // If on L1 batch verifiers re configured, we use that configuration instead
         let (threshold, validators) = match &l1_state.batch_verification {
-            BatchVerificationL1::Enabled(l1_config) => {
+            BatchVerificationSL::Enabled(l1_config) => {
                 if !l1_config.validators.is_empty() || l1_config.threshold > 0 {
                     (
                         config.threshold.max(l1_config.threshold),
@@ -61,7 +61,7 @@ impl<E> BatchVerificationPipelineStep<E> {
                     (config.threshold, config_validators)
                 }
             }
-            BatchVerificationL1::Disabled => (config.threshold, config_validators),
+            BatchVerificationSL::Disabled => (config.threshold, config_validators),
         };
 
         Self {
@@ -218,6 +218,13 @@ impl BatchVerifier {
         response_channels: ResponseChannelsMapArc,
         server: Arc<BatchVerificationServer>,
     ) -> Self {
+        BATCH_VERIFICATION_SEQUENCER_METRICS
+            .threshold
+            .set(component.threshold);
+        BATCH_VERIFICATION_SEQUENCER_METRICS
+            .validators_count
+            .set(component.validators.len());
+
         Self {
             config: component.config.clone(),
             accepted_signers: component.validators.clone(),
@@ -225,8 +232,8 @@ impl BatchVerifier {
             request_id_counter: AtomicU64::new(1),
             response_channels,
             server,
-            l1_chain_id: component.l1_state.l1_chain_id,
-            multisig_committer: component.l1_state.validator_timelock,
+            l1_chain_id: component.l1_state.sl_chain_id,
+            multisig_committer: component.l1_state.validator_timelock_sl,
             last_committed_batch_number: component.last_committed_batch_number,
         }
     }
@@ -445,6 +452,7 @@ impl BatchVerifier {
                 result: BatchVerificationResult::Refused(reason),
                 ..
             } => {
+                BATCH_VERIFICATION_SEQUENCER_METRICS.failed_responses[&"refused"].inc();
                 tracing::info!(
                     batch_number = batch_envelope.batch_number(),
                     request_id = request_id,
@@ -462,6 +470,7 @@ impl BatchVerifier {
             self.multisig_committer,
             &batch_envelope.batch.protocol_version,
         ) else {
+            BATCH_VERIFICATION_SEQUENCER_METRICS.failed_responses[&"invalid_signature"].inc();
             tracing::warn!(
                 batch_number = batch_envelope.batch_number(),
                 request_id = request_id,
@@ -471,6 +480,7 @@ impl BatchVerifier {
         };
 
         if !self.accepted_signers.contains(validated_signature.signer()) {
+            BATCH_VERIFICATION_SEQUENCER_METRICS.failed_responses[&"unknown_signer"].inc();
             tracing::warn!(
                 batch_number = batch_envelope.batch_number(),
                 request_id = request_id,

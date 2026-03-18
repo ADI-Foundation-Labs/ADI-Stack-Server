@@ -11,6 +11,7 @@ use anyhow::Context;
 use backon::ConstantBuilder;
 use backon::Retryable;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::path::Path;
 use std::str::FromStr;
 use std::sync::{Arc, LazyLock};
 use std::time::Duration;
@@ -18,11 +19,10 @@ use tempfile::TempDir;
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
 use zksync_os_network::NodeRecord;
-use zksync_os_object_store::{ObjectStoreConfig, ObjectStoreMode};
 use zksync_os_server::config::{
     BatchVerificationConfig, Config, FakeFriProversConfig, FakeSnarkProversConfig, FeeConfig,
-    GeneralConfig, NetworkConfig, ProverApiConfig, ProverInputGeneratorConfig, RpcConfig,
-    SequencerConfig, StatusServerConfig,
+    GeneralConfig, NetworkConfig, PrivateApiConfig, ProofStorageConfig, ProverApiConfig,
+    ProverInputGeneratorConfig, RpcConfig, SequencerConfig, StatusServerConfig,
 };
 use zksync_os_server::default_protocol_version::{NEXT_PROTOCOL_VERSION, PROTOCOL_VERSION};
 use zksync_os_state_full_diffs::FullDiffsState;
@@ -76,7 +76,6 @@ pub struct Tester {
 
     #[allow(dead_code)]
     tempdir: Arc<tempfile::TempDir>,
-    main_node_tempdir: Arc<tempfile::TempDir>,
 
     // Needed to be able to connect external nodes
     node_record: NodeRecord,
@@ -129,6 +128,7 @@ impl Tester {
             config.general_config.node_role = NodeRole::ExternalNode;
             config.network_config.boot_nodes = vec![self.node_record];
             config.general_config.main_node_rpc_url = Some(self.l2_rpc_address.clone());
+            config.l1_sender_config.pubdata_mode = None;
             config.batch_verification_config.connect_address = self.batch_verification_url.clone();
             if let Some(f) = config_overrides {
                 f(config)
@@ -139,7 +139,6 @@ impl Tester {
             self.l1.clone(),
             false,
             Some(overrides_fun),
-            Some(self.main_node_tempdir.clone()),
             PROTOCOL_VERSION,
         )
         .await
@@ -149,7 +148,6 @@ impl Tester {
         l1: AnvilL1,
         enable_prover: bool,
         config_overrides: Option<impl FnOnce(&mut Config)>,
-        main_node_tempdir: Option<Arc<tempfile::TempDir>>,
         protocol_version: &str,
     ) -> anyhow::Result<Self> {
         // Initialize and **hold** locked ports for the duration of node initialization.
@@ -168,11 +166,8 @@ impl Tester {
 
         let tempdir = tempfile::tempdir()?;
         let rocks_db_path = tempdir.path().join("rocksdb");
-        let object_store_path = main_node_tempdir
-            .as_ref()
-            .map(|t| t.path())
-            .unwrap_or(tempdir.path())
-            .join("object_store");
+        // ENs will not use this dir
+        let proof_storage_path = tempdir.path().join("proof_storage_path");
         let (stop_sender, stop_receiver) = watch::channel(false);
 
         // Create a handle to run the sequencer in the background
@@ -191,6 +186,9 @@ impl Tester {
             send_raw_transaction_sync_timeout: Duration::from_secs(10),
             ..Default::default()
         };
+        let private_api_config = PrivateApiConfig {
+            address: SocketAddr::from(([127, 0, 0, 1], network_locked_port.port)),
+        };
         let prover_api_config = ProverApiConfig {
             fake_fri_provers: FakeFriProversConfig {
                 enabled: !enable_prover,
@@ -201,12 +199,9 @@ impl Tester {
                 ..Default::default()
             },
             address: prover_api_address,
-            object_store: ObjectStoreConfig {
-                mode: ObjectStoreMode::FileBacked {
-                    file_backed_base_path: object_store_path.clone(),
-                },
-                max_retries: 1,
-                local_mirror_path: None,
+            proof_storage: ProofStorageConfig {
+                path: proof_storage_path.clone(),
+                ..Default::default()
             },
             ..Default::default()
         };
@@ -249,7 +244,7 @@ impl Tester {
             network_config,
             genesis_config: default_config.genesis_config.clone(),
             rpc_config,
-            private_api_config: Default::default(),
+            private_api_config,
             mempool_config: Default::default(),
             tx_validator_config: Default::default(),
             sequencer_config,
@@ -266,6 +261,7 @@ impl Tester {
             gas_adjuster_config: Default::default(),
             batch_verification_config,
             base_token_price_updater_config: default_config.base_token_price_updater_config.clone(),
+            interop_fee_updater_config: default_config.interop_fee_updater_config.clone(),
             external_price_api_client_config: default_config
                 .external_price_api_client_config
                 .clone(),
@@ -287,20 +283,37 @@ impl Tester {
             let trusted_setup_file = std::env::var("COMPACT_CRS_FILE").unwrap();
             let output_dir = tempdir.path().join("outputs");
             std::fs::create_dir_all(&output_dir).unwrap();
+
+            let path = download_prover_and_unpack(cfg!(feature = "gpu-prover-tests")).await;
+
+            let mut child = tokio::process::Command::new(path)
+                .arg("--sequencer-urls")
+                .arg(base_url)
+                .arg("--app-bin-path")
+                .arg(app_bin_path)
+                .arg("--circuit-limit")
+                .arg("10000")
+                .arg("--output-dir")
+                .arg(output_dir)
+                .arg("--trusted-setup-file")
+                .arg(trusted_setup_file)
+                .arg("--iterations")
+                .arg("1")
+                .arg("--max-fris-per-snark")
+                .arg("1")
+                .arg("--disable-zk")
+                .spawn()
+                .expect("failed to spawn prover service");
             tokio::task::spawn(async move {
-                zksync_os_prover_service::run(zksync_os_prover_service::Args {
-                    sequencer_urls: vec![base_url.parse().unwrap()],
-                    app_bin_path: Some(app_bin_path),
-                    circuit_limit: 10000,
-                    output_dir: output_dir.to_str().unwrap().to_string(),
-                    trusted_setup_file: trusted_setup_file.to_string(),
-                    iterations: Some(1),
-                    fri_path: None,
-                    max_snark_latency: None,
-                    max_fris_per_snark: Some(1),
-                    disable_zk: true,
-                })
-                .await
+                let code = child
+                    .wait()
+                    .await
+                    .expect("failed to wait for prover service");
+                if code.success() {
+                    tracing::info!("prover service finished running");
+                } else {
+                    panic!("prover service terminated with exit code {}", code);
+                }
             });
         }
 
@@ -323,8 +336,8 @@ impl Tester {
         })
         .retry(
             ConstantBuilder::default()
-                .with_delay(Duration::from_secs(1))
-                .with_max_times(10),
+                .with_delay(Duration::from_millis(200))
+                .with_max_times(50),
         )
         .notify(|err: &anyhow::Error, dur: Duration| {
             tracing::info!(%err, ?dur, "retrying connection to L2 node");
@@ -346,8 +359,8 @@ impl Tester {
             })
             .retry(
                 ConstantBuilder::default()
-                    .with_delay(Duration::from_secs(1))
-                    .with_max_times(10),
+                    .with_delay(Duration::from_millis(200))
+                    .with_max_times(50),
             )
             .notify(|err: &anyhow::Error, dur: Duration| {
                 tracing::info!(%err, ?dur, "waiting for L2 account to become rich");
@@ -378,7 +391,6 @@ impl Tester {
             batch_verification_url,
             node_record,
             tempdir: tempdir.clone(),
-            main_node_tempdir: main_node_tempdir.unwrap_or(tempdir),
         })
     }
 }
@@ -389,6 +401,7 @@ pub struct TesterBuilder {
     block_time: Option<Duration>,
     batch_verification_threshold: Option<u64>,
     fee_config: Option<FeeConfig>,
+    gas_price_scale_factor: Option<f64>,
     estimate_gas_pubdata_price_factor: Option<f64>,
 }
 
@@ -414,6 +427,11 @@ impl TesterBuilder {
         self
     }
 
+    pub fn gas_price_scale_factor(mut self, factor: f64) -> Self {
+        self.gas_price_scale_factor = Some(factor);
+        self
+    }
+
     pub fn estimate_gas_pubdata_price_factor(mut self, factor: f64) -> Self {
         self.estimate_gas_pubdata_price_factor = Some(factor);
         self
@@ -436,6 +454,9 @@ impl TesterBuilder {
             if let Some(fee_config) = self.fee_config.clone() {
                 config.fee_config = fee_config;
             }
+            if let Some(factor) = self.gas_price_scale_factor {
+                config.rpc_config.gas_price_scale_factor = factor;
+            }
             if let Some(factor) = self.estimate_gas_pubdata_price_factor {
                 config.rpc_config.estimate_gas_pubdata_price_factor = factor;
             }
@@ -445,7 +466,6 @@ impl TesterBuilder {
             l1,
             self.enable_prover,
             Some(overrides_fun),
-            None,
             PROTOCOL_VERSION,
         )
         .await
@@ -483,12 +503,12 @@ impl MultiChainTester {
 
     /// Get chain A (first chain)
     pub fn chain_a(&self) -> &Tester {
-        self.chain(0)
+        self.chain(1)
     }
 
     /// Get chain B (second chain)
     pub fn chain_b(&self) -> &Tester {
-        self.chain(1)
+        self.chain(2)
     }
 }
 
@@ -517,7 +537,7 @@ impl MultiChainTesterBuilder {
         .await?;
 
         // Launch L2 chains using chain configurations from config files
-        let mut chains = Vec::new();
+        let mut chains: Vec<Tester> = Vec::new();
         for i in 0..num_chains {
             // Load the chain config to get the chain ID, operator keys, and contract addresses
             let chain_config = load_chain_config(ChainLayout::MultiChain {
@@ -528,24 +548,40 @@ impl MultiChainTesterBuilder {
                 .genesis_config
                 .chain_id
                 .expect("Chain ID must be set in chain config");
+            let gateway_rpc_url = chain_config
+                .general_config
+                .gateway_rpc_url
+                .map(|_| chains[0].l2_rpc_address.clone());
+            let ephemeral_state = chain_config.general_config.ephemeral_state;
             let l1_sender_config = chain_config.l1_sender_config.clone();
             let bridgehub_address = chain_config.genesis_config.bridgehub_address;
             let bytecode_supplier_address = chain_config.genesis_config.bytecode_supplier_address;
 
             let chain_override = move |config: &mut Config| {
+                if gateway_rpc_url.is_some() {
+                    config.general_config.gateway_rpc_url = gateway_rpc_url;
+                }
                 config.genesis_config.chain_id = Some(chain_id);
                 config.genesis_config.bridgehub_address = bridgehub_address;
                 config.genesis_config.bytecode_supplier_address = bytecode_supplier_address;
                 config.l1_sender_config = l1_sender_config.clone();
                 // Use short block time for faster tests
                 config.sequencer_config.block_time = Duration::from_millis(500);
+
+                if let Some(ephemeral_state) = &ephemeral_state {
+                    let ephemeral_state = Path::new("..").join(ephemeral_state);
+                    tracing::info!("Loading ephemeral state from {}", ephemeral_state.display());
+                    zksync_os_server::util::unpack_ephemeral_state(
+                        &ephemeral_state,
+                        &config.general_config.rocks_db_path,
+                    );
+                }
             };
 
             let tester = Tester::launch_node(
                 l1.clone(),
                 false, // disable prover for faster tests
                 Some(chain_override),
-                None,
                 NEXT_PROTOCOL_VERSION,
             )
             .await?;
@@ -558,6 +594,10 @@ impl MultiChainTesterBuilder {
             );
 
             chains.push(tester);
+
+            if i + 1 < num_chains {
+                tokio::time::sleep(Duration::from_secs(2)).await;
+            }
         }
 
         Ok(MultiChainTester { l1, chains })
@@ -603,8 +643,8 @@ impl AnvilL1 {
         })
         .retry(
             ConstantBuilder::default()
-                .with_delay(Duration::from_secs(1))
-                .with_max_times(10),
+                .with_delay(Duration::from_millis(200))
+                .with_max_times(50),
         )
         .notify(|err: &anyhow::Error, dur: Duration| {
             tracing::info!(%err, ?dur, "retrying connection to L1 node");
@@ -620,4 +660,211 @@ impl AnvilL1 {
             _tempdir: Arc::new(tempdir),
         })
     }
+}
+
+#[cfg(feature = "prover-tests")]
+async fn download_prover_and_unpack(gpu: bool) -> String {
+    const RELEASE_VERSION: &str = "v0.7.1";
+    const RELEASE_BASE_URL: &str =
+        "https://github.com/matter-labs/zksync-airbender-prover/releases/download/v0.7.1";
+
+    let os = std::env::consts::OS;
+    let arch = std::env::consts::ARCH;
+    let asset_name = match (os, arch, gpu) {
+        ("linux", "x86_64", true) => {
+            "zksync-os-prover-service-v0.7.1-x86_64-unknown-linux-gnu-gpu.tar.gz"
+        }
+        ("linux", "x86_64", false) => {
+            "zksync-os-prover-service-v0.7.1-x86_64-unknown-linux-gnu-cpu.tar.gz"
+        }
+        ("macos", _, true) => {
+            panic!("GPU prover binary is not available for macOS in {RELEASE_VERSION}")
+        }
+        ("macos", _, false) => "zksync-os-prover-service-v0.7.1-universal-apple-darwin-cpu.tar.gz",
+        ("linux", _, _) => panic!(
+            "unsupported Linux architecture `{arch}` for prover binaries; supported architecture: x86_64"
+        ),
+        _ => panic!(
+            "unsupported platform `{os}-{arch}` for prover binaries; supported platforms: linux-x86_64 (cpu/gpu), macos-* (cpu)"
+        ),
+    };
+
+    let local_binary_name = asset_name.trim_end_matches(".tar.gz");
+    let dir = Path::new("prover-binaries");
+    if !std::fs::exists(dir).expect("failed to check dir existence") {
+        std::fs::create_dir_all(dir).expect("failed to create dir");
+    }
+
+    let binary_path = dir.join(local_binary_name);
+    if std::fs::exists(binary_path.as_path()).expect("failed to check binary existence") {
+        tracing::info!(
+            "prover service binary is already present at {}",
+            binary_path.display()
+        );
+        return binary_path.display().to_string();
+    }
+
+    let archive_path = dir.join(asset_name);
+    if !std::fs::exists(archive_path.as_path()).expect("failed to check archive existence") {
+        let url = format!("{RELEASE_BASE_URL}/{asset_name}");
+        tracing::info!(
+            "downloading prover service archive from {url} to {}",
+            archive_path.display()
+        );
+        let resp = download_prover_binary(&url)
+            .await
+            .expect("failed to download");
+        let body = resp
+            .bytes()
+            .await
+            .expect("failed to read response body")
+            .to_vec();
+        std::fs::write(archive_path.as_path(), body).expect("failed to write archive");
+    }
+
+    let extract_dir = dir.join(format!("{local_binary_name}-extract"));
+    if std::fs::exists(extract_dir.as_path()).expect("failed to check extraction dir existence") {
+        std::fs::remove_dir_all(extract_dir.as_path())
+            .expect("failed to clear previous extraction dir");
+    }
+    std::fs::create_dir_all(extract_dir.as_path()).expect("failed to create extraction dir");
+    let (archive_path_clone, extract_dir_clone) = (archive_path.clone(), extract_dir.clone());
+    tokio::task::spawn_blocking(move || {
+        let file = std::fs::File::open(&archive_path_clone)
+            .expect("prover archive exists and is readable");
+        tar::Archive::new(flate2::read::GzDecoder::new(file))
+            .unpack(&extract_dir_clone)
+            .unwrap_or_else(|e| {
+                panic!(
+                    "failed to unpack prover archive {}: {e}",
+                    archive_path_clone.display()
+                )
+            });
+    })
+    .await
+    .expect("extraction task did not panic");
+
+    let extracted_binary_path =
+        find_first_prover_binary(extract_dir.as_path()).unwrap_or_else(|| {
+            panic!(
+                "failed to locate prover binary after unpacking archive {}",
+                archive_path.display()
+            )
+        });
+    std::fs::copy(extracted_binary_path.as_path(), binary_path.as_path())
+        .expect("failed to copy extracted prover binary");
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+
+        let mut perms = std::fs::metadata(binary_path.as_path())
+            .expect("failed to load binary metadata")
+            .permissions();
+        perms.set_mode(0o755); // Sets rwxr-xr-x
+        std::fs::set_permissions(binary_path.as_path(), perms)
+            .expect("failed to set binary permissions");
+    }
+    #[cfg(not(unix))]
+    {
+        panic!("unsupported platform (UNIX required)");
+    }
+
+    binary_path.display().to_string()
+}
+
+#[cfg(feature = "prover-tests")]
+fn find_first_prover_binary(dir: &Path) -> Option<std::path::PathBuf> {
+    for entry in std::fs::read_dir(dir).ok()? {
+        let path = entry.ok()?.path();
+        if path.is_dir() {
+            if let Some(found) = find_first_prover_binary(path.as_path()) {
+                return Some(found);
+            }
+            continue;
+        }
+
+        let Some(file_name) = path.file_name().and_then(std::ffi::OsStr::to_str) else {
+            continue;
+        };
+        if file_name.starts_with("zksync-os-prover-service") && !file_name.ends_with(".tar.gz") {
+            return Some(path);
+        }
+    }
+    None
+}
+
+#[cfg(feature = "prover-tests")]
+async fn download_prover_binary(url: &str) -> anyhow::Result<reqwest::Response> {
+    use reqwest::{
+        Client, StatusCode,
+        header::{AUTHORIZATION, HeaderMap, HeaderValue, USER_AGENT},
+    };
+
+    const DOWNLOAD_MAX_ATTEMPTS: usize = 5;
+    const DOWNLOAD_TIMEOUT_SECS: u64 = 60;
+    const DOWNLOAD_BASE_BACKOFF_MS: u64 = 500;
+
+    fn is_retryable_status(status: StatusCode) -> bool {
+        status.is_server_error() || status == StatusCode::TOO_MANY_REQUESTS
+    }
+
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        USER_AGENT,
+        HeaderValue::from_static("zksync-os-integration-tests/1.0"),
+    );
+
+    if let Ok(token) = std::env::var("GITHUB_TOKEN") {
+        let bearer = format!("Bearer {}", token.trim());
+        match HeaderValue::from_str(&bearer) {
+            Ok(value) => {
+                headers.insert(AUTHORIZATION, value);
+            }
+            Err(err) => {
+                tracing::warn!("Ignoring invalid GITHUB_TOKEN format: {err}");
+            }
+        }
+    }
+
+    let client = Client::builder()
+        .default_headers(headers)
+        .timeout(Duration::from_secs(DOWNLOAD_TIMEOUT_SECS))
+        .build()?;
+
+    for attempt in 1..=DOWNLOAD_MAX_ATTEMPTS {
+        let response = client.get(url).send().await;
+        match response {
+            Ok(response) => {
+                let status = response.status();
+                if status.is_success() {
+                    return Ok(response);
+                }
+
+                if is_retryable_status(status) && attempt < DOWNLOAD_MAX_ATTEMPTS {
+                    let delay_ms = DOWNLOAD_BASE_BACKOFF_MS * attempt as u64;
+                    tracing::warn!(
+                        "download attempt {attempt}/{DOWNLOAD_MAX_ATTEMPTS} failed with status {status} for {url}; retrying in {delay_ms}ms"
+                    );
+                    std::thread::sleep(Duration::from_millis(delay_ms));
+                    continue;
+                }
+
+                anyhow::bail!("download failed with status {status} for {url}");
+            }
+            Err(err) => {
+                if attempt < DOWNLOAD_MAX_ATTEMPTS {
+                    let delay_ms = DOWNLOAD_BASE_BACKOFF_MS * attempt as u64;
+                    tracing::warn!(
+                        "download attempt {attempt}/{DOWNLOAD_MAX_ATTEMPTS} failed for {url}: {err}; retrying in {delay_ms}ms"
+                    );
+                    std::thread::sleep(Duration::from_millis(delay_ms));
+                    continue;
+                }
+
+                anyhow::bail!("download request failed for {url}: {err}");
+            }
+        }
+    }
+    unreachable!("loop always returns on success or final attempt");
 }

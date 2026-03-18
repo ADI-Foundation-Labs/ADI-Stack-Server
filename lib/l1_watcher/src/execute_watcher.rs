@@ -100,7 +100,7 @@ impl<Finality: WriteFinality> ProcessL1Event for L1ExecuteWatcher<Finality> {
                 Duration::from_secs(5),
                 &format!("executed batch {}", batch_number),
             )
-                .await?;
+            .await?;
             let last_executed_block = discovered_batch.last_block_number();
             self.finality.update_finality_status(|finality| {
                 assert!(

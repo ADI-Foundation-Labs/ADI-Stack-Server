@@ -1,14 +1,13 @@
-use super::v1::{BatchVerificationRequestWireFormatV1, BatchVerificationResponseWireFormatV1};
+use super::v1::{
+    BatchVerificationRequestWireFormatV1, BatchVerificationResponseResultWireFormatV1,
+    BatchVerificationResponseWireFormatV1,
+};
 use crate::{
     BatchVerificationRequest, BatchVerificationResponse, response::BatchVerificationResult,
-    wire_format::v1::BatchVerificationResponseResultWireFormatV1,
 };
 use alloy::sol_types::SolValue;
 use zksync_os_batch_types::BatchSignature;
-use zksync_os_contract_interface::{
-    IExecutor::{self, CommitBatchInfoZKsyncOS},
-    models::{CommitBatchInfo, StoredBatchInfo},
-};
+use zksync_os_contract_interface::{IExecutor, IExecutorV30, models::StoredBatchInfo};
 use zksync_os_types::PubdataMode;
 
 impl From<BatchVerificationRequestWireFormatV1> for BatchVerificationRequest {
@@ -22,9 +21,9 @@ impl From<BatchVerificationRequestWireFormatV1> for BatchVerificationRequest {
             commit_data,
             prev_commit_data,
         } = value;
-        let decoded_commit_data_alloy = CommitBatchInfoZKsyncOS::abi_decode(&commit_data)
-            .expect("Failed to decode commit data");
-        let decoded_commit_data = CommitBatchInfo::from(decoded_commit_data_alloy);
+        let decoded_commit_data = IExecutorV30::CommitBatchInfoZKsyncOS::abi_decode(&commit_data)
+            .expect("Failed to decode commit data")
+            .into();
         let decoded_prev_commit_data_alloy =
             IExecutor::StoredBatchInfo::abi_decode(&prev_commit_data)
                 .expect("Failed to decode prev commit data");
@@ -53,8 +52,8 @@ impl From<BatchVerificationRequest> for BatchVerificationRequestWireFormatV1 {
             commit_data,
             prev_commit_data,
         } = value;
-        let commit_data_alloy = CommitBatchInfoZKsyncOS::from(commit_data);
-        let encoded_commit_data = commit_data_alloy.abi_encode();
+        let encoded_commit_data =
+            IExecutorV30::CommitBatchInfoZKsyncOS::from(commit_data).abi_encode();
         // StoredBatchInfo conversion is not lossless last_commit_timestamp is zeroed. It is fine, because it is a legacy field unused in L1.
         let prev_commit_data_alloy = IExecutor::StoredBatchInfo::from(&prev_commit_data);
         let encoded_prev_commit_data = prev_commit_data_alloy.abi_encode();

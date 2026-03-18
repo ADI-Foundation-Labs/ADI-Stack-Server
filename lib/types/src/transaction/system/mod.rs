@@ -7,14 +7,18 @@ use alloy::eips::{Decodable2718, Encodable2718, Typed2718};
 use alloy::primitives::ChainId;
 use alloy::primitives::{Address, B256, Bytes, TxKind, U256};
 use alloy::rpc::types::{AccessList, SignedAuthorization};
+use alloy::sol_types::SolCall;
 use alloy_rlp::{BufMut, Decodable, Encodable};
 use serde::{Deserialize, Serialize};
 use std::sync::OnceLock;
+use zksync_os_contract_interface::IMessageRoot::addInteropRootsInBatchCall;
+use zksync_os_contract_interface::ISystemContext::setSettlementLayerChainIdCall;
 use zksync_os_contract_interface::InteropRoot;
 
 pub mod tx;
 pub mod utils;
 pub use utils::{L2_INTEROP_ROOT_STORAGE_ADDRESS, SYSTEM_TX_TYPE_ID, SystemTxType};
+use zksync_os_contract_interface::IInteropCenter::setInteropFeeCall;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(into = "tx_serde::TransactionSerdeHelper")]
@@ -42,16 +46,25 @@ impl SystemTxEnvelope {
     }
 
     /// A constructor for system transaction that sets the settlement layer chain id
-    pub fn set_sl_chain_id(chain_id: ChainId) -> Self {
-        Self::create_from_input(SystemTxInput::SetSLChainId(chain_id))
+    pub fn set_sl_chain_id(chain_id: ChainId, migration_number: u64) -> Self {
+        Self::create_from_input(SystemTxInput::SetSLChainId(chain_id, migration_number))
+    }
+
+    /// A constructor for system transaction that sets the interop fee.
+    pub fn set_interop_fee(interop_fee: U256, interop_fee_number: u64) -> Self {
+        Self::create_from_input(SystemTxInput::SetInteropFee(
+            interop_fee,
+            interop_fee_number,
+        ))
     }
 
     fn create_from_input(tx_input: SystemTxInput) -> Self {
-        let calldata = tx_input.abi_encode();
+        let (calldata, salt) = tx_input.encode_data();
 
         let transaction = SystemTx {
             to: tx_input.to_address(),
             input: Bytes::from(calldata),
+            salt,
         };
 
         Self {
@@ -61,17 +74,65 @@ impl SystemTxEnvelope {
         }
     }
 
+    fn decoded_input(&self) -> SystemTxInput {
+        let data = self.inner.input();
+
+        let selector_bytes: [u8; 4] = data
+            .slice(..4)
+            .to_vec()
+            .try_into()
+            .expect("Failed to get selector bytes from system transaction data");
+        match selector_bytes {
+            addInteropRootsInBatchCall::SELECTOR => {
+                let call = addInteropRootsInBatchCall::abi_decode(data)
+                    .expect("failed to decode interop roots system transaction");
+                SystemTxInput::ImportInteropRoots(call.interopRootsInput)
+            }
+            setSettlementLayerChainIdCall::SELECTOR => {
+                let call = setSettlementLayerChainIdCall::abi_decode(data)
+                    .expect("failed to decode SL chain id system transaction");
+                SystemTxInput::SetSLChainId(
+                    call._newSettlementLayerChainId.try_into().unwrap(),
+                    self.inner.salt,
+                )
+            }
+            setInteropFeeCall::SELECTOR => {
+                let call = setInteropFeeCall::abi_decode(data)
+                    .expect("failed to decode interop fee system transaction");
+                SystemTxInput::SetInteropFee(call._interopFee, self.inner.salt)
+            }
+            _ => panic!(
+                "unknown system transaction selector: {}",
+                alloy::hex::encode(selector_bytes)
+            ),
+        }
+    }
+
     pub fn system_subtype(&self) -> &SystemTxType {
         self.subtype.get_or_init(|| {
-            let input = SystemTxInput::abi_decode(self.inner.input());
+            let input = self.decoded_input();
             assert_eq!(self.to(), Some(input.to_address()));
             match input {
                 SystemTxInput::ImportInteropRoots(roots) => {
                     SystemTxType::ImportInteropRoots(roots.len() as u64)
                 }
-                SystemTxInput::SetSLChainId(_) => SystemTxType::SetSLChainId,
+                SystemTxInput::SetSLChainId(_, migration_number) => {
+                    SystemTxType::SetSLChainId(migration_number)
+                }
+                SystemTxInput::SetInteropFee(_, interop_fee_number) => {
+                    SystemTxType::SetInteropFee(interop_fee_number)
+                }
             }
         })
+    }
+
+    pub fn interop_roots(&self) -> Option<Vec<InteropRoot>> {
+        let input = self.decoded_input();
+        if let SystemTxInput::ImportInteropRoots(roots) = input {
+            Some(roots)
+        } else {
+            None
+        }
     }
 
     pub fn hash(&self) -> &B256 {
@@ -119,7 +180,7 @@ mod tx_serde {
     // Serialize: inject defaults for (r,s,v,yParity)
     impl From<SystemTxEnvelope> for TransactionSerdeHelper {
         fn from(tx: SystemTxEnvelope) -> Self {
-            let tx_input = SystemTxInput::abi_decode(tx.inner.input());
+            let tx_input = tx.decoded_input();
             Self {
                 hash: *tx.hash(),
                 initiator: BOOTLOADER_FORMAL_ADDRESS,
@@ -141,7 +202,7 @@ mod tx_serde {
 }
 
 /// A helper struct to store the block number and index in block of published interop roots event.
-#[derive(Default, Debug, Clone, Serialize, Deserialize, Hash, Eq, PartialEq, PartialOrd)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, Hash, Eq, PartialEq, PartialOrd, Ord)]
 pub struct InteropRootsLogIndex {
     /// Block number from which event was published.
     pub block_number: u64,
@@ -314,7 +375,7 @@ impl Transaction for SystemTxEnvelope {
 
 #[cfg(test)]
 mod tests {
-    use alloy::primitives::{B256, Uint};
+    use alloy::primitives::{B256, U256, Uint};
     use zksync_os_contract_interface::InteropRoot;
 
     use crate::SystemTxEnvelope;
@@ -332,7 +393,7 @@ mod tests {
         assert_eq!(
             serde_json::to_string_pretty(&tx).unwrap(),
             r#"{
-  "hash": "0x1f7117fa6190a6da113e9b7223222d3bc3b7c4c866772385e05ec79041e8f0ba",
+  "hash": "0x7bc1a669ea68562d2b22fb56757a7f85c69b286d5d4c0e1fb1b09cd8bd340aee",
   "initiator": "0x0000000000000000000000000000000000008001",
   "to": "0x0000000000000000000000000000000000010008",
   "gas": "0x0",
@@ -351,12 +412,12 @@ mod tests {
 
     #[test]
     fn set_sl_chain_id_tx_serialization() {
-        let tx = SystemTxEnvelope::set_sl_chain_id(1);
+        let tx = SystemTxEnvelope::set_sl_chain_id(1, 0);
 
         assert_eq!(
             serde_json::to_string_pretty(&tx).unwrap(),
             r#"{
-  "hash": "0x0db54bf16b232c227e16f783ea14f030ab983c67b5a2898452bc09028e0e5a4f",
+  "hash": "0x2045e379b7d45667d30c025f4cb764acfcccbf993a6744db09a4f2ad12c2981c",
   "initiator": "0x0000000000000000000000000000000000008001",
   "to": "0x000000000000000000000000000000000000800b",
   "gas": "0x0",
@@ -365,6 +426,30 @@ mod tests {
   "nonce": "0x0",
   "value": "0x0",
   "input": "0x040203e60000000000000000000000000000000000000000000000000000000000000001",
+  "v": "0x0",
+  "r": "0x0",
+  "s": "0x0",
+  "yParity": "0x0"
+}"#
+        );
+    }
+
+    #[test]
+    fn set_interop_fee_tx_serialization() {
+        let tx = SystemTxEnvelope::set_interop_fee(U256::from(42), 0);
+
+        assert_eq!(
+            serde_json::to_string_pretty(&tx).unwrap(),
+            r#"{
+  "hash": "0xfe3a6e7202556c5e309bc15e409e335bf132997ee6a090492e0be120e9bce7ff",
+  "initiator": "0x0000000000000000000000000000000000008001",
+  "to": "0x000000000000000000000000000000000001000d",
+  "gas": "0x0",
+  "maxFeePerGas": "0x0",
+  "maxPriorityFeePerGas": "0x0",
+  "nonce": "0x0",
+  "value": "0x0",
+  "input": "0x08273d8a000000000000000000000000000000000000000000000000000000000000002a",
   "v": "0x0",
   "r": "0x0",
   "s": "0x0",
