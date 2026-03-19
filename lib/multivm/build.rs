@@ -117,7 +117,7 @@ fn main() {
             // We need to use original V6 binaries from zksync-os v0.2.5.
             // Should be removed as soon as we can get rig of proving V6.
             let tag = if proving_version == "V6" {
-                "v0.2.5".to_owned()
+                "v0.2.5-b".to_owned()
             } else {
                 tag
             };
