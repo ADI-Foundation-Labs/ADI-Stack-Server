@@ -1,11 +1,16 @@
 use async_trait::async_trait;
 use std::collections::HashSet;
+use std::time::Duration;
 use tokio::sync::{mpsc, watch};
 use zksync_os_pipeline::{PeekableReceiver, PipelineComponent};
 use zksync_os_sequencer::execution::block_context_provider::millis_since_epoch;
 use zksync_os_sequencer::model::blocks::{BlockCommand, ProduceCommand, RebuildCommand};
 use zksync_os_storage_api::{ReadReplay, ReadReplayExt, ReplayRecord};
 
+/// Configuration for replay stream retry behavior
+const RETRY_INITIAL_DELAY: Duration = Duration::from_millis(500);
+const RETRY_MAX_DELAY: Duration = Duration::from_secs(120);
+const RETRY_BACKOFF_FACTOR: u32 = 2;
 /// Command source for Main Node.
 /// Replays local WAL starting from `starting_block` and then produces new blocks.
 #[derive(Debug)]
@@ -170,24 +175,54 @@ impl PipelineComponent for ExternalNodeCommandSource {
         _input: PeekableReceiver<()>,
         output: mpsc::Sender<BlockCommand>,
     ) -> anyhow::Result<()> {
-        while let Some(record) = self.replays_for_sequencer.recv().await {
-            let block_number = record.block_context.block_number;
-            let command = BlockCommand::Replay(Box::new(record));
-            tracing::debug!(?command, "Received block command from main node");
+        let mut current_block: Option<u64> = None;
+        let mut retry_delay = RETRY_INITIAL_DELAY;
 
-            if let Some(up_to_block) = self.up_to_block
-                && block_number > up_to_block
-            {
-                tracing::info!(
-                    up_to_block,
-                    "Reached up_to_block, halting external command source"
-                );
-                let _ = self.stop_receiver.wait_for(|stop| *stop).await;
-            }
+        loop {
+            match self.replays_for_sequencer.recv().await {
+                Some(record) => {
+                    retry_delay = RETRY_INITIAL_DELAY;
 
-            if output.send(command).await.is_err() {
-                tracing::warn!("Command output channel closed, stopping source");
-                break;
+                    let block_number = record.block_context.block_number;
+                    let command = BlockCommand::Replay(Box::new(record));
+
+                    if let Some(expected) = current_block {
+                        if block_number != expected {
+                            tracing::warn!(
+                                expected,
+                                received = block_number,
+                                "Unexpected block number in replay stream"
+                            );
+                        }
+                    }
+
+                    if let Some(up_to_block) = self.up_to_block
+                        && block_number > up_to_block
+                    {
+                        tracing::info!(
+                            up_to_block,
+                            "Reached up_to_block, halting external command source"
+                        );
+                        let _ = self.stop_receiver.wait_for(|stop| *stop).await;
+                        break;
+                    }
+
+                    if output.send(command).await.is_err() {
+                        tracing::warn!("Output channel closed, stopping source");
+                        break;
+                    }
+
+                    current_block = Some(block_number + 1);
+                }
+                None => {
+                    tracing::warn!(
+                        ?retry_delay,
+                        current_block,
+                        "Replay stream empty, retrying..."
+                    );
+                    tokio::time::sleep(retry_delay).await;
+                    retry_delay = (retry_delay * RETRY_BACKOFF_FACTOR).min(RETRY_MAX_DELAY);
+                }
             }
         }
 

@@ -419,7 +419,6 @@ pub async fn fetch_commit_calldata(
     );
     CommittedBatch::fetch(zk_chain, commit_batch_info, l1_block_id).await
 }
-
 /// Retry a storage lookup with a grace period, logging warnings along the way.
 pub async fn retry_with_grace_period<T, E, F, Fut>(
     operation: F,
@@ -458,11 +457,7 @@ where
                         grace_period_sec = grace_period.as_secs(),
                         "Grace period expired, data not found in storage"
                     );
-                    panic!(
-                        "{} is not present in storage after {} seconds grace period",
-                        context,
-                        grace_period.as_secs()
-                    );
+                    panic!("{} is not present in storage after {} seconds grace period", context, grace_period.as_secs());
                 }
 
                 let remaining = grace_period - elapsed;
