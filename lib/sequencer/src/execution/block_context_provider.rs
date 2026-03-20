@@ -105,7 +105,7 @@ impl<Subpool: L2Subpool> BlockContextProvider<Subpool> {
     ) -> anyhow::Result<PreparedBlockCommand<'_>> {
         let prepared_command = match block_command {
             BlockCommand::Produce(_) => {
-                let fee_params = self.fee_provider.produce_fee_params().await?;
+                let mut fee_params = self.fee_provider.produce_fee_params().await?;
                 self.pool
                     .update_pending_block_fees(fee_params.eip1559_basefee.saturating_to(), None);
                 let block_number = self.next_block_number;
@@ -152,15 +152,20 @@ impl<Subpool: L2Subpool> BlockContextProvider<Subpool> {
                     .context("Cannot instantiate a block for unsupported execution version")?;
 
                 let overrides = self.config_overrides_receiver.borrow();
+                if let Some(base_fee) = overrides.base_fee {
+                    fee_params.eip1559_basefee = base_fee;
+                }
+                if let Some(native_price) = overrides.native_price {
+                    fee_params.native_price = native_price;
+                }
+                if let Some(pubdata_price) = overrides.pubdata_price {
+                    fee_params.pubdata_price = pubdata_price;
+                }
                 let FeeParams {
                     eip1559_basefee,
                     native_price,
                     pubdata_price,
-                } = Self::produce_fee_params(
-                    overrides.base_fee,
-                    overrides.native_price,
-                    overrides.pubdata_price,
-                );
+                } = fee_params;
                 let block_context = BlockContext {
                     eip1559_basefee,
                     native_price,
@@ -250,10 +255,10 @@ impl<Subpool: L2Subpool> BlockContextProvider<Subpool> {
 
                 if rebuild.make_empty
                     && rebuild
-                        .replay_record
-                        .transactions
-                        .iter()
-                        .any(|tx| matches!(tx.envelope(), ZkEnvelope::Upgrade(_)))
+                    .replay_record
+                    .transactions
+                    .iter()
+                    .any(|tx| matches!(tx.envelope(), ZkEnvelope::Upgrade(_)))
                 {
                     anyhow::bail!(
                         "Cannot make an empty block when there is an upgrade transaction in the replay record for block {}",
@@ -388,35 +393,6 @@ impl<Subpool: L2Subpool> BlockContextProvider<Subpool> {
         self.next_block_number += 1;
         self.previous_block_timestamp = block_output.header.timestamp;
         self.fee_provider.on_canonical_state_change(replay_record);
-    }
-
-    fn produce_fee_params(
-        base_fee_override: Option<U256>,
-        native_price_override: Option<U256>,
-        pubdata_price_override: Option<U256>,
-    ) -> FeeParams {
-        const NATIVE_PRICE: u128 = 1_000_000;
-        const NATIVE_PER_GAS: u128 = 100;
-
-        let eip1559_basefee =
-            base_fee_override.unwrap_or(U256::from(NATIVE_PRICE) * U256::from(NATIVE_PER_GAS));
-
-        // IMPORTANT: bootloader requires basefee / native_price = 100 (NATIVE_PER_GAS).
-        // If native_price override is set, use it. Otherwise, derive from base_fee.
-        let native_price = native_price_override
-            .unwrap_or_else(|| eip1559_basefee / U256::from(NATIVE_PER_GAS));
-
-        // IMPORTANT: pubdata_price defaults to 0 unless explicitly overridden.
-        // First reason: working around a bug in the bootloader with pubdata price calculation.
-        // Second reason: base fee includes all extra costs (L1 pubdata price,
-        // infrastructure costs, etc.), so pubdata price is ignored by default.
-        let pubdata_price = pubdata_price_override.unwrap_or(U256::ZERO);
-
-        FeeParams {
-            eip1559_basefee,
-            native_price,
-            pubdata_price,
-        }
     }
 }
 
