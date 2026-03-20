@@ -453,7 +453,7 @@ impl<RpcStorage: ReadRpcStorage> EthCallHandler<RpcStorage> {
     fn estimate_gas_with_view<V: ViewState + Clone>(
         &self,
         mut request: TransactionRequest,
-        mut block_context: BlockContext,
+        block_context: BlockContext,
         mut storage_view: V,
     ) -> Result<U256, EthCallError> {
         // Rest of the flow was heavily borrowed from reth, which in turn closely follows the
@@ -512,11 +512,6 @@ impl<RpcStorage: ReadRpcStorage> EthCallHandler<RpcStorage> {
                     .saturating_to(),
             );
         }
-
-        // Set base fee to 0 during estimation to avoid balance checks.
-        // This matches eth_call behavior and ensures estimation works regardless of sender's
-        // current balance. The actual balance check happens when the transaction is submitted.
-        block_context.eip1559_basefee = U256::ZERO;
 
         request.set_gas_limit(
             request
