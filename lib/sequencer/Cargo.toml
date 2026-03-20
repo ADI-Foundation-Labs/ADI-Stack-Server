@@ -19,14 +19,12 @@ zksync_os_storage_api.workspace = true
 zksync_os_types.workspace = true
 zksync_os_multivm.workspace = true
 zksync_os_gas_adjuster.workspace = true
+zksync_os_metadata.workspace = true
 
 zk_ee.workspace = true
 zk_os_basic_system.workspace = true
 zk_os_forward_system.workspace = true
 zksync_os_interface.workspace = true
-
-reth-primitives.workspace = true
-reth-execution-types = { workspace = true }
 
 alloy = { workspace = true, default-features = false, features = ["eips", "eip712", "dyn-abi", "rpc-types", "json-rpc"] }
 anyhow.workspace = true
@@ -40,3 +38,4 @@ tokio.workspace = true
 tracing.workspace = true
 vise.workspace = true
 semver.workspace = true
+num.workspace = true

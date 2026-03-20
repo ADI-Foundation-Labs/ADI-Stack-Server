@@ -5,11 +5,13 @@ use crate::assert_traits::ReceiptAssert;
 use crate::network::Zksync;
 use crate::provider::ZksyncApi;
 use alloy::network::ReceiptResponse;
-use alloy::primitives::{Address, U256, address};
+use alloy::primitives::{Address, B256, U256, address};
 use alloy::providers::{PendingTransactionBuilder, Provider};
-use alloy::rpc::types::{Log, TransactionReceipt};
+use alloy::rpc::types::TransactionReceipt;
+use tokio::time::{Duration, Instant};
 use zksync_os_contract_interface::Bridgehub;
-use zksync_os_types::ZkReceiptEnvelope;
+use zksync_os_rpc_api::types::ZkTransactionReceipt;
+use zksync_os_types::L2_INTEROP_ROOT_STORAGE_ADDRESS;
 
 alloy::sol!(
     /// Simple contract that can emit events on demand.
@@ -90,6 +92,11 @@ alloy::sol! {
         function l2TokenAddress(address _l1Token) public view returns (address);
         function withdraw(address _l1Receiver, address _l2Token, uint256 _amount);
     }
+
+    #[sol(rpc)]
+    contract IL2InteropRootStorage {
+        function interopRoots(uint256 chainId, uint256 batchNumber) external view returns (bytes32);
+    }
 }
 
 const L1_MESSENGER_ADDRESS: Address = address!("0000000000000000000000000000000000008008");
@@ -168,7 +175,7 @@ impl<P1: Provider, P2: Provider<Zksync>> L1Nullifier<P1, P2> {
 
     pub async fn finalize_withdrawal(
         &self,
-        withdrawal_l2_receipt: TransactionReceipt<ZkReceiptEnvelope<Log>>,
+        withdrawal_l2_receipt: ZkTransactionReceipt,
     ) -> anyhow::Result<TransactionReceipt> {
         let l1_message_sent = withdrawal_l2_receipt
             .logs()
@@ -187,14 +194,49 @@ impl<P1: Provider, P2: Provider<Zksync>> L1Nullifier<P1, P2> {
             .enumerate()
             .find(|(_, log)| log.sender == L1_MESSENGER_ADDRESS)
             .expect("no L2->L1 logs found in withdrawal receipt");
-        let proof = self
-            .l2_provider
-            .get_l2_to_l1_log_proof(
-                withdrawal_l2_receipt.transaction_hash(),
-                l2_to_l1_log_index as u64,
+        let proof_retry_timeout = Duration::from_secs(60);
+        let proof_retry_delay = Duration::from_secs(1);
+        let proof_retry_started_at = Instant::now();
+        let proof = loop {
+            let elapsed = proof_retry_started_at.elapsed();
+            if elapsed >= proof_retry_timeout {
+                anyhow::bail!(
+                    "node failed to provide proof for withdrawal log within {:?}",
+                    proof_retry_timeout
+                );
+            }
+            let remaining = proof_retry_timeout - elapsed;
+
+            match tokio::time::timeout(
+                remaining,
+                self.l2_provider.get_l2_to_l1_log_proof(
+                    withdrawal_l2_receipt.transaction_hash(),
+                    l2_to_l1_log_index as u64,
+                ),
             )
-            .await?
-            .expect("node failed to provide proof for withdrawal log");
+            .await
+            {
+                Ok(Ok(Some(proof))) => break proof,
+                Ok(Ok(None)) | Ok(Err(_)) => {
+                    let elapsed = proof_retry_started_at.elapsed();
+                    if elapsed >= proof_retry_timeout {
+                        anyhow::bail!(
+                            "node failed to provide proof for withdrawal log within {:?}",
+                            proof_retry_timeout
+                        );
+                    }
+                    let remaining = proof_retry_timeout - elapsed;
+                    let sleep_for = proof_retry_delay.min(remaining);
+                    tokio::time::sleep(sleep_for).await;
+                }
+                Err(_) => {
+                    anyhow::bail!(
+                        "node failed to provide proof for withdrawal log within {:?}",
+                        proof_retry_timeout
+                    );
+                }
+            }
+        };
         let sender = Address::from_slice(&l2_to_l1_log.key[12..]);
         self.instance
             .finalizeDeposit(IL1Nullifier::FinalizeL1DepositParams {
@@ -213,6 +255,34 @@ impl<P1: Provider, P2: Provider<Zksync>> L1Nullifier<P1, P2> {
             .send()
             .await?
             .expect_successful_receipt()
+            .await
+    }
+}
+
+pub struct L2InteropRootStorage<P: Provider>(
+    IL2InteropRootStorage::IL2InteropRootStorageInstance<P>,
+);
+
+impl<P: Provider> L2InteropRootStorage<P> {
+    pub fn new(l2_provider: P) -> Self {
+        Self(IL2InteropRootStorage::new(
+            L2_INTEROP_ROOT_STORAGE_ADDRESS,
+            l2_provider,
+        ))
+    }
+
+    pub fn address(&self) -> &Address {
+        self.0.address()
+    }
+
+    pub async fn get_interop_root(
+        &self,
+        chain_id: u64,
+        batch_number: u64,
+    ) -> alloy::contract::Result<B256> {
+        self.0
+            .interopRoots(U256::from(chain_id), U256::from(batch_number))
+            .call()
             .await
     }
 }

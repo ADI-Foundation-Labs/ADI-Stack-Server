@@ -3,7 +3,8 @@ use alloy::rlp::{RlpDecodable, RlpEncodable};
 use serde::{Deserialize, Serialize};
 use zksync_os_interface::types::BlockContext;
 use zksync_os_types::{
-    L1TxSerialId, ProtocolSemanticVersion, ZkEnvelope, ZkReceiptEnvelope, ZkTransaction,
+    InteropRootsLogIndex, L1TxSerialId, ProtocolSemanticVersion, ZkEnvelope, ZkReceiptEnvelope,
+    ZkTransaction,
 };
 
 #[derive(Debug, Clone, RlpEncodable, RlpDecodable)]
@@ -27,7 +28,7 @@ pub struct StoredTxData {
 }
 
 /// Full data needed to replay a block - assuming storage is already in the correct state.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ReplayRecord {
     pub block_context: BlockContext,
     /// L1 transaction serial id (0-based) expected at the beginning of this block.
@@ -39,13 +40,42 @@ pub struct ReplayRecord {
     /// Will be moved to the BlockContext at some point
     pub previous_block_timestamp: u64,
     /// Version of the node that created this replay record.
+    /// NOTE: Excluded from equality check, different node versions can produce identical blocks.
     pub node_version: semver::Version,
     /// Version of the protocol that was used to create this replay record.
     pub protocol_version: ProtocolSemanticVersion,
-    /// Hash of the block output.
+    /// Extension of traditional block hash (see hash_block_output)
+    /// Used to confirm that we executed the replay correctly
+    /// We need this because our header is missing a few important fields
+    // TODO: We may want to add more information about block_output_hash (currently tracks only output, but different input can result in same output)
     pub block_output_hash: B256,
     /// Forced preimages to be included before the block execution.
     pub force_preimages: Vec<(B256, Vec<u8>)>,
+    /// Event index(block number and index in block) of the interop root tx executed first in the block
+    /// If there is no interop root tx in the block, equals to the previous block's value
+    pub starting_interop_event_index: InteropRootsLogIndex,
+    /// Migration number at the beginning of the block. If there is no migration event in the block, equals to the previous block's value
+    pub starting_migration_number: u64,
+    /// Interop fee update number at the beginning of the block. If there is no interop fee update
+    /// in the block, equals to the previous block's value.
+    pub starting_interop_fee_number: u64,
+}
+
+impl PartialEq for ReplayRecord {
+    fn eq(&self, other: &Self) -> bool {
+        // Same as #[derive(PartialEq)], but without `node_version`.
+        // During replay, we care about block identity, node_version is binary metadata.
+        self.block_context == other.block_context
+            && self.starting_l1_priority_id == other.starting_l1_priority_id
+            && self.transactions == other.transactions
+            && self.previous_block_timestamp == other.previous_block_timestamp
+            && self.protocol_version == other.protocol_version
+            && self.block_output_hash == other.block_output_hash
+            && self.force_preimages == other.force_preimages
+            && self.starting_interop_event_index == other.starting_interop_event_index
+            && self.starting_migration_number == other.starting_migration_number
+            && self.starting_interop_fee_number == other.starting_interop_fee_number
+    }
 }
 
 impl ReplayRecord {
@@ -59,11 +89,13 @@ impl ReplayRecord {
         protocol_version: ProtocolSemanticVersion,
         block_output_hash: B256,
         force_preimages: Vec<(B256, Vec<u8>)>,
+        starting_interop_event_index: InteropRootsLogIndex,
+        starting_migration_number: u64,
+        starting_interop_fee_number: u64,
     ) -> Self {
         let first_l1_tx_priority_id = transactions.iter().find_map(|tx| match tx.envelope() {
             ZkEnvelope::L1(l1_tx) => Some(l1_tx.priority_id()),
-            ZkEnvelope::L2(_) => None,
-            ZkEnvelope::Upgrade(_) => None,
+            _ => None,
         });
         if let Some(first_l1_tx_priority_id) = first_l1_tx_priority_id {
             assert_eq!(
@@ -71,6 +103,7 @@ impl ReplayRecord {
                 "First L1 tx priority id must match next_l1_priority_id"
             );
         }
+
         Self {
             block_context,
             starting_l1_priority_id,
@@ -80,6 +113,9 @@ impl ReplayRecord {
             protocol_version,
             block_output_hash,
             force_preimages,
+            starting_interop_event_index,
+            starting_migration_number,
+            starting_interop_fee_number,
         }
     }
 }

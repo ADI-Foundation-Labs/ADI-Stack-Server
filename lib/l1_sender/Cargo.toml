@@ -17,13 +17,11 @@ zksync_os_merkle_tree.workspace = true
 zksync_os_pipeline.workspace = true
 zksync_os_types.workspace = true
 zksync_os_batch_types.workspace = true
+zksync_os_operator_signer.workspace = true
 
 zksync_os_interface.workspace = true
 zk_ee.workspace = true
 zk_os_basic_system.workspace = true
-
-zk_os_basic_system_0_1_0.workspace = true
-zk_ee_0_1_0.workspace = true
 
 alloy = { workspace = true, default-features = false, features = [
     "reqwest",
@@ -43,6 +41,7 @@ tracing.workspace = true
 time = { workspace = true, features = ["parsing", "formatting"] }
 itertools.workspace = true
 vise.workspace = true
+thiserror.workspace = true
 
 [dev-dependencies]
 serde_json.workspace = true

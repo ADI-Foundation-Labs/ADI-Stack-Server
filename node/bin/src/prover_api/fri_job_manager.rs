@@ -15,7 +15,7 @@
 
 use crate::prover_api::fri_proof_verifier;
 use crate::prover_api::metrics::{ProverStage, ProverType};
-use crate::prover_api::proof_storage::{ProofStorage, StoredFailedProof};
+use crate::prover_api::proof_storage::ProofStorage;
 use crate::prover_api::prover_job_map::ProverJobMap;
 use alloy::primitives::Bytes;
 use jsonrpsee::core::Serialize;
@@ -239,22 +239,7 @@ impl FriJobManager {
             | ProvingVersion::V3
             | ProvingVersion::V4
             | ProvingVersion::V5 => {
-                tracing::debug!("Using 0.5.1 proof verifier for batch {}", batch_number);
-                let program_proof =
-                    bincode::serde::decode_from_slice(proof_bytes, bincode::config::standard())
-                        .map_err(|err| {
-                            tracing::warn!(batch_number, ?err, "Failed to deserialize proof");
-                            SubmitError::DeserializationFailed(err)
-                        })?
-                        .0;
-                fri_proof_verifier::verify_fri_proof_0_5_1(
-                    batch_metadata.previous_stored_batch_info.state_commitment,
-                    batch_metadata
-                        .batch_info
-                        .clone()
-                        .into_stored(&batch_metadata.protocol_version),
-                    program_proof,
-                )
+                panic!("proof verification for v1-v5 is not supported")
             }
             ProvingVersion::V6 => {
                 tracing::debug!("Using 0.5.2 proof verifier for batch {}", batch_number);
@@ -301,11 +286,7 @@ impl FriJobManager {
                 proof_bytes: proof_bytes.clone(),
             };
 
-            if let Err(save_err) = self
-                .proof_storage
-                .save_failed_proof(&StoredFailedProof { failed_proof })
-                .await
-            {
+            if let Err(save_err) = self.proof_storage.save_failed_proof(&failed_proof).await {
                 tracing::error!(
                     batch_number,
                     ?save_err,
@@ -358,7 +339,7 @@ impl FriJobManager {
 
     fn try_reserve_permit_downstream(
         &self,
-    ) -> Result<Permit<SignedBatchEnvelope<FriProof>>, SubmitError> {
+    ) -> Result<Permit<'_, SignedBatchEnvelope<FriProof>>, SubmitError> {
         Ok(match self.batches_with_proof_sender.try_reserve() {
             Ok(permit) => {
                 self.latency_tracker

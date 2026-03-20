@@ -8,17 +8,24 @@ use super::ProtocolSemanticVersion;
 #[derive(Debug, Clone, Copy, TryFromPrimitive, PartialEq)]
 #[repr(u32)]
 pub enum ExecutionVersion {
+    /// Historical version of zksync-os matching V3 STF. Kept for legacy reasons.
     V1 = 1,
+    /// Historical version of zksync-os matching V3 STF. Kept for legacy reasons.
     V2 = 2,
+    /// v0.0.x release branch of zksync-os
     V3 = 3,
+    /// v0.1.x release branch of zksync-os
     V4 = 4,
+    /// v0.2.x release branch of zksync-os
     V5 = 5,
+    /// Currently used as a dev version until release is done
+    V6 = 6,
 }
 
-impl TryFrom<ProtocolSemanticVersion> for ExecutionVersion {
+impl TryFrom<&ProtocolSemanticVersion> for ExecutionVersion {
     type Error = ExecutionVersionError;
 
-    fn try_from(version: ProtocolSemanticVersion) -> Result<Self, Self::Error> {
+    fn try_from(version: &ProtocolSemanticVersion) -> Result<Self, Self::Error> {
         // Prior to v30 release, updates happened without proper protocol upgrades, so it's
         // impossible to determine an early version by the protocol version alone. However,
         // the precise execution version is stored in the block context, so it can be loaded
@@ -29,8 +36,9 @@ impl TryFrom<ProtocolSemanticVersion> for ExecutionVersion {
         match version.minor {
             29 => Ok(ExecutionVersion::V4),
             30 => Ok(ExecutionVersion::V5),
-            31 => Ok(ExecutionVersion::V5),
-            _ => Err(ExecutionVersionError::UnsupportedVersion(version)),
+            31 => Ok(ExecutionVersion::V6),
+            32 => Ok(ExecutionVersion::V6),
+            _ => Err(ExecutionVersionError::UnsupportedVersion(version.clone())),
         }
     }
 }
@@ -55,22 +63,24 @@ mod tests {
             ((0, 29, 1), ExecutionVersion::V4),
             ((0, 30, 0), ExecutionVersion::V5),
             ((0, 30, 1), ExecutionVersion::V5),
-            ((0, 31, 0), ExecutionVersion::V5),
-            ((0, 31, 1), ExecutionVersion::V5),
+            ((0, 31, 0), ExecutionVersion::V6),
+            ((0, 31, 1), ExecutionVersion::V6),
+            ((0, 32, 0), ExecutionVersion::V6),
+            ((0, 32, 1), ExecutionVersion::V6),
         ];
 
         for ((major, minor, patch), expected) in test_vector.iter() {
             let version = ProtocolSemanticVersion::new(*major, *minor, *patch);
-            let exec_version = ExecutionVersion::try_from(version.clone())
+            let exec_version = ExecutionVersion::try_from(&version)
                 .unwrap_or_else(|e| panic!("Failed to convert version {version:?}: {e}"));
             assert_eq!(&exec_version, expected);
         }
 
-        let unknown_versions = [(0, 27, 10), (0, 28, 5), (0, 32, 0)];
+        let unknown_versions = [(0, 27, 10), (0, 28, 5), (0, 33, 0)];
 
         for (major, minor, patch) in unknown_versions.iter() {
             let version = ProtocolSemanticVersion::new(*major, *minor, *patch);
-            let exec_version = ExecutionVersion::try_from(version);
+            let exec_version = ExecutionVersion::try_from(&version);
             assert!(matches!(
                 exec_version,
                 Err(ExecutionVersionError::UnsupportedVersion(_))

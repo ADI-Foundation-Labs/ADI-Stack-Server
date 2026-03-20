@@ -337,6 +337,21 @@ impl<T: Clone> ProverJobMap<T> {
                 PROVER_METRICS.prove_time[&(self.prover_stage, prover_type, prover_id.to_string())]
                     // time since last assignment is proving time
                     .observe(assignment_info.time_since_last_assignment);
+                if let Some(total_computational_native_used) = stats.total_computational_native_used
+                {
+                    PROVER_METRICS.computational_native_proven
+                        [&(self.prover_stage, prover_type, prover_id.to_string())]
+                        .observe(total_computational_native_used);
+                    if total_computational_native_used > 0 {
+                        PROVER_METRICS.prove_time_per_million_native
+                            [&(self.prover_stage, prover_type, prover_id.to_string())]
+                            .observe(
+                                assignment_info
+                                    .time_since_last_assignment
+                                    .div_f64(total_computational_native_used as f64 / 1_000_000.0),
+                            );
+                    }
+                }
                 if stats.total_txs > 0 {
                     PROVER_METRICS.prove_time_per_tx
                         [&(self.prover_stage, prover_type, prover_id.to_string())]
@@ -468,13 +483,15 @@ mod tests {
                 dependency_roots_rolling_hash: B256::ZERO,
                 l2_to_l1_logs_root_hash: B256::ZERO,
                 commitment: B256::ZERO,
-                last_block_timestamp: 0,
+                // unused
+                last_block_timestamp: Some(0),
             },
             batch_info: BatchInfo {
                 commit_info: CommitBatchInfo {
                     batch_number,
                     new_state_commitment: B256::ZERO,
                     number_of_layer1_txs: 0,
+                    number_of_layer2_txs: 0,
                     priority_operations_hash: B256::ZERO,
                     dependency_roots_rolling_hash: B256::ZERO,
                     l2_to_l1_logs_root_hash: B256::ZERO,
@@ -486,6 +503,7 @@ mod tests {
                     last_block_number: Some(batch_number),
                     chain_id: 1,
                     operator_da_input: vec![],
+                    sl_chain_id: 2,
                 },
                 chain_address: Address::ZERO,
                 upgrade_tx_hash: None,
@@ -497,6 +515,10 @@ mod tests {
             tx_count: 10,
             execution_version: 1,
             protocol_version: ProtocolSemanticVersion::legacy_genesis_version(),
+            computational_native_used: None,
+            logs: vec![],
+            messages: vec![],
+            multichain_root: Default::default(),
         };
 
         BatchForSigning::new(batch, vec![1, 2, 3])

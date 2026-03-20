@@ -6,27 +6,70 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Basic Commands
 - **Build**: `cargo build` or `cargo build --release`
-- **Run locally**: `cargo run` (requires `anvil --load-state zkos-l1-state.json --port 8545` running first)
+- **Run locally**: `./run_local.sh ./local-chains/v30.2/default`
 - **Format**: `cargo fmt --all -- --check`
 - **Lint**: `cargo clippy --all-targets --all-features --workspace --exclude zksync_os_integration_tests -- -D warnings`
 - **Unit tests**: `cargo nextest run --workspace --exclude zksync_os_integration_tests`
-- **Integration tests**: `cargo nextest run --profile ci -p zksync_os_integration_tests`
+- **Integration tests**: `cargo nextest run -p zksync_os_integration_tests` (no live anvil needed — each test manages its own L1/node)
 
 ### Local Development Setup
-1. Start anvil: `anvil --load-state zkos-l1-state.json --port 8545`
-2. Run server: `cargo run`
-3. To restart chain: `rm -rf db/*` then restart anvil
+1. Run script: `./run_local.sh ./local-chains/v30.2/default`
+2. To restart chain: `rm -rf db/*` then re-run the script
 
 ### External Node Mode
-Use `run_en.sh` script or set environment variables:
+Set environment variables:
 ```
-block_replay_download_address=localhost:3053 \
-block_replay_server_address=0.0.0.0:3054 \
+network_enabled=true \
+network_secret_key=9cc842aaeb1492e567d989a34367c7239d1db21bad31557689c3d9d16e45b0b3 \
+network_address=127.0.0.1 \
+network_port=3061 \
+network_boot_nodes=enode://dbd18888f17bad7df7fa958b57f4993f47312ba5364508fd0d9027e62ea17a037ca6985d6b0969c4341f1d4f8763a802785961989d07b1fb5373ced9d43969f6@127.0.0.1:3060 \
 sequencer_rocks_db_path=./db/en \
 sequencer_prometheus_port=3313 \
 rpc_address=0.0.0.0:3051 \
 cargo run --release
 ```
+
+## Before Submitting a PR
+
+**Run all of the following checks before EVERY push to the branch — not just the first one.** Skipping any of these is not acceptable; every push must pass all checks.
+
+1. **Format**: `cargo fmt --all --check`
+2. **Lint**: `cargo clippy --all-targets --all-features --workspace -- -D warnings`
+3. **Unit tests**: `cargo nextest run --release --workspace --exclude zksync_os_integration_tests`
+4. **Integration tests**: `cargo nextest run -p zksync_os_integration_tests` (no live anvil needed — each test manages its own L1/node)
+
+Running every single one of these checks is critically important. CI will catch failures, but catching them locally before pushing saves everyone time and keeps the branch green.
+
+### Tests
+
+Judge whether the change warrants new tests:
+
+- **Bug fix or new logic** — add a unit test covering the case.
+- **New subsystem interaction or cross-component flow** — add an integration test in `zksync_os_integration_tests`.
+- **Pure refactor, doc change, or config tweak** — tests may not be needed.
+
+**Any bigger change to the server logic must have corresponding integration tests. Adding those integration tests is part of the scope of the PR — do not consider the PR complete until they are included.**
+
+If no tests were added, include one sentence in the PR description explaining why (e.g. _"No tests added — this is a documentation-only change."_ or _"No tests added — the behaviour is already covered by existing integration tests."_).
+
+### PR title
+
+PR titles must follow the [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) specification:
+
+```
+<type>(<scope>): <short description>
+```
+
+Examples: `feat(eth_sender): Support new transaction type`, `fix(state_keeper): Correctly handle edge case`, `ci: Add new workflow for linting`
+
+### Breaking changes
+
+If the PR title uses the breaking-change marker (`feat!: ...`, `fix!: ...`), you **must** uncomment and fill in the **Breaking Changes** and **Rollout Instructions** sections in the PR description (see `.github/pull_request_template.md`).
+
+### Wire format immutability
+
+Do **not** modify existing versioned wire format files under `lib/network/src/wire/replays/v*.rs`. Add a new versioned file instead.
 
 ## Architecture Overview
 
@@ -73,7 +116,7 @@ The ZKsync OS Sequencer is organized into three main subsystems:
 
 ### Ports
 - `3050` - L2 JSON RPC
-- `3053` - Block replay server (for External Nodes)
+- `3060` - P2P communication (used for External Nodes)
 - `3124` - Prover API (if enabled)
 - `3312` - Prometheus metrics
 

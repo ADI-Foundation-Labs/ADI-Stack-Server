@@ -1,7 +1,7 @@
-use crate::transaction::L1TxType;
 use crate::transaction::l1::L1Envelope;
 use crate::transaction::l2::L2Transaction;
-use crate::{ZkEnvelope, ZkTransaction};
+use crate::transaction::{L1TxType, system::utils::BOOTLOADER_FORMAL_ADDRESS};
+use crate::{SystemTxEnvelope, ZkEnvelope, ZkTransaction};
 use alloy::consensus::Transaction;
 use alloy::eips::Encodable2718;
 use alloy::primitives::{Address, B256, U256};
@@ -23,6 +23,12 @@ impl<T: L1TxType> ZksyncOsEncode for L1Envelope<T> {
     }
 }
 
+impl ZksyncOsEncode for SystemTxEnvelope {
+    fn encode(self) -> EncodedTx {
+        EncodedTx::Rlp(self.encoded_2718(), BOOTLOADER_FORMAL_ADDRESS)
+    }
+}
+
 impl ZksyncOsEncode for L2Transaction {
     fn encode(self) -> EncodedTx {
         let (envelope, signer) = self.into_parts();
@@ -34,6 +40,7 @@ impl ZksyncOsEncode for ZkTransaction {
     fn encode(self) -> EncodedTx {
         let (envelope, signer) = self.into_parts();
         match envelope {
+            ZkEnvelope::System(system_envelope) => system_envelope.encode(),
             ZkEnvelope::L1(l1_envelope) => l1_envelope.encode(),
             ZkEnvelope::Upgrade(upgrade_envelope) => upgrade_envelope.encode(),
             ZkEnvelope::L2(l2_envelope) => {
@@ -118,6 +125,8 @@ impl<T: L1TxType> From<L1Envelope<T>> for TransactionData {
     }
 }
 
+// This logic is not used for new transactions. Only needed for to generate historical ABI
+// representation expected by pre-0.1.0 versions of ZKsync OS.
 impl From<L2Transaction> for TransactionData {
     fn from(l2_tx: L2Transaction) -> Self {
         let (l2_tx, from) = l2_tx.into_parts();
@@ -175,17 +184,6 @@ impl From<L2Transaction> for TransactionData {
             factory_deps: vec![],
             paymaster_input: vec![],
             reserved_dynamic: encoded_access_list,
-        }
-    }
-}
-
-impl From<ZkTransaction> for TransactionData {
-    fn from(value: ZkTransaction) -> Self {
-        let (envelope, signer) = value.into_parts();
-        match envelope {
-            ZkEnvelope::L1(l1_envelope) => l1_envelope.into(),
-            ZkEnvelope::Upgrade(upgrade_envelope) => upgrade_envelope.into(),
-            ZkEnvelope::L2(l2_envelope) => L2Transaction::new_unchecked(l2_envelope, signer).into(),
         }
     }
 }

@@ -1,13 +1,11 @@
 mod model;
-mod replay_wire_format;
 pub use model::{FinalityStatus, ReplayRecord, StoredTxData, TxMeta};
-pub use replay_wire_format::REPLAY_WIRE_FORMAT_VERSION;
 
 mod replay;
 pub use replay::{ReadReplay, ReadReplayExt, WriteReplay};
 
 mod batch;
-pub use batch::ReadBatch;
+pub use batch::{PersistedBatch, ReadBatch, WriteBatch};
 
 pub mod notifications;
 
@@ -27,3 +25,8 @@ pub use state::{ReadStateHistory, StateError, StateResult, ViewState, WriteState
 
 pub mod state_override_view;
 pub use state_override_view::OverriddenStateView;
+
+mod read_multichain_root;
+pub use read_multichain_root::read_multichain_root;
+mod overlay_buffer;
+pub use overlay_buffer::{BlockOverlay, OverlayBuffer};
