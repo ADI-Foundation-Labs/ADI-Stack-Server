@@ -6,6 +6,7 @@ use alloy::providers::{DynProvider, Provider};
 use alloy::rpc::types::Filter;
 use alloy::sol_types::SolEvent;
 use anyhow::Context;
+use backon::{ConstantBuilder, Retryable};
 use std::fmt::Debug;
 use std::future::Future;
 use std::sync::Arc;
@@ -157,7 +158,7 @@ async fn find_latest_l1_revert(
         max_blocks_to_scan,
         |e| e.totalBatchesCommitted < batch_number,
     )
-        .await
+    .await
 }
 
 /// Finds first L1 block that contains **non-reverted** batch commitment event on L1 matching
@@ -188,10 +189,10 @@ pub async fn find_l1_commit_block_by_batch_number(
             max_l1_blocks_to_scan,
             |e| e.batchNumber == batch_number,
         )
-            .await?
-            .with_context(|| {
-                format!("linear search failed to find where batch {batch_number} was committed")
-            });
+        .await?
+        .with_context(|| {
+            format!("linear search failed to find where batch {batch_number} was committed")
+        });
     }
 
     let is_batch_committed = move |zk: Arc<ZkChain<DynProvider>>, block: BlockNumber| async move {
@@ -220,7 +221,7 @@ pub async fn find_l1_commit_block_by_batch_number(
         l1_block_with_commit + 1,
         max_l1_blocks_to_scan,
     )
-        .await?;
+    .await?;
     match last_l1_block_with_revert {
         Some(last_l1_block_with_revert) => {
             tracing::info!(
@@ -240,7 +241,7 @@ pub async fn find_l1_commit_block_by_batch_number(
                 last_l1_block_with_revert,
                 is_batch_committed,
             )
-                .await?;
+            .await?;
             tracing::info!(
                 batch_number,
                 l1_block_with_commit,
@@ -272,7 +273,7 @@ pub async fn find_l1_execute_block_by_batch_number(
         let res = zk.get_total_batches_executed(block.into()).await?;
         Ok(res >= batch_number)
     })
-        .await
+    .await
 }
 
 /// Fetches and decodes stored batch data for batch `batch_number` that is expected to have been
@@ -322,18 +323,6 @@ pub async fn fetch_stored_batch_data(
         batch_info,
         block_range: log.firstBlockNumber..=log.lastBlockNumber,
     }))
-}
-
-/// Finds and decodes stored batch data for batch `batch_number`. Returns `None` if there is none.
-pub async fn find_stored_batch_data_by_batch_number(
-    zk_chain: &ZkChain<DynProvider>,
-    batch_number: u64,
-    max_l1_blocks_to_scan: u64,
-) -> anyhow::Result<Option<DiscoveredCommittedBatch>> {
-    let l1_block_with_commit =
-        find_l1_commit_block_by_batch_number(zk_chain.clone(), batch_number, max_l1_blocks_to_scan)
-            .await?;
-    fetch_stored_batch_data(zk_chain, l1_block_with_commit, batch_number).await
 }
 
 /// Commitment information about a batch. Contains enough data to restore `StoredBatchInfo` that
@@ -390,18 +379,35 @@ impl CommittedBatch {
     }
 }
 
-/// Fetches and decodes batch commit transaction. Fails if transaction does not exist or is not
-/// a valid commit transaction.
+/// Fetches and decodes batch commit transaction. Retries if the transaction is pending
+/// (exists but has no block number yet) or not yet visible.
 pub async fn fetch_commit_calldata(
     zk_chain: &ZkChain<DynProvider>,
     tx_hash: TxHash,
 ) -> Result<CommittedBatch, L1WatcherError> {
-    // todo: retry-backoff logic in case tx is missing
-    let tx = zk_chain
-        .provider()
-        .get_transaction_by_hash(tx_hash)
-        .await?
-        .expect("tx not found");
+    let tx = (|| async {
+        let tx = zk_chain
+            .provider()
+            .get_transaction_by_hash(tx_hash)
+            .await
+            .map_err(|e| L1WatcherError::Other(e.into()))?
+            .ok_or_else(|| {
+                L1WatcherError::Other(anyhow::anyhow!("commit tx {tx_hash} not found"))
+            })?;
+        tx.block_number.ok_or_else(|| {
+            L1WatcherError::Other(anyhow::anyhow!(
+                "commit tx {tx_hash} has no block number (still pending)"
+            ))
+        })?;
+        Ok::<_, L1WatcherError>(tx)
+    })
+    .retry(
+        ConstantBuilder::default()
+            .with_delay(Duration::from_millis(200))
+            .with_max_times(50),
+    )
+    .await?;
+
     let CommitCalldata {
         commit_batch_info, ..
     } = CommitCalldata::decode(tx.input()).map_err(L1WatcherError::Other)?;
@@ -413,7 +419,6 @@ pub async fn fetch_commit_calldata(
     );
     CommittedBatch::fetch(zk_chain, commit_batch_info, l1_block_id).await
 }
-
 /// Retry a storage lookup with a grace period, logging warnings along the way.
 pub async fn retry_with_grace_period<T, E, F, Fut>(
     operation: F,
@@ -452,11 +457,7 @@ where
                         grace_period_sec = grace_period.as_secs(),
                         "Grace period expired, data not found in storage"
                     );
-                    panic!(
-                        "{} is not present in storage after {} seconds grace period",
-                        context,
-                        grace_period.as_secs()
-                    );
+                    panic!("{} is not present in storage after {} seconds grace period", context, grace_period.as_secs());
                 }
 
                 let remaining = grace_period - elapsed;

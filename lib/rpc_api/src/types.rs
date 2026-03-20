@@ -1,7 +1,7 @@
 use alloy::consensus::Sealed;
 use alloy::network::primitives::BlockTransactions;
 use alloy::primitives::{Address, B256, BlockHash, TxHash, U256};
-use alloy::rpc::types::Log;
+use alloy::rpc::types::{FeeHistory, Log};
 use jsonrpsee::core::Serialize;
 use serde::Deserialize;
 use zksync_os_types::{BlockExt, ZkEnvelope, ZkReceiptEnvelope};
@@ -36,6 +36,7 @@ impl RpcBlockConvert for Sealed<alloy::consensus::Block<TxHash>> {
 
 /// A struct with the proof for the L2->L1 log in a specific block.
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct L2ToL1LogProof {
     /// The L1 batch number containing the log.
     pub batch_number: u64,
@@ -47,12 +48,40 @@ pub struct L2ToL1LogProof {
     pub root: B256,
 }
 
+/// Selects the root that the returned merkle proof anchors to.
+///
+/// If omitted from the RPC call, [`LogProofTarget::L1BatchRoot`] is used.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum LogProofTarget {
+    /// Proof anchored to the SL L1 batch aggregated root.
+    ///
+    /// The proof covers the full gateway batch range and includes the local-root extension,
+    /// making it suitable for L1 verification.
+    #[default]
+    L1BatchRoot,
+    /// Proof anchored to the SL block-level message root.
+    ///
+    /// The proof targets the specific execution block (no local-root extension),
+    /// making it suitable for cross-chain interop message verification.
+    MessageRoot,
+}
+
 /// ZKsync-specific block metadata struct.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct BlockMetadata {
     pub pubdata_price_per_byte: U256,
     pub native_price: U256,
     pub execution_version: u32,
+}
+
+/// Extended FeeHistory struct including L2 pubdata price history.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct L2FeeHistory {
+    #[serde(flatten)]
+    pub base: FeeHistory,
+    pub pubdata_price_per_byte: Option<Vec<U256>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]

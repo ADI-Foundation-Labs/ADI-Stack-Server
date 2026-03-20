@@ -4,11 +4,9 @@ use alloy::primitives::Address;
 use alloy::primitives::utils::format_ether;
 use alloy::providers::ext::DebugApi;
 use alloy::providers::fillers::{FillProvider, TxFiller};
-use alloy::providers::{Provider, WalletProvider};
+use alloy::providers::{DynProvider, Provider, WalletProvider};
 use alloy::rpc::types::TransactionReceipt;
 use alloy::rpc::types::trace::geth::{CallConfig, GethDebugTracingOptions};
-use alloy::signers::k256::ecdsa::SigningKey;
-use alloy::signers::local::PrivateKeySigner;
 use anyhow::Context;
 use num::rational::Ratio;
 use num::{BigUint, ToPrimitive};
@@ -17,7 +15,7 @@ use std::time::{Duration, Instant};
 use tokio::sync::watch;
 use zksync_os_contract_interface::{
     IChainAdminOwnable::{self, IChainAdminOwnableInstance},
-    IERC20, IZKChain,
+    IERC20, ZkChain,
 };
 use zksync_os_external_price_api::cmc_api::CmcPriceApiClient;
 use zksync_os_external_price_api::coingecko_api::CoinGeckoPriceAPIClient;
@@ -25,6 +23,7 @@ use zksync_os_external_price_api::forced_price_client::ForcedPriceClient;
 use zksync_os_external_price_api::{
     APIToken, ExternalPriceApiClientConfig, PriceApiClient, ZK_L1_ADDRESS,
 };
+use zksync_os_operator_signer::SignerConfig;
 use zksync_os_types::{TokenApiRatio, TokenPricesForFees};
 
 mod metrics;
@@ -44,10 +43,11 @@ pub struct BaseTokenPriceUpdaterConfig {
     pub base_token_decimals_override: Option<u8>,
     /// Override for address of the gateway base token address used to calculate ETH<->GatewayBaseToken ratio on gateway using chains.
     pub gateway_base_token_addr_override: Option<Address>,
-    /// Signing key to update base token price on L1.
+    /// Signer configuration to update base token price on L1.
     /// Must be consistent with the key set on the chain admin contract.
     /// It's not used for chains with ETH as base token and it's expected to be set for all other chains.
-    pub token_multiplier_setter_sk: Option<SigningKey>,
+    /// Supports both local private keys and GCP KMS keys.
+    pub token_multiplier_setter_signer: Option<SignerConfig>,
     /// Max fee per gas we are willing to spend (in wei).
     pub max_fee_per_gas_wei: u128,
     /// Max priority fee per gas we are willing to spend (in wei).
@@ -92,11 +92,11 @@ pub struct BaseTokenPriceUpdater<
 
 async fn register_operator<P: Provider + WalletProvider<Wallet = EthereumWallet>>(
     provider: &mut P,
-    signing_key: SigningKey,
+    signer_config: SignerConfig,
 ) -> anyhow::Result<Address> {
-    let signer = PrivateKeySigner::from_signing_key(signing_key);
-    let address = signer.address();
-    provider.wallet_mut().register_signer(signer);
+    let address = signer_config
+        .register_with_wallet(provider.wallet_mut())
+        .await?;
 
     let balance = provider.get_balance(address).await?;
     METRICS
@@ -115,19 +115,20 @@ impl<F: TxFiller<Ethereum> + WalletProvider<Wallet = EthereumWallet>, P: Provide
     BaseTokenPriceUpdater<F, P>
 {
     pub async fn new(
-        base_token_address: Address,
-        zk_chain_address: Address,
-        chain_admin_address: Address,
+        zk_chain_l1: ZkChain<DynProvider>,
         mut l1_provider: FillProvider<F, P>,
         base_token_adjuster_config: BaseTokenPriceUpdaterConfig,
         external_price_api_client_config: ExternalPriceApiClientConfig,
         token_price_sender: watch::Sender<Option<TokenPricesForFees>>,
     ) -> anyhow::Result<Self> {
-        let token_multiplier_setter_address = if let Some(sk) = base_token_adjuster_config
-            .token_multiplier_setter_sk
-            .clone()
+        let base_token_address = zk_chain_l1.get_base_token_address().await?;
+
+        let token_multiplier_setter_address = if let Some(signer_config) =
+            base_token_adjuster_config
+                .token_multiplier_setter_signer
+                .clone()
         {
-            Some(register_operator(&mut l1_provider, sk).await?)
+            Some(register_operator(&mut l1_provider, signer_config).await?)
         } else {
             None
         };
@@ -161,7 +162,7 @@ impl<F: TxFiller<Ethereum> + WalletProvider<Wallet = EthereumWallet>, P: Provide
 
         if base_token != APIToken::ETH && token_multiplier_setter_address.is_none() {
             tracing::warn!(
-                "`token_multiplier_setter_sk` is not set in the config, but base token is not ETH. \
+                "Token multiplier setter signer is not configured, but base token is not ETH. \
                  Base token price updater will not be able to update the base token price on L1."
             );
         }
@@ -193,19 +194,15 @@ impl<F: TxFiller<Ethereum> + WalletProvider<Wallet = EthereumWallet>, P: Provide
             )?) as Box<dyn PriceApiClient>,
         };
 
-        let zk_chain = IZKChain::new(zk_chain_address, l1_provider.clone());
-        let l1_nominator = zk_chain
-            .baseTokenGasPriceMultiplierNominator()
-            .call()
-            .await
-            .context("Failed to call `baseTokenGasPriceMultiplierNominator`")?;
-        let l1_denominator = zk_chain
-            .baseTokenGasPriceMultiplierDenominator()
-            .call()
-            .await
-            .context("Failed to call `baseTokenGasPriceMultiplierDenominator`")?;
+        let l1_nominator = zk_chain_l1
+            .base_token_gas_price_multiplier_nominator()
+            .await?;
+        let l1_denominator = zk_chain_l1
+            .base_token_gas_price_multiplier_denominator()
+            .await?;
         let last_l1_ratio = Ratio::new(BigUint::from(l1_nominator), BigUint::from(l1_denominator));
 
+        let chain_admin_address = zk_chain_l1.get_admin().await?;
         let chain_admin_contract = IChainAdminOwnable::new(chain_admin_address, l1_provider);
         let token_multiplier_setter_on_l1 = chain_admin_contract
             .tokenMultiplierSetter()
@@ -233,7 +230,7 @@ impl<F: TxFiller<Ethereum> + WalletProvider<Wallet = EthereumWallet>, P: Provide
             last_l1_ratio,
             chain_admin_contract,
             token_multiplier_setter_address,
-            zk_chain_address,
+            zk_chain_address: *zk_chain_l1.address(),
             token_price_sender,
         })
     }

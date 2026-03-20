@@ -15,19 +15,18 @@ build = "build.rs"
 zksync_os_server.workspace = true
 zksync_os_contract_interface.workspace = true
 zksync_os_types.workspace = true
-zksync_os_object_store.workspace = true
 zksync_os_rpc_api.workspace = true
 zksync_os_rpc_private.workspace = true
 zksync_os_state_full_diffs.workspace = true
 zksync_os_multivm.workspace = true
 zksync_os_network.workspace = true
 
-zksync_os_prover_service = { workspace = true, optional = true }
-
 alloy = { workspace = true, default-features = false, features = ["provider-anvil-node", "rand", "json-rpc", "pubsub", "provider-ws"] }
 anyhow.workspace = true
-fs2.workspace = true
 flate2.workspace = true
+fs2.workspace = true
+reqwest = { workspace = true, optional = true }
+tar.workspace = true
 tokio.workspace = true
 tempfile.workspace = true
 tracing.workspace = true
@@ -44,10 +43,14 @@ serde_yaml.workspace = true
 zk_os_api.workspace = true
 zk_os_basic_system.workspace = true
 
+[build-dependencies]
+flate2.workspace = true
+sha2 = { workspace = true }
+
 [dev-dependencies]
 test-log = { workspace = true, default-features = false, features = ["trace", "color"] }
 regex.workspace = true
 
 [features]
-prover-tests = ["dep:zksync_os_prover_service"]
-gpu-prover-tests = ["prover-tests", "zksync_os_prover_service/gpu"]
+prover-tests = ["dep:reqwest"]
+gpu-prover-tests = ["prover-tests"]

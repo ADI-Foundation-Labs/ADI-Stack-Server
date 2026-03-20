@@ -40,7 +40,7 @@ impl<Finality: WriteFinality> L1CommitWatcher<Finality> {
             last_committed_batch,
             config.max_blocks_to_process,
         )
-            .await?;
+        .await?;
         tracing::info!(last_l1_block, "resolved on L1");
 
         let this = Self {
@@ -96,7 +96,7 @@ impl<Finality: WriteFinality> ProcessL1Event for L1CommitWatcher<Finality> {
                 Duration::from_secs(5),
                 &format!("committed batch {}", batch_number),
             )
-                .await?;
+            .await?;
 
             // todo: stop using this struct once fully migrated from S3
             let last_executed_batch_info = BatchInfo {

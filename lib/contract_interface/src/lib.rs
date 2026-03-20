@@ -45,12 +45,29 @@ alloy::sol! {
     }
 
     interface ServerNotifier {
-        event MigrateToGateway(uint256 indexed chainId);
-        event MigrateFromGateway(uint256 indexed chainId);
+        event MigrateToGateway(uint256 indexed chainId, uint256 migrationNumber);
+        event MigrateFromGateway(uint256 indexed chainId, uint256 migrationNumber);
     }
 
     interface ISystemContext {
         function setSettlementLayerChainId(uint256 _newSettlementLayerChainId);
+    }
+
+    interface IInteropCenter {
+        function setInteropFee(uint256 _interopFee);
+        function interopProtocolFee() external view returns (uint256);
+    }
+
+    #[sol(rpc)]
+    interface IGWAssetTracker {
+        function gatewaySettlementFee() external view returns (uint256);
+    }
+
+    // `DynamicIncrementalMerkle.sol`
+    struct Bytes32PushTree {
+        uint256 _nextLeafIndex;
+        bytes32[] _sides;
+        bytes32[] _zeros;
     }
 
     // `IMessageRoot.sol`
@@ -74,6 +91,12 @@ alloy::sol! {
         );
 
         function addInteropRootsInBatch(InteropRoot[] calldata interopRootsInput);
+
+        function getChainTree(uint256 chainId) public view returns (Bytes32PushTree);
+
+        event AppendedChainBatchRoot(uint256 indexed chainId, uint256 indexed batchNumber, bytes32 chainBatchRoot);
+        function getMerklePathForChain(uint256 _chainId) external view returns (bytes32[] memory);
+        mapping(uint256 chainId => uint256 chainIndex) public chainIndex;
     }
 
     // `ZKChainStorage.sol`
@@ -101,6 +124,8 @@ alloy::sol! {
         function sharedBridge() public view returns (address);
         function getAllZKChainChainIDs() external view returns (uint256[] memory);
         function messageRoot() external view returns (address);
+        function whitelistedSettlementLayers(uint256 _chainId) external view returns (bool);
+        function chainAssetHandler() external view returns (address);
 
         struct L2TransactionRequestDirect {
             uint256 chainId;
@@ -140,6 +165,11 @@ alloy::sol! {
             uint256 _l2GasLimit,
             uint256 _l2GasPerPubdataByteLimit
         ) external view returns (uint256);
+    }
+
+    #[sol(rpc)]
+    interface IChainAssetHandler {
+        function migrationNumber(uint256 _chainId) external view returns (uint256);
     }
 
     // `IChainTypeManager.sol`
@@ -240,6 +270,7 @@ alloy::sol! {
             uint64 batchNumber;
             bytes32 newStateCommitment;
             uint256 numberOfLayer1Txs;
+            uint256 numberOfLayer2Txs;
             bytes32 priorityOperationsHash;
             bytes32 dependencyRootsRollingHash;
             bytes32 l2LogsTreeRoot;
@@ -251,6 +282,7 @@ alloy::sol! {
             uint64 lastBlockNumber;
             uint256 chainId;
             bytes operatorDAInput;
+            uint256 slChainId;
         }
 
         event BlockCommit(uint256 indexed batchNumber, bytes32 indexed batchHash, bytes32 indexed commitment);
@@ -271,27 +303,36 @@ alloy::sol! {
             bytes calldata _commitData
         ) external;
 
-       function proofPayload(StoredBatchInfo old, StoredBatchInfo[] newInfo, uint256[] proof);
+        function proofPayload(StoredBatchInfo old, StoredBatchInfo[] newInfo, uint256[] proof);
 
-       function proveBatchesSharedBridge(
+        function proveBatchesSharedBridge(
             address _chainAddress,
             uint256 _processBatchFrom,
             uint256 _processBatchTo,
             bytes calldata _proofData
-       );
+        );
 
-       struct PriorityOpsBatchInfo {
-           bytes32[] leftPath;
-           bytes32[] rightPath;
-           bytes32[] itemHashes;
+        struct PriorityOpsBatchInfo {
+            bytes32[] leftPath;
+            bytes32[] rightPath;
+            bytes32[] itemHashes;
+        }
+
+        struct L2Log {
+           uint8 l2ShardId;
+           bool isService;
+           uint16 txNumberInBatch;
+           address sender;
+           bytes32 key;
+           bytes32 value;
        }
 
-       function executeBatchesSharedBridge(
-           address _chainAddress,
-           uint256 _processFrom,
-           uint256 _processTo,
-           bytes calldata _executeData
-       );
+        function executeBatchesSharedBridge(
+            address _chainAddress,
+            uint256 _processFrom,
+            uint256 _processTo,
+            bytes calldata _executeData
+        );
     }
 
     // taken from v29 version of `IExecutor.sol`
@@ -308,6 +349,27 @@ alloy::sol! {
             bytes32 daCommitment;
             uint64 firstBlockTimestamp;
             uint64 lastBlockTimestamp;
+            uint256 chainId;
+            bytes operatorDAInput;
+        }
+    }
+
+    // taken from v30 version of `IExecutor.sol`
+    // This format is still required to submit v30 batches before the upgrade to v31.
+    interface IExecutorV30 {
+        struct CommitBatchInfoZKsyncOS {
+            uint64 batchNumber;
+            bytes32 newStateCommitment;
+            uint256 numberOfLayer1Txs;
+            bytes32 priorityOperationsHash;
+            bytes32 dependencyRootsRollingHash;
+            bytes32 l2LogsTreeRoot;
+            L2DACommitmentScheme daCommitmentScheme;
+            bytes32 daCommitment;
+            uint64 firstBlockTimestamp;
+            uint64 firstBlockNumber;
+            uint64 lastBlockTimestamp;
+            uint64 lastBlockNumber;
             uint256 chainId;
             bytes operatorDAInput;
         }
@@ -496,6 +558,30 @@ impl<P: Provider + Clone> Bridgehub<P> {
 
     pub async fn get_all_zk_chain_chain_ids(&self) -> alloy::contract::Result<Vec<U256>> {
         self.instance.getAllZKChainChainIDs().call().await
+    }
+
+    pub async fn whitelisted_settlement_layers(
+        &self,
+        chain_id: impl Into<U256>,
+    ) -> alloy::contract::Result<bool> {
+        self.instance
+            .whitelistedSettlementLayers(chain_id.into())
+            .call()
+            .await
+    }
+
+    pub async fn chain_asset_handler_address(&self) -> alloy::contract::Result<Address> {
+        self.instance.chainAssetHandler().call().await
+    }
+
+    pub async fn migration_number(&self, chain_id: u64) -> alloy::contract::Result<U256> {
+        let chain_asset_handler_address = self.chain_asset_handler_address().await?;
+        let chain_asset_handler =
+            IChainAssetHandler::new(chain_asset_handler_address, self.instance.provider());
+        chain_asset_handler
+            .migrationNumber(U256::from(chain_id))
+            .call()
+            .await
     }
 }
 
@@ -723,6 +809,24 @@ impl<P: Provider> ZkChain<P> {
             .call()
             .await
             .enrich("getBaseToken", None)
+    }
+
+    /// Returns base token gas price multiplier nominator.
+    pub async fn base_token_gas_price_multiplier_nominator(&self) -> Result<u128> {
+        self.instance
+            .baseTokenGasPriceMultiplierNominator()
+            .call()
+            .await
+            .enrich("baseTokenGasPriceMultiplierNominator", None)
+    }
+
+    /// Returns base token gas price multiplier denominator.
+    pub async fn base_token_gas_price_multiplier_denominator(&self) -> Result<u128> {
+        self.instance
+            .baseTokenGasPriceMultiplierDenominator()
+            .call()
+            .await
+            .enrich("baseTokenGasPriceMultiplierDenominator", None)
     }
 
     pub async fn get_server_notifier_address(&self) -> Result<Address> {

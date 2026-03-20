@@ -44,7 +44,7 @@ impl BatchInfoAccumulator {
     }
 
     pub fn add(&mut self, block_output: &BlockOutput, replay_record: &ReplayRecord) -> &Self {
-        self.native_cycles += block_output.computaional_native_used;
+        self.native_cycles += block_output.computational_native_used;
         self.pubdata_bytes += block_output.pubdata.len() as u64;
         self.l2_to_l1_logs_count += block_output
             .tx_results
@@ -74,7 +74,7 @@ impl BatchInfoAccumulator {
         if replay_record
             .transactions
             .iter()
-            .any(|tx| tx.as_system_tx_type() == Some(&SystemTxType::SetSLChainId))
+            .any(|tx| matches!(tx.as_system_tx_type(), Some(SystemTxType::SetSLChainId(_))))
             && self.block_count > 1
         {
             self.should_seal_for_gateway_migration = true;

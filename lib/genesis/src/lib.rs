@@ -1,5 +1,6 @@
 use alloy::consensus::{EMPTY_OMMER_ROOT_HASH, Header};
 use alloy::eips::eip1559::INITIAL_BASE_FEE;
+use alloy::hex;
 use alloy::primitives::{Address, B64, B256, Bloom, Sealable, Sealed, U256};
 use alloy::providers::{DynProvider, Provider};
 use alloy::rpc::types::Filter;
@@ -19,7 +20,7 @@ use zk_os_basic_system::system_implementation::flat_storage_model::{
 use zksync_os_contract_interface::IL1GenesisUpgrade::GenesisUpgrade;
 use zksync_os_contract_interface::ZkChain;
 use zksync_os_interface::types::BlockContext;
-use zksync_os_types::{ConfigFormat, L1UpgradeEnvelope, ProtocolSemanticVersion};
+use zksync_os_types::{ConfigFormat, ExecutionVersion, L1UpgradeEnvelope, ProtocolSemanticVersion};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GenesisInput {
@@ -49,8 +50,10 @@ pub struct GenesisInput {
     #[serde(default)]
     pub additional_storage_raw: Vec<(B256, B256)>,
 
-    /// Execution version used for genesis.
-    pub execution_version: u32,
+    /// Additional preimages to add to the genesis state.
+    #[serde(default)]
+    pub additional_preimages: Vec<(B256, String)>,
+
     /// The expected root hash of the genesis state.
     pub genesis_root: B256,
 }
@@ -153,18 +156,20 @@ impl Genesis {
     }
 
     pub async fn state(&self) -> &GenesisState {
+        let protocol_version = &self.genesis_upgrade_tx().await.protocol_version;
         self.state
-            .get_or_try_init(|| build_genesis(self.input_source.as_ref(), self.chain_id))
+            .get_or_try_init(|| {
+                build_genesis(self.input_source.as_ref(), self.chain_id, protocol_version)
+            })
             .await
             .expect("Failed to build genesis state")
     }
 
-    pub async fn genesis_upgrade_tx(&self) -> GenesisUpgradeTxInfo {
+    pub async fn genesis_upgrade_tx(&self) -> &GenesisUpgradeTxInfo {
         self.genesis_upgrade_tx
             .get_or_try_init(|| load_genesis_upgrade_tx(self.zk_chain.clone()))
             .await
             .expect("Failed to load genesis upgrade transaction")
-            .clone()
     }
 }
 
@@ -208,8 +213,14 @@ fn account_properties_flat_key(address: Address) -> B256 {
 async fn build_genesis(
     genesis_input_source: &dyn GenesisInputSource,
     chain_id: u64,
+    protocol_version: &ProtocolSemanticVersion,
 ) -> anyhow::Result<GenesisState> {
     let genesis_input = genesis_input_source.genesis_input().await?;
+    let execution_version = ExecutionVersion::try_from(protocol_version).with_context(|| {
+        format!(
+            "Cannot determine execution version for genesis protocol version {protocol_version}"
+        )
+    })?;
 
     // BTreeMap is used to ensure that the storage logs are sorted by key, so that the order is deterministic
     // which is important for tree.
@@ -261,6 +272,13 @@ async fn build_genesis(
         }
     }
 
+    for (hash, preimage) in genesis_input.additional_preimages {
+        preimages.push((
+            hash,
+            hex::decode(preimage).expect("Failed to decode preimage"),
+        ));
+    }
+
     let header = Header {
         parent_hash: B256::ZERO,
         ommers_hash: EMPTY_OMMER_ROOT_HASH,
@@ -298,8 +316,8 @@ async fn build_genesis(
         gas_limit: 100_000_000,
         pubdata_limit: 100_000_000,
         mix_hash: U256::ZERO,
-        execution_version: genesis_input.execution_version,
-        blob_fee: U256::ZERO,
+        execution_version: execution_version as u32,
+        blob_fee: U256::ONE,
     };
 
     Ok(GenesisState {
@@ -397,7 +415,6 @@ mod tests {
         {
             "initial_contracts": [],
             "additional_storage": [],
-            "execution_version": 4,
             "genesis_root": "0xc346a158cce093e99ab65a95c884a26629d0e4f8d00ae20bbca4bfc4b204eec2"
         }
         "#;

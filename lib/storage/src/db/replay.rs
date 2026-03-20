@@ -44,6 +44,8 @@ pub enum BlockReplayColumnFamily {
     ForcePreimages,
     BlockOutputHash,
     StartingInteropEventIndex,
+    StartingMigrationNumber,
+    StartingInteropFeeNumber,
     /// Mapping from block_number to block hash.
     CanonicalHash,
     /// Stores the latest appended block number under a fixed key.
@@ -61,6 +63,8 @@ impl NamedColumnFamily for BlockReplayColumnFamily {
         BlockReplayColumnFamily::BlockOutputHash,
         BlockReplayColumnFamily::ForcePreimages,
         BlockReplayColumnFamily::StartingInteropEventIndex,
+        BlockReplayColumnFamily::StartingMigrationNumber,
+        BlockReplayColumnFamily::StartingInteropFeeNumber,
         BlockReplayColumnFamily::CanonicalHash,
         BlockReplayColumnFamily::Latest,
     ];
@@ -75,6 +79,8 @@ impl NamedColumnFamily for BlockReplayColumnFamily {
             BlockReplayColumnFamily::BlockOutputHash => "block_output_hash",
             BlockReplayColumnFamily::ForcePreimages => "force_preimages",
             BlockReplayColumnFamily::StartingInteropEventIndex => "starting_interop_event_index",
+            BlockReplayColumnFamily::StartingMigrationNumber => "starting_migration_number",
+            BlockReplayColumnFamily::StartingInteropFeeNumber => "starting_interop_fee_number",
             BlockReplayColumnFamily::CanonicalHash => "canonical_hash",
             BlockReplayColumnFamily::Latest => "latest",
         }
@@ -104,10 +110,12 @@ impl BlockReplayStorage {
                 transactions: vec![],
                 previous_block_timestamp: 0,
                 node_version: NODE_SEMVER_VERSION.clone(),
-                protocol_version: genesis_tx.protocol_version,
+                protocol_version: genesis_tx.protocol_version.clone(),
                 block_output_hash: B256::ZERO,
-                force_preimages: genesis_tx.force_deploy_preimages,
+                force_preimages: genesis_tx.force_deploy_preimages.clone(),
                 starting_interop_event_index: InteropRootsLogIndex::default(),
+                starting_migration_number: 0,
+                starting_interop_fee_number: 0,
             };
             this.write_replay_unchecked(Sealed::new_unchecked(genesis_record, genesis_hash), true);
         }
@@ -194,6 +202,28 @@ impl BlockReplayStorage {
             BlockReplayColumnFamily::StartingInteropEventIndex,
             &db_key,
             &starting_interop_event_index_value,
+        );
+
+        let starting_migration_number_value = bincode::serde::encode_to_vec(
+            record.starting_migration_number,
+            bincode::config::standard(),
+        )
+        .expect("Failed to serialize record.starting_migration_number");
+        batch.put_cf(
+            BlockReplayColumnFamily::StartingMigrationNumber,
+            &db_key,
+            &starting_migration_number_value,
+        );
+
+        let starting_interop_fee_number_value = bincode::serde::encode_to_vec(
+            record.starting_interop_fee_number,
+            bincode::config::standard(),
+        )
+        .expect("Failed to serialize record.starting_interop_fee_number");
+        batch.put_cf(
+            BlockReplayColumnFamily::StartingInteropFeeNumber,
+            &db_key,
+            &starting_interop_fee_number_value,
         );
 
         self.db
@@ -368,6 +398,38 @@ impl ReadReplay for BlockReplayStorage {
             InteropRootsLogIndex::default()
         };
 
+        let starting_migration_number = if let Some(starting_migration_number) = self
+            .db
+            .get_cf(BlockReplayColumnFamily::StartingMigrationNumber, &key)
+            .expect("Failed to read from StartingMigrationNumber CF")
+        {
+            let stored: u64 = bincode::serde::decode_from_slice(
+                &starting_migration_number,
+                bincode::config::standard(),
+            )
+            .expect("Failed to deserialize starting migration number")
+            .0;
+            stored
+        } else {
+            0
+        };
+
+        let starting_interop_fee_number = if let Some(starting_interop_fee_number) = self
+            .db
+            .get_cf(BlockReplayColumnFamily::StartingInteropFeeNumber, &key)
+            .expect("Failed to read from StartingInteropFeeNumber CF")
+        {
+            let stored: u64 = bincode::serde::decode_from_slice(
+                &starting_interop_fee_number,
+                bincode::config::standard(),
+            )
+            .expect("Failed to deserialize starting interop fee number")
+            .0;
+            stored
+        } else {
+            0
+        };
+
         Some(ReplayRecord {
             block_context: bincode::serde::decode_from_slice(
                 &block_context,
@@ -393,6 +455,8 @@ impl ReadReplay for BlockReplayStorage {
             block_output_hash: B256::from_slice(&block_output_hash),
             force_preimages,
             starting_interop_event_index,
+            starting_migration_number,
+            starting_interop_fee_number,
         })
     }
 
