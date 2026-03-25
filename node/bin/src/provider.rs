@@ -19,7 +19,8 @@ impl RetryPolicy for OptimisticRetryPolicy {
             TransportError::Transport(TransportErrorKind::HttpError(e)) => {
                 // By default, only 429 and 503 are considered retryable; we also observe intermittent
                 // 500 and 502 on Alchemy that are very likely retriable.
-                e.status == 500 || e.status == 502
+                // 400 from nginx proxy is also transient.
+                e.status == 400 || e.status == 500 || e.status == 502
             }
             TransportError::Transport(TransportErrorKind::Custom(e)) => {
                 let msg = e.to_string();

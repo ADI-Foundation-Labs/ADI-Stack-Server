@@ -102,15 +102,18 @@ impl<Finality: WriteFinality> ProcessL1Event for L1ExecuteWatcher<Finality> {
             )
             .await?;
             let last_executed_block = discovered_batch.last_block_number();
+            let current = self.finality.get_finality_status();
+            if batch_number <= current.last_executed_batch
+                || last_executed_block <= current.last_executed_block
+            {
+                return Err(anyhow::anyhow!(
+                    "non-monotonous executed event: batch {batch_number} block {last_executed_block}, \
+                     current batch {} block {}",
+                    current.last_executed_batch,
+                    current.last_executed_block,
+                ).into());
+            }
             self.finality.update_finality_status(|finality| {
-                assert!(
-                    batch_number > finality.last_executed_batch,
-                    "non-monotonous executed batch"
-                );
-                assert!(
-                    last_executed_block > finality.last_executed_block,
-                    "non-monotonous executed block"
-                );
                 finality.last_executed_batch = batch_number;
                 finality.last_executed_block = last_executed_block;
             });
