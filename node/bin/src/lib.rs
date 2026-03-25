@@ -439,31 +439,40 @@ pub async fn run<State: ReadStateHistory + WriteState + StateInitializer + Clone
     }
 
     tracing::info!("Initializing L1 Watchers");
-    tasks.spawn(
-        L1CommitWatcher::create_watcher(
-            config.l1_watcher_config.clone().into(),
+    {
+        let (cfg, dp, cbp, fin) = (
+            config.l1_watcher_config.clone(),
             node_startup_state.l1_state.diamond_proxy_sl.clone(),
             committed_batch_provider.clone(),
             finality_storage.clone(),
-        )
-        .await
-        .expect("failed to start L1 commit watcher")
-        .run()
-        .map(report_exit("L1 commit watcher")),
-    );
-
-    tasks.spawn(
-        L1ExecuteWatcher::create_watcher(
-            config.l1_watcher_config.clone().into(),
+        );
+        tasks.spawn(run_watcher_with_retries("L1 commit watcher", move || {
+            let (cfg, dp, cbp, fin) = (cfg.clone(), dp.clone(), cbp.clone(), fin.clone());
+            async move {
+                L1CommitWatcher::create_watcher(cfg.into(), dp, cbp, fin)
+                    .await?
+                    .run()
+                    .await
+            }
+        }));
+    }
+    {
+        let (cfg, dp, cbp, fin) = (
+            config.l1_watcher_config.clone(),
             node_startup_state.l1_state.diamond_proxy_sl.clone(),
             committed_batch_provider.clone(),
             finality_storage.clone(),
-        )
-        .await
-        .expect("failed to start L1 execute watcher")
-        .run()
-        .map(report_exit("L1 execute watcher")),
-    );
+        );
+        tasks.spawn(run_watcher_with_retries("L1 execute watcher", move || {
+            let (cfg, dp, cbp, fin) = (cfg.clone(), dp.clone(), cbp.clone(), fin.clone());
+            async move {
+                L1ExecuteWatcher::create_watcher(cfg.into(), dp, cbp, fin)
+                    .await?
+                    .run()
+                    .await
+            }
+        }));
+    }
 
     let first_replay_record = block_replay_storage.get_replay_record(starting_block);
     assert!(
@@ -1223,6 +1232,39 @@ fn report_exit<T, E: std::fmt::Debug>(name: &'static str) -> impl Fn(Result<T, E
     move |result| match result {
         Ok(_) => tracing::warn!("{name} component unexpectedly exited"),
         Err(err) => tracing::error!(?err, "{name} component failed"),
+    }
+}
+
+/// Runs a watcher factory in a retry loop: up to 3 retries with 2s delay between attempts.
+const WATCHER_MAX_RETRIES: u32 = 3;
+const WATCHER_RETRY_DELAY: std::time::Duration = std::time::Duration::from_secs(2);
+
+async fn run_watcher_with_retries<F, Fut, E>(name: &str, create_and_run: F)
+where
+    F: Fn() -> Fut,
+    Fut: std::future::Future<Output = Result<(), E>>,
+    E: std::fmt::Debug,
+{
+    let mut failures = 0u32;
+    loop {
+        match create_and_run().await {
+            Ok(()) => return,
+            Err(e) => {
+                failures += 1;
+                if failures > WATCHER_MAX_RETRIES {
+                    tracing::error!(?e, name, "watcher exceeded max retries, giving up");
+                    return;
+                }
+                tracing::error!(
+                    ?e,
+                    name,
+                    failures,
+                    "watcher failed, restarting in {:?}",
+                    WATCHER_RETRY_DELAY
+                );
+                tokio::time::sleep(WATCHER_RETRY_DELAY).await;
+            }
+        }
     }
 }
 

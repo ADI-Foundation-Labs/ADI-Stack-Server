@@ -12,7 +12,6 @@ pub enum L1SenderState {
     WaitingRecv,
     WaitingSend,
     SendingToL1,
-    WaitingL1Inclusion,
 }
 
 impl StateLabel for L1SenderState {
@@ -21,7 +20,6 @@ impl StateLabel for L1SenderState {
             L1SenderState::WaitingRecv => GenericComponentState::WaitingRecv,
             L1SenderState::WaitingSend => GenericComponentState::WaitingSend,
             L1SenderState::SendingToL1 => GenericComponentState::Processing,
-            L1SenderState::WaitingL1Inclusion => GenericComponentState::Processing,
         }
     }
     fn specific(&self) -> &'static str {
@@ -29,7 +27,6 @@ impl StateLabel for L1SenderState {
             L1SenderState::WaitingRecv => "waiting_recv",
             L1SenderState::WaitingSend => "waiting_send",
             L1SenderState::SendingToL1 => "sending_to_l1",
-            L1SenderState::WaitingL1Inclusion => "waiting_l1_inclusion",
         }
     }
 }
