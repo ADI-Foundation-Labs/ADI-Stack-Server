@@ -264,13 +264,13 @@ pub struct NetworkConfig {
     #[config(default_t = 3060)]
     pub port: u16,
     /// All boot nodes to start network discovery with. Expected format is
-    /// `enode://<node ID>@<IP address>:<port>` delimited by commas (`,`). For example:
+    /// `enode://<node ID>@<IP or hostname>:<port>` delimited by commas (`,`). For example:
     /// `enode://dbd18888f17bad7df7fa958b57f4993f47312ba5364508fd0d9027e62ea17a037ca6985d6b0969c4341f1d4f8763a802785961989d07b1fb5373ced9d43969f6@127.0.0.1:3060`
     #[config(
         default,
         with = Delimited::repeat(Serde![str], ",")
     )]
-    pub boot_nodes: Vec<NodeRecord>,
+    pub boot_nodes: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -991,9 +991,36 @@ impl From<NetworkConfig> for zksync_os_network::config::NetworkConfig {
                 .expect("`network.secret_key` is required for running p2p networking stack"),
             address: value.address,
             port: value.port,
-            boot_nodes: value.boot_nodes,
+            boot_nodes: value
+                .boot_nodes
+                .iter()
+                .map(|s| resolve_enode(s)
+                    .unwrap_or_else(|e| panic!("failed to resolve boot node `{s}`: {e}")))
+                .collect(),
         }
     }
+}
+
+/// Parse an enode URL, resolving the host portion if it is a hostname rather than an IP address.
+fn resolve_enode(enode: &str) -> Result<NodeRecord, String> {
+    // standard IP-based enode.
+    if let Ok(record) = enode.parse::<NodeRecord>() {
+        return Ok(record);
+    }
+    // hostname in enode URL — resolve it, substitute the IP, then re-parse.
+    let url = url::Url::parse(enode).map_err(|e| e.to_string())?;
+    let host = url.host_str().ok_or("enode URL has no host")?;
+    use std::net::ToSocketAddrs;
+    let ip = (host, 0u16)
+        .to_socket_addrs()
+        .map_err(|e| e.to_string())?
+        .find_map(|sa| match sa {
+            std::net::SocketAddr::V4(v4) => Some(v4.ip().to_string()),
+            _ => None,
+        })
+        .ok_or_else(|| format!("DNS resolution returned no IPv4 address for `{host}`"))?;
+    let resolved = enode.replace(host, &ip);
+    resolved.parse::<NodeRecord>().map_err(|e| e.to_string())
 }
 
 impl From<RpcConfig> for zksync_os_rpc::RpcConfig {

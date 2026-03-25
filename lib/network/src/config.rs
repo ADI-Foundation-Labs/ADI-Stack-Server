@@ -12,6 +12,6 @@ pub struct NetworkConfig {
     /// Port to use for Node Discovery Protocol v5 (discv5) and RLPx Transport Protocol (rlpx).
     pub port: u16,
     /// All boot nodes to start network discovery with. Expected format is
-    /// `enode://<node ID>@<IP address>:<port>`.
+    /// `enode://<node ID>@<IP address or hostname>:<port>`.
     pub boot_nodes: Vec<NodeRecord>,
 }
