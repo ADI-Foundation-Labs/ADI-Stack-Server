@@ -15079,6 +15079,7 @@ dependencies = [
  "tokio-stream",
  "tokio-util",
  "tracing",
+ "url",
  "vise",
  "zk_ee 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.8-interface-v0.0.14-b)",
  "zksync_os_base_token_adjuster",
