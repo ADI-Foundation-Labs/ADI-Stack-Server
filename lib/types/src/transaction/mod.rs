@@ -4,9 +4,12 @@ mod l1;
 pub use l1::*;
 mod l2;
 pub use l2::*;
+mod system;
+pub use system::*;
 
 use std::fmt;
 
+use crate::transaction::utils::BOOTLOADER_FORMAL_ADDRESS;
 use alloy::consensus::crypto::RecoveryError;
 use alloy::consensus::transaction::{Recovered, SignerRecoverable};
 use alloy::consensus::{Transaction, TransactionEnvelope};
@@ -15,16 +18,15 @@ use alloy::primitives::{Address, B256, Bytes, TxNonce, U256};
 use serde::{Deserialize, Serialize};
 use std::hash::Hash;
 
-// `TransactionEnvelope` derive macro below depends on this being present
-use alloy::rlp as alloy_rlp;
-
-/// ZKsync OS transaction envelope describing both [EIP-2718] envelopes and custom L1->L2 transaction
-/// envelope.
+/// ZKsync OS transaction envelope describing [EIP-2718] envelopes, custom L1->L2 transaction
+/// envelope and custom transaction envelope for system transactions.
 ///
 /// [EIP-2718]: https://eips.ethereum.org/EIPS/eip-2718
 #[derive(Clone, Debug, TransactionEnvelope)]
 #[envelope(alloy_consensus = alloy::consensus, tx_type_name = ZkTxType)]
 pub enum ZkEnvelope {
+    #[envelope(ty = 125)]
+    System(SystemTxEnvelope),
     #[envelope(ty = 126)]
     Upgrade(L1UpgradeEnvelope),
     #[envelope(ty = 127)]
@@ -37,6 +39,7 @@ impl ZkEnvelope {
     /// Returns the [`ZkTxType`] of the inner transaction.
     pub const fn tx_type(&self) -> ZkTxType {
         match self {
+            Self::System(_) => ZkTxType::System,
             Self::Upgrade(_) => ZkTxType::Upgrade,
             Self::L1(_) => ZkTxType::L1,
             Self::L2(l2_tx) => ZkTxType::L2(l2_tx.tx_type()),
@@ -46,6 +49,7 @@ impl ZkEnvelope {
     /// Recovers the signer of inner transaction and returns a `ZkTransaction`.
     pub fn try_into_recovered(self) -> Result<ZkTransaction, RecoveryError> {
         match self {
+            Self::System(system_tx) => Ok(ZkTransaction::from(system_tx)),
             Self::Upgrade(upgrade_tx) => Ok(ZkTransaction::from(upgrade_tx)),
             Self::L1(l1_tx) => Ok(ZkTransaction::from(l1_tx)),
             Self::L2(l2_tx) => Ok(ZkTransaction::from(SignerRecoverable::try_into_recovered(
@@ -111,6 +115,7 @@ impl ZkTransaction {
 
     pub fn hash(&self) -> &B256 {
         match self.envelope() {
+            ZkEnvelope::System(system_tx) => system_tx.hash(),
             ZkEnvelope::Upgrade(upgrade_tx) => upgrade_tx.hash(),
             ZkEnvelope::L1(l1_tx) => l1_tx.hash(),
             ZkEnvelope::L2(l2_tx) => l2_tx.hash(),
@@ -148,6 +153,21 @@ impl ZkTransaction {
     pub fn into_parts(self) -> (ZkEnvelope, Address) {
         self.inner.into_parts()
     }
+
+    pub fn as_system_tx_type(&self) -> Option<&SystemTxType> {
+        match self.envelope() {
+            ZkEnvelope::System(envelope) => Some(envelope.system_subtype()),
+            _ => None,
+        }
+    }
+}
+
+impl From<SystemTxEnvelope> for ZkTransaction {
+    fn from(value: SystemTxEnvelope) -> Self {
+        Self {
+            inner: Recovered::new_unchecked(ZkEnvelope::System(value), BOOTLOADER_FORMAL_ADDRESS),
+        }
+    }
 }
 
 impl From<L1UpgradeEnvelope> for ZkTransaction {
@@ -180,6 +200,7 @@ impl From<L2Transaction> for ZkTransaction {
 impl fmt::Display for ZkTxType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::System => write!(f, "System"),
             Self::L2(tx) => tx.fmt(f),
             Self::L1 => write!(f, "L1"),
             Self::Upgrade => write!(f, "Upgrade"),
@@ -191,7 +212,7 @@ impl fmt::Display for ZkTxType {
 mod tests {
     use super::*;
     use alloy::consensus::private::alloy_primitives;
-    use alloy::primitives::{TxKind, address};
+    use alloy::primitives::TxKind;
 
     #[test]
     // Test vector from https://etherscan.io/tx/0x280cde7cdefe4b188750e76c888f13bd05ce9a4d7767730feefe8a0e50ca6fc4

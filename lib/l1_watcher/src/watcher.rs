@@ -37,18 +37,10 @@ impl L1Watcher {
 impl L1Watcher {
     pub async fn run(mut self) -> Result<(), L1WatcherError> {
         let mut timer = tokio::time::interval(self.poll_interval);
-        while self.processor.should_continue() {
+        loop {
             timer.tick().await;
             self.poll().await?;
         }
-        tracing::info!(
-            event_name = &self.processor.name(),
-            "finished processing events"
-        );
-        // Drop processor to close potential channels and free up resources
-        drop(self.processor);
-
-        futures::future::pending().await
     }
 
     async fn poll(&mut self) -> Result<(), L1WatcherError> {
@@ -62,6 +54,9 @@ impl L1Watcher {
             let events = self
                 .extract_logs_from_l1_blocks(from_block, to_block)
                 .await?;
+
+            let events = self.processor.filter_events(events);
+
             METRICS.events_loaded[&self.processor.name()].inc_by(events.len() as u64);
             METRICS.most_recently_scanned_l1_block[&self.processor.name()].set(to_block);
 
@@ -115,6 +110,8 @@ impl L1Watcher {
 pub enum L1WatcherError {
     #[error("L1 does not have any blocks")]
     NoL1Blocks,
+    #[error("batch {0} was not discovered as committed")]
+    BatchNotCommitted(u64),
     #[error(transparent)]
     Sol(#[from] alloy::sol_types::Error),
     #[error(transparent)]

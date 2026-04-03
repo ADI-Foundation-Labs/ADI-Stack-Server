@@ -10,26 +10,24 @@ use crate::batcher_model::{FriProof, SignedBatchEnvelope};
 use crate::commands::{L1SenderCommand, SendToL1};
 use crate::config::L1SenderConfig;
 use crate::metrics::{L1_SENDER_METRICS, L1SenderState};
-use alloy::consensus::{BlobTransactionValidationError, EnvKzgSettings};
+use alloy::consensus::BlobTransactionValidationError;
 use alloy::eips::eip7594::BlobTransactionSidecarVariant;
 use alloy::eips::{BlockId, Encodable2718};
 use alloy::network::{Ethereum, EthereumWallet, TransactionBuilder, TransactionBuilder4844};
 use alloy::primitives::Address;
-use alloy::primitives::utils::format_ether;
+use alloy::primitives::utils::{format_ether, format_units};
 use alloy::providers::ext::DebugApi;
 use alloy::providers::fillers::{FillProvider, TxFiller};
 use alloy::providers::{PendingTransactionError, Provider, WalletProvider};
 use alloy::rpc::types::trace::geth::{CallConfig, GethDebugTracingOptions};
 use alloy::rpc::types::{TransactionReceipt, TransactionRequest};
-use alloy::signers::local::PrivateKeySigner;
 use anyhow::Context;
 use futures::future::BoxFuture;
 use futures::{FutureExt, StreamExt, TryStreamExt};
-use secrecy::{ExposeSecret, SecretString};
-use std::str::FromStr;
 use std::time::Duration;
 use tokio::sync::mpsc::Sender;
 use zksync_os_observability::{ComponentStateHandle, ComponentStateReporter};
+use zksync_os_operator_signer::SignerConfig;
 use zksync_os_pipeline::PeekableReceiver;
 
 /// Maximum time to wait for a transaction to be included on L1.
@@ -73,13 +71,14 @@ pub async fn run_l1_sender<Input: SendToL1>(
         impl Provider<Ethereum>,
     >,
     config: L1SenderConfig<Input>,
+    gateway: bool,
 ) -> anyhow::Result<()> {
     let latency_tracker =
         ComponentStateReporter::global().handle_for(Input::NAME, L1SenderState::WaitingRecv);
     let command_name = Input::NAME;
 
     let operator_address =
-        register_operator::<_, Input>(&mut provider, config.operator_pk.clone()).await?;
+        register_operator::<_, Input>(&mut provider, config.operator_signer).await?;
     let mut cmd_buffer = Vec::with_capacity(config.command_limit);
 
     // Process all potential passthrough commands first
@@ -137,10 +136,12 @@ pub async fn run_l1_sender<Input: SendToL1>(
                     )
                     .await?
                     .with_to(to_address)
-                    .with_call(&cmd.solidity_call());
+                    .with_input(cmd.solidity_call(gateway));
 
                     if let Some(blob_sidecar) = cmd.blob_sidecar() {
                         let fee_per_blob_gas = provider.get_blob_base_fee().await?;
+                        L1_SENDER_METRICS
+                            .report_blob_base_fee(fee_per_blob_gas)?;
                         let max_fee_per_blob_gas = config.max_fee_per_blob_gas_wei;
 
                         if fee_per_blob_gas > max_fee_per_blob_gas {
@@ -159,21 +160,20 @@ pub async fn run_l1_sender<Input: SendToL1>(
                     let envelope = provider.fill(tx_request).await?.try_into_envelope()?.try_into_pooled()?;
 
                     let pending_block = provider.get_block(BlockId::pending()).await?.expect("no pending block");
-                    // todo: make conversion unconditional (and remove respective config) once both:
-                    //       1) Fusaka upgrade is executed on mainnet
-                    //       2) anvil supports EIP-7594 blobs (see https://github.com/foundry-rs/foundry/issues/12222)
+                    // todo: make conversion unconditional (and remove respective config) once anvil
+                    //       supports EIP-7594 blobs (see https://github.com/foundry-rs/foundry/issues/12222)
                     let tx = if config.fusaka_upgrade_timestamp <= pending_block.header.timestamp {
                         // Convert the envelope into an EIP-7594 transaction by converting the sidecar
                         envelope.try_map_eip4844(|tx| {
                             tx.try_map_sidecar(|sidecar| {
                                 Ok::<_, BlobTransactionValidationError>(
-                                    BlobTransactionSidecarVariant::Eip7594(sidecar.try_into_7594(EnvKzgSettings::Default.get())?)
+                                    BlobTransactionSidecarVariant::Eip7594(sidecar.try_into_eip7594()?)
                                 )
                             })
                         })?
                     } else {
                         // Keep the regular EIP-4844 sidecar
-                        envelope.map_eip4844(|tx| tx.map_sidecar(BlobTransactionSidecarVariant::Eip4844))
+                        envelope
                     };
 
                     // We don't wait for receipt here, instead we register an alloy watcher that
@@ -279,29 +279,42 @@ async fn tx_request_with_gas_fields(
     max_priority_fee_per_gas: u128,
 ) -> anyhow::Result<TransactionRequest> {
     let eip1559_est = provider.estimate_eip1559_fees().await?;
+    L1_SENDER_METRICS.report_l1_eip_1559_estimation(eip1559_est)?;
     tracing::debug!(
-        eip1559_est.max_priority_fee_per_gas,
-        "estimated median priority fee (20% percentile) for the last 10 blocks"
+        max_priority_fee_per_gas_gwei = ?format_units(eip1559_est.max_priority_fee_per_gas, "gwei"),
+        max_fee_per_gas_gwei = ?format_units(eip1559_est.max_fee_per_gas, "gwei"),
+        "estimated priority and max fees"
     );
-    if eip1559_est.max_fee_per_gas > max_fee_per_gas {
+    // Use the minimum of estimated and configured values for gas fields
+    let capped_max_fee_per_gas = if eip1559_est.max_fee_per_gas > max_fee_per_gas {
         tracing::warn!(
-            max_fee_per_gas = max_fee_per_gas,
-            estimated_max_fee_per_gas = eip1559_est.max_fee_per_gas,
-            "L1 sender's configured maxFeePerGas is lower than the one estimated from network"
+            "L1 sender's configured maxFeePerGas ({max_fee_per_gas}) \
+             is lower than the one estimated from network  ({}), \
+             using the configured base fee value ({max_fee_per_gas}) - this may result in inclusion delay.",
+            eip1559_est.max_fee_per_gas
         );
-    }
-    if eip1559_est.max_priority_fee_per_gas > max_priority_fee_per_gas {
+        max_fee_per_gas
+    } else {
+        eip1559_est.max_fee_per_gas
+    };
+    let capped_max_priority_fee_per_gas = if eip1559_est.max_priority_fee_per_gas
+        > max_priority_fee_per_gas
+    {
         tracing::warn!(
-            max_priority_fee_per_gas = max_priority_fee_per_gas,
-            estimated_max_priority_fee_per_gas = eip1559_est.max_priority_fee_per_gas,
-            "L1 sender's configured maxPriorityFeePerGas is lower than the one estimated from network"
+            "L1 sender's configured max_priority_fee_per_gas ({max_priority_fee_per_gas}) \
+             is lower than the one estimated from network  ({}), \
+             using the configured priority fee value ({max_priority_fee_per_gas}) - this may result in inclusion delay.",
+            eip1559_est.max_priority_fee_per_gas
         );
-    }
+        max_priority_fee_per_gas
+    } else {
+        eip1559_est.max_priority_fee_per_gas
+    };
 
     let tx = TransactionRequest::default()
         .with_from(operator_address)
-        .with_max_fee_per_gas(max_fee_per_gas)
-        .with_max_priority_fee_per_gas(max_priority_fee_per_gas)
+        .with_max_fee_per_gas(capped_max_fee_per_gas)
+        .with_max_priority_fee_per_gas(capped_max_priority_fee_per_gas)
         // Default value for `max_aggregated_tx_gas` from zksync-era, should always be enough
         .with_gas_limit(15000000);
     Ok(tx)
@@ -312,12 +325,11 @@ async fn register_operator<
     Input: SendToL1,
 >(
     provider: &mut P,
-    private_key: SecretString,
+    signer_config: SignerConfig,
 ) -> anyhow::Result<Address> {
-    let signer = PrivateKeySigner::from_str(private_key.expose_secret())
-        .context("failed to parse operator private key")?;
-    let address = signer.address();
-    provider.wallet_mut().register_signer(signer);
+    let address = signer_config
+        .register_with_wallet(provider.wallet_mut())
+        .await?;
 
     let balance = provider.get_balance(address).await?;
     L1_SENDER_METRICS.balance[&Input::NAME].set(format_ether(balance).parse()?);
@@ -344,41 +356,7 @@ async fn validate_tx_receipt<Input: SendToL1>(
 ) -> anyhow::Result<()> {
     if receipt.status() {
         // Transaction succeeded - log output and return OK(())
-
-        // We could also look at tx receipt's logs for a corresponding
-        // `BlockCommit` / `BlockProve`/ etc event but
-        // not sure if this is 100% necessary yet.
-
-        let l2_txs_count: usize = command
-            .as_ref()
-            .iter()
-            .map(|envelope| envelope.batch.tx_count)
-            .sum();
-        let l1_transaction_fee = receipt.gas_used as u128 * receipt.effective_gas_price;
-
-        let l1_transaction_fee_ether_per_l2_tx = l1_transaction_fee
-            .checked_div(l2_txs_count as u128)
-            .map(format_ether);
-        tracing::info!(
-            %command,
-            tx_hash = ?receipt.transaction_hash,
-            l1_block_number = receipt.block_number.unwrap(),
-            gas_used = receipt.gas_used,
-            gas_used_per_l2_tx = receipt.gas_used.checked_div(l2_txs_count as u64),
-            l1_transaction_fee_ether = format_ether(l1_transaction_fee),
-            l1_transaction_fee_ether_per_l2_tx,
-            "succeeded on L1",
-        );
-        L1_SENDER_METRICS.gas_used[&Input::NAME].observe(receipt.gas_used);
-        if let Some(gas_used_per_l2_tx) = receipt.gas_used.checked_div(l2_txs_count as u64) {
-            L1_SENDER_METRICS.gas_used_per_l2_tx[&Input::NAME].observe(gas_used_per_l2_tx);
-        }
-        L1_SENDER_METRICS.l1_transaction_fee_ether[&Input::NAME]
-            .observe(format_ether(l1_transaction_fee).parse()?);
-        if let Some(l1_transaction_fee_per_l2_tx) = l1_transaction_fee_ether_per_l2_tx {
-            L1_SENDER_METRICS.l1_transaction_fee_per_l2_tx_ether[&Input::NAME]
-                .observe(l1_transaction_fee_per_l2_tx.parse()?);
-        }
+        L1_SENDER_METRICS.report_tx_receipt(command, receipt)?;
         Ok(())
     } else {
         tracing::error!(

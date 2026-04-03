@@ -11,10 +11,11 @@ use zksync_os_crypto::hasher::keccak::KeccakHasher;
 use zksync_os_l1_sender::batcher_model::{FriProof, SignedBatchEnvelope};
 use zksync_os_l1_sender::commands::L1SenderCommand;
 use zksync_os_l1_sender::commands::execute::ExecuteCommand;
+use zksync_os_l1_watcher::CommittedBatchProvider;
 use zksync_os_mini_merkle_tree::{HashEmptySubtree, MiniMerkleTree};
 use zksync_os_observability::{ComponentStateReporter, GenericComponentState};
 use zksync_os_pipeline::PeekableReceiver;
-use zksync_os_storage_api::{ReadBatch, ReadFinality, ReadReplay, ReplayRecord};
+use zksync_os_storage_api::{ReadFinality, ReadReplay, ReplayRecord};
 use zksync_os_types::ZkEnvelope;
 
 type InputChannel = PeekableReceiver<SignedBatchEnvelope<FriProof>>;
@@ -23,42 +24,32 @@ type OutputChannel = mpsc::Sender<L1SenderCommand<ExecuteCommand>>;
 mod db;
 
 #[derive(Clone)]
-pub struct PriorityTreeManager<ReplayStorage, Finality, BatchStorage> {
+pub struct PriorityTreeManager<ReplayStorage, Finality> {
     merkle_tree: Arc<Mutex<MiniMerkleTree<PriorityOpsLeaf>>>,
     replay_storage: ReplayStorage,
     db: PriorityTreeDB,
     finality: Finality,
-    batch_storage: BatchStorage,
+    committed_batch_provider: CommittedBatchProvider,
     last_executed_batch_on_init: u64,
 }
 
-impl<ReplayStorage: ReadReplay, Finality: ReadFinality, BatchStorage: ReadBatch>
-    PriorityTreeManager<ReplayStorage, Finality, BatchStorage>
+impl<ReplayStorage: ReadReplay, Finality: ReadFinality>
+    PriorityTreeManager<ReplayStorage, Finality>
 {
     pub async fn new(
         replay_storage: ReplayStorage,
         db_path: &Path,
         finality: Finality,
-        batch_storage: BatchStorage,
-        last_executed_batch: u64,
+        committed_batch_provider: CommittedBatchProvider,
     ) -> anyhow::Result<Self> {
         let started_at = Instant::now();
         let db = PriorityTreeDB::new(db_path);
         let (initial_block_number, mut merkle_tree) = db.init_tree()?;
-        let last_executed_block = batch_storage
-            .get_batch_range_by_number(last_executed_batch)
-            .await
-            .with_context(|| {
-                format!(
-                    "cannot initialize priority tree: failed to get batch {last_executed_batch} from storage"
-                )
-            })?
-            .with_context(|| {
-                format!(
-                    "cannot initialize priority tree: no batch {last_executed_batch} in storage"
-                )
-            })?
-            .1;
+        let finality_state = finality.get_finality_status();
+        let (last_executed_batch, last_executed_block) = (
+            finality_state.last_executed_batch,
+            finality_state.last_executed_block,
+        );
 
         tracing::debug!(
             persisted_up_to = initial_block_number,
@@ -67,16 +58,10 @@ impl<ReplayStorage: ReadReplay, Finality: ReadFinality, BatchStorage: ReadBatch>
         );
 
         for block_number in (initial_block_number + 1)..=last_executed_block {
-            let block = replay_storage
-                .get_replay_record(block_number)
-                .with_context(|| {
-                    format!("cannot re-build priority tree: missing replay block {block_number}")
-                })?;
-            for tx in block.transactions {
-                match tx.into_envelope() {
-                    ZkEnvelope::L1(l1_tx) => merkle_tree.push_hash(*l1_tx.hash()),
-                    ZkEnvelope::L2(_) => {}
-                    ZkEnvelope::Upgrade(_) => {}
+            let record = Self::wait_for_replay_record(&replay_storage, block_number).await;
+            for tx in record.transactions {
+                if let ZkEnvelope::L1(l1_tx) = tx.into_envelope() {
+                    merkle_tree.push_hash(*l1_tx.hash());
                 }
             }
         }
@@ -93,7 +78,7 @@ impl<ReplayStorage: ReadReplay, Finality: ReadFinality, BatchStorage: ReadBatch>
             replay_storage,
             db,
             finality,
-            batch_storage,
+            committed_batch_provider,
             last_executed_batch_on_init: last_executed_batch,
         })
     }
@@ -157,7 +142,7 @@ impl<ReplayStorage: ReadReplay, Finality: ReadFinality, BatchStorage: ReadBatch>
                         .map(|e| {
                             (
                                 e.batch.batch_info.batch_number,
-                                (e.batch.first_block_number, e.batch.last_block_number),
+                                (e.batch.first_block_number..=e.batch.last_block_number),
                             )
                         })
                         .collect::<Vec<_>>();
@@ -170,37 +155,39 @@ impl<ReplayStorage: ReadReplay, Finality: ReadFinality, BatchStorage: ReadBatch>
                     (Some(envelopes), ranges)
                 }
                 None => {
+                    let next_batch_number = last_processed_batch + 1;
                     let _ = self
                         .finality
                         .subscribe()
-                        .wait_for(|f| last_processed_batch < f.last_executed_batch)
+                        .wait_for(|f| next_batch_number <= f.last_executed_batch)
                         .await
                         .context("failed to wait for next finalized batch")?;
-
-                    let next_batch_number = last_processed_batch + 1;
+                    // Below should be infallible as batch is guaranteed to have been processed as
+                    // executed. Hence, already discovered as committed.
+                    // todo: non-local reasoning, refactor once `CommittedBatchProvider` loads
+                    //       batches asynchronously
                     let range = self
-                        .batch_storage
-                        .get_batch_range_by_number(next_batch_number)
-                        .await
-                        .with_context(|| {
-                            format!("failed to get batch {next_batch_number} from storage")
-                        })?
-                        .with_context(|| {
-                            format!("batch {next_batch_number} not found in storage")
-                        })?;
+                        .committed_batch_provider
+                        .get(next_batch_number)
+                        .with_context(|| format!("unexpected state: batch {next_batch_number} was executed but not discovered as committed"))?
+                        .block_range;
                     let ranges = vec![(next_batch_number, range)];
                     (None, ranges)
                 }
             };
             latency_tracker.enter_state(GenericComponentState::Processing);
             let mut priority_ops = Vec::new();
+            let mut interop_roots = Vec::new();
             let mut merkle_tree = self.merkle_tree.lock().await;
-            for (batch_number, (first_block_number, last_block_number)) in batch_ranges.clone() {
+            for (batch_number, block_range) in batch_ranges.clone() {
                 let mut first_priority_op_id_in_batch = None;
                 let mut priority_op_count = 0;
-                for block_number in first_block_number..=last_block_number {
+                let mut batch_interop_roots = Vec::new();
+                let last_block_number = *block_range.end();
+                for block_number in block_range {
                     // Block is not guaranteed to be present in the replay storage for EN, so we use `wait_for_replay_record`.
-                    let replay = self.wait_for_replay_record(block_number).await;
+                    let replay =
+                        Self::wait_for_replay_record(&self.replay_storage, block_number).await;
                     for tx in replay.transactions {
                         match tx.into_envelope() {
                             ZkEnvelope::L1(l1_tx) => {
@@ -209,11 +196,15 @@ impl<ReplayStorage: ReadReplay, Finality: ReadFinality, BatchStorage: ReadBatch>
                                 priority_op_count += 1;
                                 merkle_tree.push_hash(l1_tx.hash().0.into());
                             }
-                            ZkEnvelope::L2(_) => {}
-                            ZkEnvelope::Upgrade(_) => {}
+                            ZkEnvelope::System(system_tx) => {
+                                batch_interop_roots
+                                    .extend(system_tx.interop_roots().unwrap_or_default());
+                            }
+                            _ => {}
                         }
                     }
                 }
+                interop_roots.push(batch_interop_roots);
                 tracing::debug!(
                     batch_number,
                     last_block_number,
@@ -273,6 +264,7 @@ impl<ReplayStorage: ReadReplay, Finality: ReadFinality, BatchStorage: ReadBatch>
                 s.send(L1SenderCommand::SendToL1(ExecuteCommand::new(
                     batch_envelopes.unwrap(),
                     priority_ops,
+                    interop_roots,
                 )))
                 .await?;
             }
@@ -318,11 +310,14 @@ impl<ReplayStorage: ReadReplay, Finality: ReadFinality, BatchStorage: ReadBatch>
         }
     }
 
-    async fn wait_for_replay_record(&self, block_number: u64) -> ReplayRecord {
+    async fn wait_for_replay_record(
+        replay_storage: &ReplayStorage,
+        block_number: u64,
+    ) -> ReplayRecord {
         let mut timer = tokio::time::interval(Duration::from_millis(100));
         loop {
             timer.tick().await;
-            if let Some(r) = self.replay_storage.get_replay_record(block_number) {
+            if let Some(r) = replay_storage.get_replay_record(block_number) {
                 return r;
             }
         }

@@ -1,11 +1,13 @@
 use crate::ReplayRecord;
-use alloy::primitives::BlockNumber;
+use alloy::primitives::{BlockNumber, Sealed};
 use futures::Stream;
-use futures::stream::{BoxStream, StreamExt};
+use futures::stream::BoxStream;
 use pin_project::pin_project;
 use std::collections::HashMap;
+use std::fmt::Debug;
 use std::task::Poll;
 use std::time::Duration;
+use tokio::sync::mpsc;
 use tokio::time::{Instant, Sleep};
 use zksync_os_interface::types::BlockContext;
 
@@ -26,7 +28,7 @@ use zksync_os_interface::types::BlockContext;
 /// any specific implementation SHOULD declare if it satisfies requirements for a longer period of
 /// time.
 #[auto_impl::auto_impl(&, Box, Arc)]
-pub trait ReadReplay: Send + Sync + 'static {
+pub trait ReadReplay: Debug + Send + Sync + Unpin + 'static {
     /// Get block's execution context. Meant to be used in situations where the full block data is
     /// not needed.
     ///
@@ -70,33 +72,46 @@ pub trait ReadReplay: Send + Sync + 'static {
 
 /// Extension methods for [`ReadReplay`].
 pub trait ReadReplayExt: ReadReplay {
-    /// Streams replay records with block_number in range [`start`, `end`], in ascending block order. Finishes
-    /// after reaching the record for block `end`. Used to replay blocks when recovering state.
-    fn stream(&self, start: u64, end: u64) -> BoxStream<ReplayRecord> {
-        let latest = self.latest_record();
-        assert!(
-            latest >= end,
-            "Requested stream end {end} exceeds latest record {latest}"
-        );
-        let stream = futures::stream::iter(start..=end).filter_map(move |block_num| {
-            let record = self.get_replay_record(block_num);
-            match record {
-                Some(record) => futures::future::ready(Some(record)),
-                None => futures::future::ready(None),
+    /// Forwards replay records in range [`start`, `end`] to the provided channel after mapping them.
+    fn forward_range_with<'a, T, F>(
+        &'a self,
+        start: u64,
+        end: u64,
+        output: mpsc::Sender<T>,
+        mut f: F,
+    ) -> impl std::future::Future<Output = anyhow::Result<()>> + Send + 'a
+    where
+        T: Send + 'static,
+        F: FnMut(ReplayRecord) -> T + Send + 'a,
+        Self: Sized,
+    {
+        async move {
+            let latest = self.latest_record();
+            assert!(
+                latest >= end,
+                "Requested range end {end} exceeds latest record {latest}"
+            );
+            for block_num in start..=end {
+                if let Some(record) = self.get_replay_record(block_num)
+                    && output.send(f(record)).await.is_err()
+                {
+                    tracing::warn!("Replay output channel closed, stopping replay forwarder");
+                    break;
+                }
             }
-        });
-        Box::pin(stream)
+            Ok(())
+        }
     }
 
     /// Streams replay records with block_number ≥ `start`, in ascending block order.
     /// On reaching the latest stored record continuously waits for new records to appear. Used to send blocks to ENs.
     fn stream_from_forever(
-        &self,
+        self,
         start: BlockNumber,
         db_key_overrides: HashMap<BlockNumber, Vec<u8>>,
-    ) -> BoxStream<ReplayRecord>
+    ) -> BoxStream<'static, ReplayRecord>
     where
-        Self: Clone,
+        Self: Sized,
     {
         #[pin_project]
         struct BlockStream<Replay: ReadReplay> {
@@ -133,7 +148,7 @@ pub trait ReadReplayExt: ReadReplay {
         }
 
         Box::pin(BlockStream {
-            replays: self.clone(),
+            replays: self,
             current_block: start,
             db_key_overrides,
             sleep: tokio::time::sleep(Duration::from_millis(50)),
@@ -163,5 +178,5 @@ pub trait WriteReplay: ReadReplay {
     ///   all [`ReadReplay`] methods should reflect its existence appropriately
     /// * MUST be atomic and always leave storage in a valid state (that satisfies all requirements
     ///   here and in [`ReadReplay`]) regardless of the method's outcome (including panic)
-    fn write(&self, record: ReplayRecord, override_allowed: bool) -> bool;
+    fn write(&self, record: Sealed<ReplayRecord>, override_allowed: bool) -> bool;
 }

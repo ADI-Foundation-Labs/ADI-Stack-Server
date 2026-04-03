@@ -1,7 +1,8 @@
 use std::path::Path;
 use tokio::sync::mpsc;
+use zksync_os_l1_watcher::CommittedBatchProvider;
 use zksync_os_priority_tree::PriorityTreeManager;
-use zksync_os_storage_api::{ReadBatch, ReadFinality, ReadReplay};
+use zksync_os_storage_api::{ReadFinality, ReadReplay};
 
 /// Priority Tree manager for External Nodes.
 ///
@@ -9,58 +10,26 @@ use zksync_os_storage_api::{ReadBatch, ReadFinality, ReadReplay};
 /// - Doesn't act as pipeline step - launched as a standalone task instead
 /// - Doesn't output execute commands (EN doesn't execute on L1)
 /// - Watches finalized batch numbers instead of batch envelopes
-pub struct PriorityTreeENStep<BlockStorage, Finality, BatchStorage> {
-    priority_tree_manager: PriorityTreeManager<BlockStorage, Finality, BatchStorage>,
+pub struct PriorityTreeENStep<BlockStorage, Finality> {
+    priority_tree_manager: PriorityTreeManager<BlockStorage, Finality>,
 }
 
-impl<BlockStorage, Finality, BatchStorage> PriorityTreeENStep<BlockStorage, Finality, BatchStorage>
+impl<BlockStorage, Finality> PriorityTreeENStep<BlockStorage, Finality>
 where
-    BlockStorage: ReadReplay + Clone + Send + Sync + 'static,
-    Finality: ReadFinality + Clone + Send + 'static,
-    BatchStorage: ReadBatch + Clone + Send + Sync + 'static,
+    BlockStorage: ReadReplay + Clone,
+    Finality: ReadFinality + Clone,
 {
     pub async fn new(
         block_storage: BlockStorage,
         db_path: &Path,
-        batch_storage: BatchStorage,
         finality: Finality,
-        last_ready_block: u64,
-        grace_period: std::time::Duration,
+        committed_batch_provider: CommittedBatchProvider,
     ) -> anyhow::Result<Self> {
-        let batch_of_last_ready_block = zksync_os_l1_watcher::util::retry_with_grace_period(
-            || async {
-                batch_storage
-                    .get_batch_by_block_number(last_ready_block, &finality)
-                    .await
-            },
-            grace_period,
-            std::time::Duration::from_secs(5),
-            &format!("batch for block {} during priority tree initialization", last_ready_block),
-        )
-        .await?;
-        let batch_range = zksync_os_l1_watcher::util::retry_with_grace_period(
-            || async {
-                batch_storage
-                    .get_batch_range_by_number(batch_of_last_ready_block)
-                    .await
-            },
-            grace_period,
-            std::time::Duration::from_secs(5),
-            &format!("batch range for batch {} during priority tree initialization", batch_of_last_ready_block),
-        )
-        .await?;
-        let last_ready_batch = if last_ready_block == batch_range.1 {
-            batch_of_last_ready_block
-        } else {
-            batch_of_last_ready_block.saturating_sub(1)
-        };
-
         let priority_tree_manager = PriorityTreeManager::new(
             block_storage,
             db_path,
             finality.clone(),
-            batch_storage,
-            last_ready_batch,
+            committed_batch_provider,
         )
         .await?;
 

@@ -1,5 +1,5 @@
 use crate::batcher_metrics::{BATCHER_METRICS, BatchExecutionStage};
-use alloy::primitives::Bytes;
+use alloy::primitives::{B256, Bytes};
 use anyhow::Context as _;
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -7,7 +7,7 @@ use std::fmt::{Debug, Formatter};
 use std::time::SystemTime;
 use time::UtcDateTime;
 use zksync_os_batch_types::{BatchInfo, BatchSignatureSet};
-use zksync_os_contract_interface::models::StoredBatchInfo;
+use zksync_os_contract_interface::models::{L2Log, StoredBatchInfo};
 use zksync_os_observability::LatencyDistributionTracker;
 use zksync_os_types::PubdataMode;
 use zksync_os_types::{ProtocolSemanticVersion, ProvingVersion};
@@ -39,6 +39,14 @@ pub struct BatchMetadata {
     pub execution_version: u32,
     #[serde(default = "default_protocol_version")] // Default to allow deserializing older objects
     pub protocol_version: ProtocolSemanticVersion,
+    #[serde(default)]
+    pub computational_native_used: Option<u64>,
+    #[serde(default)]
+    pub logs: Vec<L2Log>,
+    #[serde(default)]
+    pub messages: Vec<Vec<u8>>,
+    #[serde(default)]
+    pub multichain_root: B256,
 }
 
 impl BatchMetadata {
@@ -70,7 +78,7 @@ fn default_protocol_version() -> ProtocolSemanticVersion {
 #[derive(Debug)]
 pub struct MissingSignature;
 
-#[derive(Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Serialize, Deserialize, Default, Clone)]
 pub enum BatchSignatureData {
     Signed {
         signatures: BatchSignatureSet,
@@ -178,6 +186,8 @@ pub type ProverInput = Vec<u32>;
 pub enum FriProof {
     // Fake proof for testing purposes
     Fake,
+    // Marker for batches that were already proven on L1, so we don't need to prove them again
+    AlreadySubmittedToL1,
     Real(RealFriProof),
 }
 
@@ -210,7 +220,7 @@ impl FriProof {
     pub fn proof(&self) -> Option<&[u8]> {
         match self {
             FriProof::Real(real) => Some(real.proof()),
-            FriProof::Fake => None,
+            FriProof::Fake | FriProof::AlreadySubmittedToL1 => None,
         }
     }
 }
@@ -228,6 +238,7 @@ impl Debug for FriProof {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             FriProof::Fake => write!(f, "Fake"),
+            FriProof::AlreadySubmittedToL1 => write!(f, "AlreadySubmittedToL1"),
             FriProof::Real(_) => write!(
                 f,
                 "Real(proving_execution_version={:?}, len: {:?})",

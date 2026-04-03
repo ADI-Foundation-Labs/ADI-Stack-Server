@@ -1,4 +1,4 @@
-use crate::execution::block_executor::SealReason;
+use crate::execution::execute_block_in_vm::SealReason;
 use std::time::Duration;
 use vise::{Buckets, Gauge, Histogram, LabeledFamily, Metrics, Unit};
 use vise::{Counter, EncodeLabelValue};
@@ -118,6 +118,14 @@ pub struct ExecutionMetrics {
     pub next_l1_priority_id: Gauge<u64>,
 
     pub last_execution_version: Gauge<u64>,
+
+    pub pubdata_price: Gauge<u64>,
+
+    pub blob_fill_ratio: Gauge<f64>,
+
+    pub base_fee: Gauge<u64>,
+
+    pub native_price: Gauge<u64>,
 }
 
 #[vise::register]

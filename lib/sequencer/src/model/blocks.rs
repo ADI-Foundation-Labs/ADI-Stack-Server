@@ -1,11 +1,10 @@
 use alloy::primitives::B256;
 use std::fmt::Display;
-use std::pin::Pin;
 use std::time::Duration;
 use zksync_os_interface::types::BlockContext;
-use zksync_os_mempool::TxStream;
+use zksync_os_mempool::MarkingTxStream;
 use zksync_os_storage_api::ReplayRecord;
-use zksync_os_types::{L1TxSerialId, ProtocolSemanticVersion, ZkTransaction};
+use zksync_os_types::{InteropRootsLogIndex, L1TxSerialId, ProtocolSemanticVersion};
 
 /// `BlockCommand`s drive the sequencer execution.
 /// Produced by `CommandProducer` - first blocks are `Replay`ed from block replay storage
@@ -18,8 +17,6 @@ pub enum BlockCommand {
     /// Replay a block from block replay storage.
     Replay(Box<ReplayRecord>),
     /// Produce a new block from the mempool.
-    /// Second argument - local seal criteria - target block time and max transaction number
-    /// (Avoid container struct for now)
     Produce(ProduceCommand),
     /// Rebuild an existing block.
     Rebuild(Box<RebuildCommand>),
@@ -35,11 +32,7 @@ pub enum BlockCommandType {
 
 /// Command to produce a new block.
 #[derive(Clone, Debug)]
-pub struct ProduceCommand {
-    pub block_number: u64,
-    pub block_time: Duration,
-    pub max_transactions_in_block: usize,
-}
+pub struct ProduceCommand;
 
 /// Command to rebuild existing block.
 #[derive(Clone, Debug)]
@@ -49,14 +42,6 @@ pub struct RebuildCommand {
 }
 
 impl BlockCommand {
-    pub fn block_number(&self) -> u64 {
-        match self {
-            BlockCommand::Replay(record) => record.block_context.block_number,
-            BlockCommand::Produce(command) => command.block_number,
-            BlockCommand::Rebuild(command) => command.replay_record.block_context.block_number,
-        }
-    }
-
     pub fn command_type(&self) -> BlockCommandType {
         match self {
             BlockCommand::Replay(_) => BlockCommandType::Replay,
@@ -76,7 +61,7 @@ impl Display for BlockCommand {
                 record.transactions.len(),
                 record.starting_l1_priority_id,
             ),
-            BlockCommand::Produce(command) => write!(f, "Produce block: {command:?}"),
+            BlockCommand::Produce(_) => write!(f, "Produce block"),
             BlockCommand::Rebuild(command) => write!(
                 f,
                 "Rebuild block {} ({} txs);",
@@ -99,12 +84,11 @@ pub struct PreparedBlockCommand<'a> {
     pub block_context: BlockContext,
     pub seal_policy: SealPolicy,
     pub invalid_tx_policy: InvalidTxPolicy,
-    pub tx_source: Pin<Box<dyn TxStream<Item = ZkTransaction> + Send + 'a>>,
+    pub tx_source: MarkingTxStream<'a>,
     /// L1 transaction serial id expected at the beginning of this block.
     /// Not used in execution directly, but required to construct ReplayRecord
     pub starting_l1_priority_id: L1TxSerialId,
     pub metrics_label: &'static str,
-    pub node_version: semver::Version,
     pub protocol_version: ProtocolSemanticVersion,
     /// Expected hash of the block output (missing for command generated from `BlockCommand::Produce`)
     pub expected_block_output_hash: Option<B256>,
@@ -112,6 +96,13 @@ pub struct PreparedBlockCommand<'a> {
     /// Contract preimages to be included before the block execution.
     /// Can be non-empty e.g. when processing upgrade transactions.
     pub force_preimages: Vec<(B256, Vec<u8>)>,
+    pub starting_interop_event_index: InteropRootsLogIndex,
+    pub starting_migration_number: u64,
+    pub starting_interop_fee_number: u64,
+    pub interop_roots_per_block: u64,
+    /// Whether canonical state transition should strictly consume executed txs from live subpools.
+    /// `true` for produced blocks, `false` for replay/rebuild.
+    pub strict_subpool_cleanup: bool,
 }
 
 /// Behaviour when VM returns an InvalidTransaction error.

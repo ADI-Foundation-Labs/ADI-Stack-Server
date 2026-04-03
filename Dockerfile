@@ -45,12 +45,12 @@ RUN useradd -m -u ${UID} app && \
 # ---- copy binary + genesis.json ----
 COPY --from=builder /app/target/release/zksync-os-server /usr/local/bin/
 
-COPY --from=builder /app/genesis/genesis.json /app/genesis/
+COPY --from=builder /app/local-chains/v30.2/default/genesis.json /app/local-chains/v30.2/default/genesis.json
 
 USER app
 WORKDIR /app
 
-EXPOSE 3050 3124 3312 3053
+EXPOSE 3050 3124 3312 3060
 VOLUME ["/db"]
 
 ENTRYPOINT ["/usr/bin/tini", "--", "zksync-os-server"]

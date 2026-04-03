@@ -1,26 +1,31 @@
 pub use self::cli::ConfigArgs;
-use crate::{command_source::RebuildOptions, config_constants::DEFAULT_ROCKS_DB_PATH};
+use self::util::{SecretKeyDeserializer, SignerConfigDeserializer};
+use crate::{command_source::RebuildOptions, default_protocol_version::DEFAULT_ROCKS_DB_PATH};
 use alloy::primitives::{Address, Bytes, U128};
+use num::{BigInt, BigUint, rational::Ratio};
 use serde::{Deserialize, Serialize};
-use smart_config::metadata::TimeUnit;
+use smart_config::metadata::{SizeUnit, TimeUnit};
 use smart_config::value::SecretString;
 use smart_config::{
-    ConfigRepository, ConfigSchema, ConfigSources, DescribeConfig, DeserializeConfig, EtherAmount,
-    ParseErrors, Serde, de::Delimited, metadata::EtherUnit,
+    ByteSize, ConfigRepository, ConfigSchema, ConfigSources, DescribeConfig, DeserializeConfig,
+    EtherAmount, ParseErrors, Serde, de::Delimited, metadata::EtherUnit,
 };
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
+use std::net::Ipv4Addr;
 use std::{path::PathBuf, time::Duration};
 use zksync_os_batch_verification;
 use zksync_os_l1_sender::commands::commit::CommitCommand;
 use zksync_os_l1_sender::commands::execute::ExecuteCommand;
 use zksync_os_l1_sender::commands::prove::ProofCommand;
-use zksync_os_mempool::{SubPoolLimit, DEFAULT_TX_FEE_CAP};
-use zksync_os_object_store::ObjectStoreConfig;
+use zksync_os_mempool::{DEFAULT_TX_FEE_CAP, SubPoolLimit};
+use zksync_os_network::{NodeRecord, SecretKey};
 use zksync_os_observability::LogFormat;
 use zksync_os_observability::opentelemetry::OpenTelemetryLevel;
-use zksync_os_types::PubdataMode;
+use zksync_os_operator_signer::SignerConfig;
+use zksync_os_types::{NodeRole, PubdataMode};
 
 mod cli;
+mod util;
 
 /// Configuration for the sequencer node.
 /// Includes configurations of all subsystems.
@@ -28,6 +33,7 @@ mod cli;
 #[derive(Debug)]
 pub struct Config {
     pub general_config: GeneralConfig,
+    pub network_config: NetworkConfig,
     pub genesis_config: GenesisConfig,
     pub rpc_config: RpcConfig,
     pub private_api_config: PrivateApiConfig,
@@ -43,6 +49,12 @@ pub struct Config {
     pub observability_config: ObservabilityConfig,
     pub gas_adjuster_config: GasAdjusterConfig,
     pub batch_verification_config: BatchVerificationConfig,
+    pub base_token_price_updater_config: BaseTokenPriceUpdaterConfig,
+    pub interop_fee_updater_config: InteropFeeUpdaterConfig,
+    /// Only required on the Main Node, where the base token price updater runs.
+    /// External Nodes never start that component and may omit this config entirely.
+    pub external_price_api_client_config: Option<ExternalPriceApiClientConfig>,
+    pub fee_config: FeeConfig,
 }
 
 impl Config {
@@ -51,6 +63,9 @@ impl Config {
         schema
             .insert(&GeneralConfig::DESCRIPTION, "general")
             .expect("Failed to insert general config");
+        schema
+            .insert(&NetworkConfig::DESCRIPTION, "network")
+            .expect("Failed to insert network config");
         schema
             .insert(&GenesisConfig::DESCRIPTION, "genesis")
             .expect("Failed to insert genesis config");
@@ -100,6 +115,24 @@ impl Config {
             .insert(&BatchVerificationConfig::DESCRIPTION, "batch_verification")
             .expect("Failed to insert batch verification config");
         schema
+            .insert(
+                &BaseTokenPriceUpdaterConfig::DESCRIPTION,
+                "base_token_price_updater",
+            )
+            .expect("Failed to insert base token price updater config");
+        schema
+            .insert(&InteropFeeUpdaterConfig::DESCRIPTION, "interop_fee_updater")
+            .expect("Failed to insert interop fee updater config");
+        schema
+            .insert(
+                &ExternalPriceApiClientConfig::DESCRIPTION,
+                "external_price_api_client",
+            )
+            .expect("Failed to insert external price api client config");
+        schema
+            .insert(&FeeConfig::DESCRIPTION, "fee")
+            .expect("Failed to insert fee config");
+        schema
     }
 
     pub fn observability(sources: ConfigSources) -> anyhow::Result<ObservabilityConfig> {
@@ -142,14 +175,21 @@ fn log_all_errors(errors: ParseErrors) -> anyhow::Error {
 }
 
 /// "Umbrella" config for the node.
-/// If variable is shared i.e. used by multiple components OR does not belong to any specific component (e.g. `zkstack_cli_config_dir`)
+/// If variable is shared i.e. used by multiple components OR does not belong to any specific component
 /// then it belongs here.
 #[derive(Clone, Debug, DescribeConfig, DeserializeConfig)]
 #[config(derive(Default))]
 pub struct GeneralConfig {
+    #[config(default_t = NodeRole::MainNode, with = Serde![str])]
+    pub node_role: NodeRole,
+
     /// L1's JSON RPC API.
     #[config(default_t = "http://localhost:8545".into())]
     pub l1_rpc_url: String,
+
+    /// Gateway's JSON RPC API.
+    /// Currently, it's a marker of whether chain settles to Gateway or not.
+    pub gateway_rpc_url: Option<String>,
 
     /// Min number of blocks to replay on restart
     /// Depending on L1/persistence state, we may need to replay more blocks than this number
@@ -183,11 +223,8 @@ pub struct GeneralConfig {
     #[config(default_t = 512)]
     pub blocks_to_retain_in_memory: usize,
 
-    /// If set - initialize the configs based off the values from the yaml files from that directory.
-    pub zkstack_cli_config_dir: Option<String>,
-
     /// **IMPORTANT: It must be set for an external node. However, setting this DOES NOT make the node into an external node.
-    /// `SequencerConfig::block_replay_download_address` is the source of truth for node type. **
+    /// [`GeneralConfig::node_role`] is the source of truth for node type. **
     #[config(default_t = None)]
     pub main_node_rpc_url: Option<String>,
 
@@ -197,6 +234,43 @@ pub struct GeneralConfig {
     /// from scratch before turning this EN into a Main Node.
     #[config(default_t = true)]
     pub run_priority_tree: bool,
+
+    /// Enables ephemeral mode that isolates RocksDB into a temporary directory.
+    /// The directory is removed once the process shuts down.
+    /// Disables all HTTP APIs except JSON RPC.
+    #[config(default_t = false, alias = "sandbox")]
+    pub ephemeral: bool,
+
+    /// Path to ephemeral state to load at startup.
+    #[config(default_t = None)]
+    pub ephemeral_state: Option<PathBuf>,
+}
+
+#[derive(Clone, Debug, DescribeConfig, DeserializeConfig)]
+#[config(derive(Default))]
+pub struct NetworkConfig {
+    /// Whether devp2p-based networking should be enabled.
+    #[config(default_t = false)]
+    pub enabled: bool,
+    /// The node's secret key (256-bit ECDSA), from which the node's identity is derived. Used during
+    /// initial RLPx handshake.
+    #[config(secret)]
+    #[config(default, with = SecretKeyDeserializer)]
+    pub secret_key: Option<SecretKey>,
+    /// IPv4 address to use for Node Discovery Protocol v5 (discv5) and RLPx Transport Protocol (rlpx).
+    #[config(default_t = Ipv4Addr::UNSPECIFIED, with = Serde![str])]
+    pub address: Ipv4Addr,
+    /// Port to use for Node Discovery Protocol v5 (discv5) and RLPx Transport Protocol (rlpx).
+    #[config(default_t = 3060)]
+    pub port: u16,
+    /// All boot nodes to start network discovery with. Expected format is
+    /// `enode://<node ID>@<IP address>:<port>` delimited by commas (`,`). For example:
+    /// `enode://dbd18888f17bad7df7fa958b57f4993f47312ba5364508fd0d9027e62ea17a037ca6985d6b0969c4341f1d4f8763a802785961989d07b1fb5373ced9d43969f6@127.0.0.1:3060`
+    #[config(
+        default,
+        with = Delimited::repeat(Serde![str], ",")
+    )]
+    pub boot_nodes: Vec<NodeRecord>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -206,32 +280,29 @@ pub enum StateBackendConfig {
 }
 
 #[derive(Clone, Debug, DescribeConfig, DeserializeConfig)]
-#[config(derive(Default))]
 pub struct GenesisConfig {
     /// L1 address of `Bridgehub` contract. This address and chain ID is an entrypoint into L1 discoverability so most
     /// other contracts should be discoverable through it.
-    #[config(default_t = Some(crate::config_constants::BRIDGEHUB_ADDRESS.parse().unwrap()))]
     pub bridgehub_address: Option<Address>,
 
     /// L1 address of the `BytecodeSupplier` contract. This address right now cannot be discovered through `Bridgehub`,
     /// so it has to be provided explicitly.
-    // For updating state.json: you can check the `deployedBytecode` in `BytecodesSupplier.json` artifact and then
-    // find it in `zkos-l1-state.json`
-    #[config(default_t = Some(crate::config_constants::BYTECODE_SUPPLIER_ADDRESS.parse().unwrap()))]
     pub bytecode_supplier_address: Option<Address>,
 
     /// Chain ID of the chain node operates on.
-    #[config(default_t = Some(crate::config_constants::CHAIN_ID))]
     pub chain_id: Option<u64>,
 
     /// Path to the file with genesis input.
-    #[config(default_t = Some("./genesis/genesis.json".into()))]
     pub genesis_input_path: Option<PathBuf>,
 }
 
 #[derive(Clone, Debug, DescribeConfig, DeserializeConfig)]
 #[config(derive(Default))]
 pub struct StatusServerConfig {
+    /// Whether to enable status server.
+    #[config(default_t = true)]
+    pub enabled: bool,
+
     /// Status server address to listen on.
     #[config(default_t = "0.0.0.0:3071".into())]
     pub address: String,
@@ -246,22 +317,13 @@ pub struct RebuildBlocksConfig {
     /// have different hash, have some transactions rejected etc
     pub from_block: u64,
     /// List of blocks to empty (i.e., remove all transactions from).
-    #[config(default, with = Delimited(","))]
+    #[config(default, with = Delimited::new(","))]
     pub blocks_to_empty: Vec<u64>,
 }
 
 #[derive(Clone, Debug, DescribeConfig, DeserializeConfig)]
 #[config(derive(Default))]
 pub struct SequencerConfig {
-    /// Where to download replays instead of actually running blocks.
-    /// **Setting this makes the node into an external node.**
-    #[config(default_t = None)]
-    pub block_replay_download_address: Option<String>,
-
-    /// Where to serve block replays (EN syncing protocol)
-    #[config(default_t = "0.0.0.0:3053".into())]
-    pub block_replay_server_address: String,
-
     /// Defines the block time for the sequencer.
     /// One of the block Seal Criteria. Only affects the Main Node.
     #[config(default_t = Duration::from_millis(250))]
@@ -290,19 +352,6 @@ pub struct SequencerConfig {
     #[config(with = Serde![str], default_t = "0x36615Cf349d7F6344891B1e7CA7C72883F5dc049".parse().unwrap())]
     pub fee_collector_address: Address,
 
-    /// Override for base fee (in wei). If set, base fee will be constant and equal to this value.
-    /// Can be overridden at runtime via private API.
-    #[config(default_t = None)]
-    pub base_fee_override: Option<U128>,
-
-    /// Override for pubdata price (in wei). If set, pubdata price will be constant and equal to this value.
-    #[config(default_t = None)]
-    pub pubdata_price_override: Option<U128>,
-
-    /// Override for native price (in wei). If set, native price will be constant and equal to this value.
-    #[config(default_t = None)]
-    pub native_price_override: Option<U128>,
-
     /// Maximum number of blocks to produce.
     /// `None` means unlimited (default, standard operations),
     /// `Some(0)` means no new blocks (useful when only RPC/replay/batching functionality is needed),
@@ -312,6 +361,15 @@ pub struct SequencerConfig {
     /// Useful for mitigation/operations.
     #[config(default_t = None)]
     pub max_blocks_to_produce: Option<u64>,
+
+    /// Max number of interop roots to be included in a single transaction
+    #[config(default_t = 100)]
+    pub interop_roots_per_tx: usize,
+
+    /// Delay between 2 consecutive service blocks.
+    /// Defaults to 3 times of usual block time, to allow passing other transactions in between
+    #[config(default_t = Duration::from_millis(750))]
+    pub service_block_delay: Duration,
 
     /// Enable REVM consistency checker.
     /// If enabled, an additional pipeline process will be executed after the sequencer.
@@ -338,12 +396,6 @@ pub struct SequencerConfig {
     pub en_replay_record_overrides: Vec<(u64, Bytes)>,
 }
 
-impl SequencerConfig {
-    pub fn is_main_node(&self) -> bool {
-        self.block_replay_download_address.is_none()
-    }
-}
-
 #[derive(Clone, Debug, DescribeConfig, DeserializeConfig)]
 #[config(derive(Default))]
 pub struct RpcConfig {
@@ -368,11 +420,11 @@ pub struct RpcConfig {
     pub max_response_size: u32,
 
     /// Maximum number of blocks that could be scanned per filter
-    #[config(default_t = 100_000)]
+    #[config(default_t = 10_000)]
     pub max_blocks_per_filter: u64,
 
     /// Maximum number of logs that can be returned in a response
-    #[config(default_t = 20_000)]
+    #[config(default_t = 10_000)]
     pub max_logs_per_response: usize,
 
     /// Duration since the last filter poll, after which the filter is considered stale
@@ -380,21 +432,30 @@ pub struct RpcConfig {
     pub stale_filter_ttl: Duration,
 
     /// List of L2 signer addresses to blacklist (i.e. their transactions are rejected).
-    #[config(default, with = Delimited(","))]
+    #[config(default, with = Delimited::new(","))]
     pub l2_signer_blacklist: HashSet<Address>,
 
     /// Default timeout for `eth_sendRawTransactionSync`
     #[config(default_t = 2 * TimeUnit::Seconds)]
     pub send_raw_transaction_sync_timeout: Duration,
 
-    /// Factor for pubdata price used during gas limit estimation (`eth_estimateGas`).
-    /// Needed to account for pubdata price market fluctuations. Setting this to `1.0` can lead to
-    /// users submitting unexecutable transactions (fail with `OutOfNativeResourcesDuringValidation`)
-    /// because pubdata price increase in-between estimation and sequencing.
+    /// Factor applied to the pending block base fee returned by `eth_gasPrice`.
+    /// Some tools, e.g. Metamask, submit transactions with `maxFeePerGas=eth_gasPrice`, so it's important for multiplier to be `> 1`.
     #[config(default_t = 1.5)]
+    pub gas_price_scale_factor: f64,
+
+    /// Factor for pubdata price used during gas limit estimation (`eth_estimateGas`).
+    /// Needed to account for pubdata price market fluctuations.
+    /// Pubdata price can increase for up to 50% between consecutive blocks, native price can decrease for up to 12.5% ->
+    /// `native_per_pubdata` can increase in 1.5/0.875=1.714 times.
+    /// Setting it to a smaller value will increase the probability of users submitting
+    /// unexecutable/failing transactions (usually fail with `OutOfNativeResourcesDuringValidation`)
+    /// because pubdata price increases or native price decreases in-between estimation and sequencing.
+    #[config(default_t = 2.0)]
     pub estimate_gas_pubdata_price_factor: f64,
 }
 
+/// Only used on the Main Node.
 /// Private API configuration for runtime config updates.
 #[derive(Clone, Debug, DescribeConfig, DeserializeConfig)]
 #[config(derive(Default))]
@@ -404,30 +465,33 @@ pub struct PrivateApiConfig {
     pub address: std::net::SocketAddr,
 }
 
-/// Only used on the Main Node.
+/// L1 sender configuration. The signing key fields are only required on the Main Node;
+/// External Nodes do not send L1 transactions and may omit them.
+///
+/// Each operator accepts either a hex private key string (backward-compatible) or a GCP KMS
+/// resource object: `{"type": "gcp_kms", "resource": "projects/.../cryptoKeyVersions/N"}`.
 #[derive(Clone, Debug, DescribeConfig, DeserializeConfig)]
-#[config(derive(Default))]
 pub struct L1SenderConfig {
-    /// Private key to commit batches to L1
+    /// Signer to commit batches to L1.
     /// Must be consistent with the operator key set on the contract (permissioned!)
-    // TODO: Pre-configured value, to be removed
-    #[config(alias = "operator_private_key", default_t = SecretString::from(crate::config_constants::OPERATOR_COMMIT_PK))]
-    pub operator_commit_pk: SecretString,
+    /// Not required for External Nodes, which do not send L1 transactions.
+    #[config(secret, alias = "operator_commit_pk", with = SignerConfigDeserializer)]
+    pub operator_commit_sk: Option<SignerConfig>,
 
-    /// Private key to use to submit proofs to L1
+    /// Signer to submit proofs to L1.
     /// Can be arbitrary funded address - proof submission is permissionless.
-    // TODO: Pre-configured value, to be removed
-    #[config(default_t = SecretString::from(crate::config_constants::OPERATOR_PROVE_PK))]
-    pub operator_prove_pk: SecretString,
+    /// Not required for External Nodes, which do not send L1 transactions.
+    #[config(secret, alias = "operator_prove_pk", with = SignerConfigDeserializer)]
+    pub operator_prove_sk: Option<SignerConfig>,
 
-    /// Private key to use to execute batches on L1
+    /// Signer to execute batches on L1.
     /// Can be arbitrary funded address - execute submission is permissionless.
-    // TODO: Pre-configured value, to be removed
-    #[config(default_t = SecretString::from(crate::config_constants::OPERATOR_EXECUTE_PK))]
-    pub operator_execute_pk: SecretString,
+    /// Not required for External Nodes, which do not send L1 transactions.
+    #[config(secret, alias = "operator_execute_pk", with = SignerConfigDeserializer)]
+    pub operator_execute_sk: Option<SignerConfig>,
 
     /// Max fee per gas we are willing to spend.
-    #[config(default_t = 100 * EtherUnit::Gwei)]
+    #[config(default_t = 200 * EtherUnit::Gwei)]
     pub max_fee_per_gas: EtherAmount,
 
     /// Max priority fee per gas we are willing to spend.
@@ -435,7 +499,7 @@ pub struct L1SenderConfig {
     pub max_priority_fee_per_gas: EtherAmount,
 
     /// Max fee per blob gas we are willing to spend.
-    #[config(default_t = 1 * EtherUnit::Gwei)]
+    #[config(default_t = 2 * EtherUnit::Gwei)]
     pub max_fee_per_blob_gas: EtherAmount,
 
     /// Max number of commands (to commit/prove/execute one batch) to be processed at a time.
@@ -460,10 +524,10 @@ pub struct L1SenderConfig {
     #[config(default_t = true)]
     pub enabled: bool,
 
-    /// Pubdata mode
-    #[config(default_t = PubdataMode::Blobs)]
+    /// Pubdata mode is used by block-producing components on the Main Node.
+    /// External Nodes only replay blocks, so they may leave this unset.
     #[config(with = Serde![str])]
-    pub pubdata_mode: PubdataMode,
+    pub pubdata_mode: Option<PubdataMode>,
 }
 
 #[derive(Clone, Debug, DescribeConfig, DeserializeConfig)]
@@ -483,6 +547,10 @@ pub struct L1WatcherConfig {
     /// How often to poll L1 for new priority requests.
     #[config(default_t = 100 * TimeUnit::Millis)]
     pub poll_interval: Duration,
+
+    /// Whether to run gateway migration watcher.
+    #[config(default_t = false)]
+    pub enable_gw_migration_watcher: bool,
 
     /// Grace period for proof storage lookups on External Nodes.
     /// When a batch is discovered on L1 but not yet in local proof storage,
@@ -532,6 +600,14 @@ pub struct BatcherConfig {
     #[config(default_t = 10)]
     pub blocks_per_batch_limit: u64,
 
+    /// Max number of transactions per batch
+    #[config(default_t = 10000)]
+    pub tx_per_batch_limit: u64,
+
+    /// Max number of interop roots per batch
+    #[config(default_t = 1000)]
+    pub interop_roots_per_batch_limit: u64,
+
     /// Whether to verify that rebuilt batches match stored batches by comparing hashes.
     /// Enabled by default for safety. Disabling this check can be useful for debugging or
     /// when recovering from corrupted state.
@@ -558,6 +634,10 @@ pub struct ProverInputGeneratorConfig {
 #[derive(Clone, Debug, DescribeConfig, DeserializeConfig)]
 #[config(derive(Default))]
 pub struct ProverApiConfig {
+    /// Whether to enable prover server.
+    #[config(default_t = true)]
+    pub enabled: bool,
+
     /// Prover API address to listen on.
     #[config(default_t = "0.0.0.0:3124".into())]
     pub address: String,
@@ -595,9 +675,9 @@ pub struct ProverApiConfig {
     #[config(default_t = 10)]
     pub max_fris_per_snark: usize,
 
-    /// Default: backed by files under `./db/shared` folder.
+    /// Default: store files in ./db/fri_proofs/ with 1GiB disk usage cap
     #[config(nest, default)]
-    pub object_store: ObjectStoreConfig,
+    pub proof_storage: ProofStorageConfig,
 }
 
 #[derive(Clone, Debug, DescribeConfig, DeserializeConfig)]
@@ -639,6 +719,21 @@ pub struct FakeSnarkProversConfig {
     /// Only pick up jobs that are this time old.
     #[config(default_t = Duration::from_secs(10))]
     pub max_batch_age: Duration,
+}
+
+#[derive(Debug, Clone, DescribeConfig, DeserializeConfig)]
+#[config(derive(Default))]
+pub struct ProofStorageConfig {
+    #[config(default_t = "./db/fri_proofs/".into())]
+    pub path: PathBuf,
+    /// The disk usage in bytes for batches with proofs,
+    /// old entries are removed to keep usage capped
+    #[config(default_t = 1 * SizeUnit::GiB)]
+    pub batch_with_proof_capacity: ByteSize,
+    /// The disk usage in bytes for failed proofs,
+    /// old entries are removed to keep usage capped
+    #[config(default_t = 1 * SizeUnit::GiB)]
+    pub failed_capacity: ByteSize,
 }
 
 /// Set of options related to the observability stack,
@@ -705,6 +800,8 @@ pub struct GasAdjusterConfig {
     pub max_base_fee_samples: usize,
     #[config(default_t = 100)]
     pub num_samples_for_blob_base_fee_estimate: usize,
+    #[config(default_t = 100)]
+    pub max_blob_fill_ratio_samples: usize,
     #[config(default_t = 13 * TimeUnit::Seconds)]
     pub poll_period: Duration,
     #[config(default_t = 1.0)]
@@ -748,9 +845,9 @@ pub struct BatchVerificationConfig {
     pub connect_address: String,
     /// [server] Threshold (number of needed signatures)
     #[config(default_t = 1)]
-    pub threshold: usize,
+    pub threshold: u64,
     /// [server] Accepted signer pubkeys
-    #[config(default_t = vec!["0x36615Cf349d7F6344891B1e7CA7C72883F5dc049".into()], with = Delimited(","))]
+    #[config(default_t = vec!["0x36615Cf349d7F6344891B1e7CA7C72883F5dc049".into()], with = Delimited::new(","))]
     pub accepted_signers: Vec<String>,
     /// [server] Iteration timeout
     #[config(default_t = Duration::from_secs(5))]
@@ -767,6 +864,138 @@ pub struct BatchVerificationConfig {
     pub signing_key: SecretString,
 }
 
+/// Config for the base token price updater.
+#[derive(Clone, Debug, DescribeConfig, DeserializeConfig)]
+#[config(derive(Default))]
+pub struct BaseTokenPriceUpdaterConfig {
+    /// How often to fetch external prices.
+    #[config(default_t = Duration::from_secs(30))]
+    pub price_polling_interval: Duration,
+    /// How many percent a quote needs to change in order for update to be propagated to L1.
+    /// Exists to save on gas.
+    #[config(default_t = 10)]
+    pub l1_update_deviation_percentage: u32,
+    /// Maximum number of attempts to fetch quote from a remote API before failing over.
+    #[config(default_t = 3)]
+    pub price_fetching_max_attempts: u32,
+    /// Override for address of the base token address.
+    pub base_token_addr_override: Option<Address>,
+    /// Override for decimals of the base token.
+    pub base_token_decimals_override: Option<u8>,
+    /// Override for address of the gateway base token address used to calculate ETH<->GatewayBaseToken ratio on gateway using chains.
+    pub gateway_base_token_addr_override: Option<Address>,
+    /// Signer to update base token price on L1.
+    /// Must be consistent with the key set on the chain admin contract.
+    /// Not used for chains with ETH as base token; expected to be set for all other chains.
+    /// Accepts either a hex private key string or a GCP KMS resource object.
+    #[config(secret, alias = "token_multiplier_setter_pk", with = SignerConfigDeserializer)]
+    pub token_multiplier_setter_sk: Option<SignerConfig>,
+    /// Predefined fallback prices for tokens in case external API fetching fails on startup.
+    #[config(default, with = Serde![*])]
+    pub fallback_prices: HashMap<Address, f64>,
+}
+
+/// Config for the interop fee updater.
+#[derive(Clone, Debug, DescribeConfig, DeserializeConfig)]
+#[config(derive(Default))]
+pub struct InteropFeeUpdaterConfig {
+    /// How often to check whether interop fee should be updated.
+    #[config(default_t = Duration::from_secs(30))]
+    pub polling_interval: Duration,
+    /// Minimum percent deviation required to enqueue a new interop fee transaction.
+    #[config(default_t = 10)]
+    pub update_deviation_percentage: u32,
+}
+
+/// Config to force configured token prices in USD.
+/// E.g. if needed to force 1 TOKEN = 0.3 USD, that would be represented in a config with price=0.3 for this token.
+/// Important: price is **token** price (e.g. for USDC it would be 1), not base token unit price.
+#[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
+#[config(derive(Default))]
+pub struct ForcedPriceClientConfig {
+    /// Map of token addresses to their forced price in USD for 1 token (not base token unit!).
+    #[config(default, with = Serde![*])]
+    pub prices: HashMap<Address, f64>,
+    /// Forced fluctuation. It defines how much percent the ratio should fluctuate from its forced
+    /// value. If it's 0, then the ForcedPriceClient will return the same quote every time
+    /// it's called. Otherwise, ForcedPriceClient will return quote with numerator +/- fluctuation %.
+    #[config(default_t = 20.0)]
+    pub fluctuation: f64,
+    /// In order to smooth out fluctuation, consecutive values returned by forced client will not
+    /// differ more than next_value_fluctuation percent.
+    #[config(default_t = 5.0)]
+    pub next_value_fluctuation: f64,
+}
+
+/// Configuration for external price API client.
+#[derive(Debug, Clone, DescribeConfig, DeserializeConfig)]
+#[config(tag = "source")]
+pub enum ExternalPriceApiClientConfig {
+    Forced {
+        /// Config for forced price client.
+        #[config(nest)]
+        forced: ForcedPriceClientConfig,
+    },
+    CoinGecko {
+        /// Base URL of the external price API.
+        base_url: Option<String>,
+        /// API key for the external price API.
+        coingecko_api_key: Option<SecretString>,
+        /// Timeout for the external price API client.
+        #[config(default_t = Duration::from_secs(10))]
+        client_timeout: Duration,
+    },
+    CoinMarketCap {
+        /// Base URL of the external price API.
+        base_url: Option<String>,
+        /// API key for the external price API. Required.
+        cmc_api_key: SecretString,
+        /// Timeout for the external price API client.
+        #[config(default_t = Duration::from_secs(10))]
+        client_timeout: Duration,
+    },
+}
+
+/// Fee-related configuration.
+#[derive(Debug, Clone, DescribeConfig, DeserializeConfig)]
+#[config(derive(Default))]
+pub struct FeeConfig {
+    /// Price for one unit of native resource in USD.
+    /// Default is set based on the current estimate of proving price.
+    #[config(default_t = 3e-9)]
+    pub native_price_usd: f64,
+    /// Override for base fee (in base token units).
+    /// If set, base fee will be constant and equal to this value.
+    pub base_fee_override: Option<U128>,
+    /// Defines how many native resource units are equivalent to one gas unit in terms of price.
+    #[config(default_t = 100)]
+    pub native_per_gas: u64,
+    /// Override for pubdata price (in base token units).
+    /// If set, pubdata price will be constant and equal to this value.
+    pub pubdata_price_override: Option<U128>,
+    /// Cap for pubdata price (in base token units). If set, pubdata price will not exceed this value.
+    /// Note:
+    /// - has no effect if `pubdata_price_override` is set.
+    /// - if pubdata cap is reached, chain operator may operate at a loss.
+    pub pubdata_price_cap: Option<U128>,
+    /// Override for native price (in base token units).
+    /// If set, native price will be constant and equal to this value.
+    pub native_price_override: Option<U128>,
+}
+
+impl From<NetworkConfig> for zksync_os_network::config::NetworkConfig {
+    fn from(value: NetworkConfig) -> Self {
+        Self {
+            secret_key: value
+                .secret_key
+                .expect("`network.secret_key` is required for running p2p networking stack"),
+            address: value.address,
+            port: value.port,
+            boot_nodes: value.boot_nodes,
+        }
+    }
+}
+
 impl From<RpcConfig> for zksync_os_rpc::RpcConfig {
     fn from(c: RpcConfig) -> Self {
         Self {
@@ -780,22 +1009,23 @@ impl From<RpcConfig> for zksync_os_rpc::RpcConfig {
             l2_signer_blacklist: c.l2_signer_blacklist,
             stale_filter_ttl: c.stale_filter_ttl,
             send_raw_transaction_sync_timeout: c.send_raw_transaction_sync_timeout,
+            gas_price_scale_factor: c.gas_price_scale_factor,
             estimate_gas_pubdata_price_factor: c.estimate_gas_pubdata_price_factor,
         }
     }
 }
 
-impl From<SequencerConfig> for zksync_os_sequencer::config::SequencerConfig {
-    fn from(c: SequencerConfig) -> Self {
+impl From<&Config> for zksync_os_sequencer::config::SequencerConfig {
+    fn from(c: &Config) -> Self {
         Self {
-            block_time: c.block_time,
-            max_transactions_in_block: c.max_transactions_in_block,
-            block_dump_path: c.block_dump_path,
-            block_replay_server_address: c.block_replay_server_address,
-            block_replay_download_address: c.block_replay_download_address,
-            block_gas_limit: c.block_gas_limit,
-            block_pubdata_limit_bytes: c.block_pubdata_limit_bytes,
-            max_blocks_to_produce: c.max_blocks_to_produce,
+            node_role: c.general_config.node_role,
+            block_time: c.sequencer_config.block_time,
+            max_transactions_in_block: c.sequencer_config.max_transactions_in_block,
+            block_dump_path: c.sequencer_config.block_dump_path.clone(),
+            block_gas_limit: c.sequencer_config.block_gas_limit,
+            block_pubdata_limit_bytes: c.sequencer_config.block_pubdata_limit_bytes,
+            max_blocks_to_produce: c.sequencer_config.max_blocks_to_produce,
+            interop_roots_per_tx: c.sequencer_config.interop_roots_per_tx,
         }
     }
 }
@@ -803,10 +1033,10 @@ impl From<SequencerConfig> for zksync_os_sequencer::config::SequencerConfig {
 impl L1SenderConfig {
     fn into_lib_l1_sender_config<Input>(
         self,
-        operator_pk: SecretString,
+        operator_signer: SignerConfig,
     ) -> zksync_os_l1_sender::config::L1SenderConfig<Input> {
         zksync_os_l1_sender::config::L1SenderConfig {
-            operator_pk,
+            operator_signer,
             max_fee_per_gas_wei: self.max_fee_per_gas.0,
             max_priority_fee_per_gas_wei: self.max_priority_fee_per_gas.0,
             max_fee_per_blob_gas_wei: self.max_fee_per_blob_gas.0,
@@ -817,23 +1047,34 @@ impl L1SenderConfig {
         }
     }
 }
+
 impl From<L1SenderConfig> for zksync_os_l1_sender::config::L1SenderConfig<CommitCommand> {
     fn from(c: L1SenderConfig) -> Self {
-        let pk = c.operator_commit_pk.clone();
-        c.into_lib_l1_sender_config(pk)
+        let signer = c
+            .operator_commit_sk
+            .clone()
+            .expect("operator_commit_sk must be set on the Main Node");
+        c.into_lib_l1_sender_config(signer)
     }
 }
 
 impl From<L1SenderConfig> for zksync_os_l1_sender::config::L1SenderConfig<ProofCommand> {
     fn from(c: L1SenderConfig) -> Self {
-        let pk = c.operator_prove_pk.clone();
-        c.into_lib_l1_sender_config(pk)
+        let signer = c
+            .operator_prove_sk
+            .clone()
+            .expect("operator_prove_sk must be set on the Main Node");
+        c.into_lib_l1_sender_config(signer)
     }
 }
+
 impl From<L1SenderConfig> for zksync_os_l1_sender::config::L1SenderConfig<ExecuteCommand> {
     fn from(c: L1SenderConfig) -> Self {
-        let pk = c.operator_execute_pk.clone();
-        c.into_lib_l1_sender_config(pk)
+        let signer = c
+            .operator_execute_sk
+            .clone()
+            .expect("operator_execute_sk must be set on the Main Node");
+        c.into_lib_l1_sender_config(signer)
     }
 }
 
@@ -901,8 +1142,95 @@ pub fn gas_adjuster_config(
         pubdata_mode,
         max_base_fee_samples: c.max_base_fee_samples,
         num_samples_for_blob_base_fee_estimate: c.num_samples_for_blob_base_fee_estimate,
+        max_blob_fill_ratio_samples: c.max_blob_fill_ratio_samples,
         max_priority_fee_per_gas: max_priority_fee_per_gas_wei,
         poll_period: c.poll_period,
         pubdata_pricing_multiplier: c.pubdata_pricing_multiplier,
+    }
+}
+
+pub fn base_token_price_updater_config(
+    c: &BaseTokenPriceUpdaterConfig,
+    l1_sender_config: &L1SenderConfig,
+) -> zksync_os_base_token_adjuster::BaseTokenPriceUpdaterConfig {
+    let token_multiplier_setter_signer = c.token_multiplier_setter_sk.clone();
+
+    zksync_os_base_token_adjuster::BaseTokenPriceUpdaterConfig {
+        price_polling_interval: c.price_polling_interval,
+        l1_update_deviation_percentage: c.l1_update_deviation_percentage,
+        price_fetching_max_attempts: c.price_fetching_max_attempts,
+        base_token_addr_override: c.base_token_addr_override,
+        base_token_decimals_override: c.base_token_decimals_override,
+        gateway_base_token_addr_override: c.gateway_base_token_addr_override,
+        token_multiplier_setter_signer,
+        max_fee_per_gas_wei: l1_sender_config.max_fee_per_gas.0,
+        max_priority_fee_per_gas_wei: l1_sender_config.max_priority_fee_per_gas.0,
+        fallback_prices: c.fallback_prices.clone(),
+    }
+}
+
+impl From<ForcedPriceClientConfig> for zksync_os_external_price_api::ForcedPriceClientConfig {
+    fn from(c: ForcedPriceClientConfig) -> Self {
+        Self {
+            prices: c.prices,
+            fluctuation: c.fluctuation,
+            next_value_fluctuation: c.next_value_fluctuation,
+        }
+    }
+}
+
+impl From<ExternalPriceApiClientConfig>
+    for zksync_os_external_price_api::ExternalPriceApiClientConfig
+{
+    fn from(c: ExternalPriceApiClientConfig) -> Self {
+        match c {
+            ExternalPriceApiClientConfig::Forced { forced } => Self::Forced {
+                forced: forced.into(),
+            },
+            ExternalPriceApiClientConfig::CoinGecko {
+                base_url,
+                coingecko_api_key,
+                client_timeout,
+            } => Self::CoinGecko {
+                base_url,
+                coingecko_api_key,
+                client_timeout,
+            },
+            ExternalPriceApiClientConfig::CoinMarketCap {
+                base_url,
+                cmc_api_key,
+                client_timeout,
+            } => Self::CoinMarketCap {
+                base_url,
+                cmc_api_key,
+                client_timeout,
+            },
+        }
+    }
+}
+
+impl From<FeeConfig> for zksync_os_sequencer::execution::FeeConfig {
+    fn from(c: FeeConfig) -> Self {
+        let native_price_usd = {
+            let r = Ratio::<BigInt>::from_float(c.native_price_usd)
+                .expect("Failed to convert native_price_usd to ratio");
+            Ratio::new(
+                r.numer().to_biguint().unwrap(),
+                r.denom().to_biguint().unwrap(),
+            )
+        };
+
+        Self {
+            native_price_usd,
+            base_fee_override: c.base_fee_override.map(|n| BigUint::from(n.to::<u128>())),
+            native_per_gas: c.native_per_gas,
+            pubdata_price_override: c
+                .pubdata_price_override
+                .map(|n| BigUint::from(n.to::<u128>())),
+            pubdata_price_cap: c.pubdata_price_cap.map(|n| BigUint::from(n.to::<u128>())),
+            native_price_override: c
+                .native_price_override
+                .map(|n| BigUint::from(n.to::<u128>())),
+        }
     }
 }

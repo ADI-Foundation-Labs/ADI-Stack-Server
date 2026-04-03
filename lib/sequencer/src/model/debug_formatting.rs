@@ -19,7 +19,6 @@ impl<'a> fmt::Debug for PreparedBlockCommand<'a> {
         // ds.field("tx_source", &"<skipped>");
         ds.field("starting_l1_priority_id", &self.starting_l1_priority_id);
         ds.field("metrics_label", &self.metrics_label);
-        ds.field("node_version", &self.node_version);
         ds.field(
             "expected_block_output_hash",
             &self.expected_block_output_hash,
@@ -81,7 +80,7 @@ impl<'a> fmt::Debug for BlockOutputDebug<'a> {
             .field("account_diffs", &o.account_diffs)
             .field("published_preimages", &preimages)
             .field("pubdata", &Hex(&o.pubdata))
-            .field("computaional_native_used", &o.computaional_native_used)
+            .field("computaional_native_used", &o.computational_native_used)
             .finish()
     }
 }

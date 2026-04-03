@@ -33,7 +33,7 @@ pub(super) struct BatchVerificationServer {
 #[allow(clippy::large_enum_variant)]
 pub enum BatchVerificationRequestError {
     #[error("Not enough clients connected: {0} < {1}")]
-    NotEnoughClients(usize, usize),
+    NotEnoughClients(u64, u64),
     #[error("Failed to send batch verification request: {0}")]
     SendError(#[from] broadcast::error::SendError<BatchVerificationRequest>),
 }
@@ -158,18 +158,20 @@ impl BatchVerificationServer {
         &self,
         batch_envelope: &BatchForSigning<E>,
         request_id: u64,
-        required_clients: usize,
+        required_clients: u64,
     ) -> Result<(), BatchVerificationRequestError> {
         let request = BatchVerificationRequest {
             batch_number: batch_envelope.batch_number(),
             first_block_number: batch_envelope.batch.first_block_number,
             last_block_number: batch_envelope.batch.last_block_number,
             pubdata_mode: batch_envelope.batch.pubdata_mode,
-            commit_data: batch_envelope.batch.batch_info.commit_info.clone(),
+            commit_data: batch_envelope.batch.batch_info.commit_info.clone().into(),
+            prev_commit_data: batch_envelope.batch.previous_stored_batch_info.clone(),
             request_id,
         };
 
-        let clients_count = self.verification_request_broadcast.receiver_count();
+        let clients_count =
+            u64::try_from(self.verification_request_broadcast.receiver_count()).unwrap();
 
         if clients_count < required_clients {
             return Err(BatchVerificationRequestError::NotEnoughClients(
@@ -236,7 +238,10 @@ mod tests {
             assert_eq!(req.first_block_number, 10);
             assert_eq!(req.last_block_number, 20);
             assert_eq!(req.pubdata_mode, batch_envelope.batch.pubdata_mode);
-            assert_eq!(req.commit_data, batch_envelope.batch.batch_info.commit_info);
+            assert_eq!(
+                req.commit_data,
+                batch_envelope.batch.batch_info.commit_info.clone().into()
+            );
             assert_eq!(req.request_id, 5);
         };
 

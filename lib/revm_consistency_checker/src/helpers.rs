@@ -37,6 +37,9 @@ pub fn zk_tx_into_revm_tx(
         to_mint,
         refund_recipient,
     ) = match envelope {
+        zksync_os_types::ZkEnvelope::System(_) => {
+            unimplemented!("handle system txs");
+        }
         zksync_os_types::ZkEnvelope::L2(l2_tx) => {
             // L2 transactions are standard Ethereum transactions
             let gas_price = l2_tx.max_fee_per_gas();
@@ -127,6 +130,8 @@ pub fn zk_spec_version(execution_version: ExecutionVersion) -> Option<ZkSpecId> 
         ExecutionVersion::V1 | ExecutionVersion::V2 | ExecutionVersion::V3 => {
             Some(ZkSpecId::AtlasV1)
         }
-        ExecutionVersion::V4 | ExecutionVersion::V5 => Some(ZkSpecId::AtlasV2),
+        ExecutionVersion::V4 | ExecutionVersion::V5 | ExecutionVersion::V6 => {
+            Some(ZkSpecId::AtlasV2)
+        }
     }
 }

@@ -1,4 +1,5 @@
-use alloy::consensus::BlobTransactionSidecar;
+use alloy::consensus::{BlobTransactionSidecar, BlobTransactionSidecarVariant};
+use alloy::eips::BlockId;
 use alloy::primitives::{U256, b256};
 use alloy::providers::Provider;
 use alloy::rpc::types::TransactionRequest;
@@ -21,6 +22,18 @@ async fn call_genesis() -> anyhow::Result<()> {
 }
 
 #[test_log::test(tokio::test)]
+async fn call_pending() -> anyhow::Result<()> {
+    // Test that the node can run `eth_call` on pending block
+    let tester = Tester::setup().await?;
+    tester
+        .l2_provider
+        .call(TransactionRequest::default())
+        .block(BlockId::pending())
+        .await?;
+    Ok(())
+}
+
+#[test_log::test(tokio::test)]
 async fn call_fail() -> anyhow::Result<()> {
     // Test that the node responds with proper errors when `eth_call` fails
     let tester = Tester::setup().await?;
@@ -29,11 +42,13 @@ async fn call_fail() -> anyhow::Result<()> {
     tester
         .l2_provider
         .call(TransactionRequest {
-            sidecar: Some(BlobTransactionSidecar {
-                blobs: vec![],
-                commitments: vec![],
-                proofs: vec![],
-            }),
+            sidecar: Some(BlobTransactionSidecarVariant::Eip4844(
+                BlobTransactionSidecar {
+                    blobs: vec![],
+                    commitments: vec![],
+                    proofs: vec![],
+                },
+            )),
             ..Default::default()
         })
         .expect_to_fail("EIP-4844 transactions are not supported")
@@ -53,7 +68,7 @@ async fn call_fail() -> anyhow::Result<()> {
         .call(TransactionRequest::default())
         // Very far ahead block
         .block((u32::MAX as u64).into())
-        .expect_to_fail("block not found")
+        .expect_to_fail("block `0xffffffff` not found")
         .await;
 
     // Fee errors

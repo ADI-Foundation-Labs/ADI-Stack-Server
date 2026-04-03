@@ -15,15 +15,22 @@ pub use execute_watcher::L1ExecuteWatcher;
 mod upgrade_tx_watcher;
 pub use upgrade_tx_watcher::L1UpgradeTxWatcher;
 
-mod batch_range_watcher;
-pub use batch_range_watcher::{
-    BatchRangeWatcher, BatchRangeWatcherInit, CommittedBatch, StoredBatchData,
-};
+mod interop_watcher;
+pub use interop_watcher::InteropWatcher;
 
 pub mod util;
 mod watcher;
 
 mod traits;
 pub(crate) use traits::{ProcessL1Event, ProcessRawEvents};
+
+mod committed_batch_provider;
+pub use committed_batch_provider::CommittedBatchProvider;
+
+mod persist_batch_watcher;
+pub use persist_batch_watcher::L1PersistBatchWatcher;
+
+mod gateway_migration_watcher;
+pub use gateway_migration_watcher::{Gateway, GatewayMigrationWatcher, L1};
 
 mod factory_deps;
