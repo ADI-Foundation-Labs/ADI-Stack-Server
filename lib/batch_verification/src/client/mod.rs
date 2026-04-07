@@ -29,7 +29,7 @@ use tokio_util::codec::{FramedRead, FramedWrite};
 use tokio_util::io::StreamReader;
 use tokio_util::sync::PollSender;
 use zksync_os_batch_types::BlockMerkleTreeData;
-use zksync_os_batch_types::{BatchInfo, BatchSignature};
+use zksync_os_batch_types::{BatchInfo, BatchSignature, decode_external_da_data_for_mode};
 use zksync_os_contract_interface::l1_discovery::{BatchVerificationSL, L1State};
 use zksync_os_interface::types::BlockOutput;
 use zksync_os_merkle_tree::TreeBatchOutput;
@@ -251,6 +251,15 @@ impl<Finality: ReadFinality, ReadState: ReadStateHistory>
 
         let state_view = self.read_state.state_view_at(request.last_block_number)?;
         let multichain_root = read_multichain_root(state_view);
+        let external_da_data = decode_external_da_data_for_mode(
+            request.pubdata_mode,
+            &request.commit_data.operator_da_input,
+        )
+        .map_err(|err| {
+            BatchVerificationError::BatchDataMismatch(format!(
+                "invalid external DA payload in request: {err}"
+            ))
+        })?;
 
         let batch_info = BatchInfo::new(
             blocks
@@ -271,7 +280,9 @@ impl<Finality: ReadFinality, ReadState: ReadStateHistory>
             self.l1_state.sl_chain_id,
             multichain_root,
             &blocks.first().unwrap().1.protocol_version,
-        );
+            external_da_data,
+        )
+        .map_err(|err| BatchVerificationError::BatchDataMismatch(err.to_string()))?;
 
         let expected_commit_data = batch_info.commit_info.clone().into();
         if expected_commit_data != request.commit_data {

@@ -188,7 +188,7 @@ impl GasAdjuster {
         Ok(())
     }
 
-    pub async fn update_blob_fill_ratios(&mut self) -> anyhow::Result<()> {
+    pub fn update_blob_fill_ratios(&mut self) -> anyhow::Result<()> {
         loop {
             match self.sidecar_receiver.try_recv() {
                 Ok(sidecar) => {
@@ -235,19 +235,25 @@ impl GasAdjuster {
 
             // `update_blob_fill_ratios` cannot fail due to transient issue, unlike `update_fees`.
             // So we log all errors.
-            if let Err(err) = self.update_blob_fill_ratios().await {
+            if let Err(err) = self.update_blob_fill_ratios() {
                 tracing::warn!("Cannot update blob fill ratios: {err}");
             }
             timer.tick().await;
         }
     }
 
+    #[must_use]
     pub fn gas_price(&self) -> u128 {
         let median = self.base_fee_statistics.median();
         median + self.config.max_priority_fee_per_gas
     }
 
+    #[must_use]
     pub fn pubdata_price(&self) -> U256 {
+        /// The amount of gas we need to pay for each non-zero pubdata byte.
+        /// Note that it is bigger than 16 to account for potential overhead.
+        const L1_GAS_PER_PUBDATA_BYTE: u32 = 17;
+
         let price = match self.config.pubdata_mode {
             PubdataMode::Blobs => {
                 const BLOB_GAS_PER_BYTE: u128 = 1; // `BYTES_PER_BLOB` = `GAS_PER_BLOB` = 2 ^ 17.
@@ -256,14 +262,20 @@ impl GasAdjuster {
                 U256::from(blob_base_fee_median * BLOB_GAS_PER_BYTE)
             }
             PubdataMode::Calldata => {
-                /// The amount of gas we need to pay for each non-zero pubdata byte.
-                /// Note that it is bigger than 16 to account for potential overhead.
-                const L1_GAS_PER_PUBDATA_BYTE: u32 = 17;
-
                 U256::from(self.gas_price()).saturating_mul(U256::from(L1_GAS_PER_PUBDATA_BYTE))
             }
             PubdataMode::Validium => U256::from(0u32),
             PubdataMode::RelayedL2Calldata => self.gw_pubdata_price_statistics.median(),
+            PubdataMode::External => {
+                // Prefer settlement-layer reported pubdata price when available.
+                // If unavailable, fall back to calldata-based heuristic to keep fee estimation non-zero.
+                let reported_price = self.gw_pubdata_price_statistics.median();
+                if reported_price > U256::ZERO {
+                    reported_price
+                } else {
+                    U256::from(self.gas_price()).saturating_mul(U256::from(L1_GAS_PER_PUBDATA_BYTE))
+                }
+            }
         };
 
         if price <= U256::from(u128::MAX) {
@@ -277,6 +289,7 @@ impl GasAdjuster {
         }
     }
 
+    #[must_use]
     pub fn blob_fill_ratio_median(&self) -> Option<Ratio<u64>> {
         self.blob_fill_ratio_statistics.median()
     }
@@ -322,10 +335,10 @@ impl GasAdjuster {
                 );
             }
 
-            let pubdata_price_per_byte = fee_history
-                .pubdata_price_per_byte
-                .map(|v| v.into_iter().map(Some).collect())
-                .unwrap_or_else(|| vec![None; chunk_size as usize]);
+            let pubdata_price_per_byte = fee_history.pubdata_price_per_byte.map_or_else(
+                || vec![None; chunk_size as usize],
+                |v| v.into_iter().map(Some).collect(),
+            );
             // We take `chunk_size` entries and drop data for the block after `chunk_end`.
             for ((base_fee_per_gas, base_fee_per_blob_gas), pubdata_price_per_byte) in fee_history
                 .base
@@ -340,7 +353,7 @@ impl GasAdjuster {
                     base_fee_per_blob_gas,
                     pubdata_price_per_byte,
                 };
-                history.push(fees)
+                history.push(fees);
             }
         }
 

@@ -97,6 +97,7 @@ impl<Finality: WriteFinality> ProcessL1Event for L1CommitWatcher<Finality> {
                 &format!("committed batch {}", batch_number),
             )
             .await?;
+            let commit_info = committed_batch.commit_info.clone();
 
             // todo: stop using this struct once fully migrated from S3
             let last_executed_batch_info = BatchInfo {
@@ -110,6 +111,7 @@ impl<Finality: WriteFinality> ProcessL1Event for L1CommitWatcher<Finality> {
             let committed_batch = DiscoveredCommittedBatch {
                 batch_info,
                 block_range: report.firstBlockNumber..=report.lastBlockNumber,
+                commit_info: Some(commit_info),
             };
 
             let last_committed_block = committed_batch.last_block_number();

@@ -1,3 +1,4 @@
+use crate::external_da::{ExternalDaData, ExternalDaError, compute_external_da_fields_for_mode};
 use alloy::consensus::{BlobTransactionSidecar, SidecarBuilder, SimpleCoder};
 use alloy::primitives::{Address, B256, BlockNumber, U256, keccak256};
 use alloy::sol_types::SolValue;
@@ -5,6 +6,7 @@ use blake2::{Blake2s256, Digest};
 use serde::{Deserialize, Serialize};
 use std::ops;
 use std::ops::{Deref, DerefMut};
+use thiserror::Error;
 use zksync_os_contract_interface::models::{CommitBatchInfo, StoredBatchInfo};
 use zksync_os_interface::types::{BlockContext, BlockOutput};
 use zksync_os_mini_merkle_tree::MiniMerkleTree;
@@ -13,6 +15,12 @@ use zksync_os_types::{
 };
 
 const PUBDATA_SOURCE_CALLDATA: u8 = 0;
+
+#[derive(Debug, Error)]
+pub enum BatchInfoError {
+    #[error("invalid external DA payload: {0}")]
+    InvalidExternalDaPayload(#[from] ExternalDaError),
+}
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct BatchInfo {
@@ -45,7 +53,8 @@ impl BatchInfo {
         sl_chain_id: u64,
         multichain_root: B256,
         protocol_version: &ProtocolSemanticVersion,
-    ) -> Self {
+        external_da_data: Option<ExternalDaData>,
+    ) -> Result<Self, BatchInfoError> {
         let mut priority_operations_hash = keccak256([]);
         let mut number_of_layer1_txs = 0;
         let mut number_of_layer2_txs = 0;
@@ -133,7 +142,8 @@ impl BatchInfo {
             &total_pubdata,
             pubdata_mode,
             last_block_context.execution_version,
-        );
+            external_da_data,
+        )?;
 
         /* ---------- new state commitment ---------- */
         let mut hasher = Blake2s256::new();
@@ -177,12 +187,12 @@ impl BatchInfo {
             operator_da_input: da_fields.operator_da_input,
             sl_chain_id,
         };
-        Self {
+        Ok(Self {
             commit_info,
             chain_address,
             upgrade_tx_hash,
             blob_sidecar: da_fields.blob_sidecar,
-        }
+        })
     }
 
     /// Calculate keccak256 hash of BatchOutput part of public input
@@ -269,9 +279,16 @@ fn calculate_da_fields(
     pubdata: &[u8],
     pubdata_mode: PubdataMode,
     batch_execution_version: u32,
-) -> DAFields {
+    external_da_data: Option<ExternalDaData>,
+) -> Result<DAFields, BatchInfoError> {
     let (da_commitment, operator_da_input, blob_sidecar) =
         match (pubdata_mode, batch_execution_version) {
+            (PubdataMode::External, _) => {
+                let (da_commitment, operator_da_input) =
+                    compute_external_da_fields_for_mode(pubdata, pubdata_mode, external_da_data)?
+                        .expect("compute_external_da_fields_for_mode returned None for External mode");
+                (da_commitment, operator_da_input, None)
+            }
             (PubdataMode::Calldata | PubdataMode::RelayedL2Calldata, _)
             | (PubdataMode::Validium, 4) => {
                 let mut operator_da_input = Vec::with_capacity(32 * 3 + 1 + pubdata.len() + 1 + 32);
@@ -322,19 +339,23 @@ fn calculate_da_fields(
                 (da_commitment, operator_da_input, Some(blob_sidecar))
             }
         };
-    DAFields {
+    Ok(DAFields {
         da_commitment,
         operator_da_input,
         blob_sidecar,
-    }
+    })
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DiscoveredCommittedBatch {
     /// Information about committed batch as was discovered on-chain.
     pub batch_info: StoredBatchInfo,
     /// Range of L2 blocks that belong to this batch.
     pub block_range: ops::RangeInclusive<BlockNumber>,
+    /// Full commit calldata payload observed on L1.
+    /// Not persisted because it can be large and is only needed for in-memory replay/rebuild logic.
+    #[serde(skip)]
+    pub commit_info: Option<CommitBatchInfo>,
 }
 
 impl DiscoveredCommittedBatch {
@@ -356,5 +377,11 @@ impl DiscoveredCommittedBatch {
 
     pub fn block_count(&self) -> u64 {
         self.block_range.end() - self.block_range.start() + 1
+    }
+}
+
+impl PartialEq for DiscoveredCommittedBatch {
+    fn eq(&self, other: &Self) -> bool {
+        self.batch_info == other.batch_info && self.block_range == other.block_range
     }
 }

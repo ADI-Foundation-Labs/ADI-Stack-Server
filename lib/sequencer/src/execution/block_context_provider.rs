@@ -255,10 +255,10 @@ impl<Subpool: L2Subpool> BlockContextProvider<Subpool> {
 
                 if rebuild.make_empty
                     && rebuild
-                    .replay_record
-                    .transactions
-                    .iter()
-                    .any(|tx| matches!(tx.envelope(), ZkEnvelope::Upgrade(_)))
+                        .replay_record
+                        .transactions
+                        .iter()
+                        .any(|tx| matches!(tx.envelope(), ZkEnvelope::Upgrade(_)))
                 {
                     anyhow::bail!(
                         "Cannot make an empty block when there is an upgrade transaction in the replay record for block {}",

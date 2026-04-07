@@ -9,9 +9,9 @@ use zksync_os_metadata::NODE_VERSION;
 use zksync_os_observability::prometheus::PrometheusExporterConfig;
 use zksync_os_server::config::{
     BaseTokenPriceUpdaterConfig, BatchVerificationConfig, BatcherConfig, Config, ConfigArgs,
-    ExternalPriceApiClientConfig, FeeConfig, GasAdjusterConfig, GeneralConfig, GenesisConfig,
-    InteropFeeUpdaterConfig, L1SenderConfig, L1WatcherConfig, MempoolConfig, NetworkConfig,
-    ObservabilityConfig, PrivateApiConfig, ProofStorageConfig, ProverApiConfig,
+    ExternalDaConfig, ExternalPriceApiClientConfig, FeeConfig, GasAdjusterConfig, GeneralConfig,
+    GenesisConfig, InteropFeeUpdaterConfig, L1SenderConfig, L1WatcherConfig, MempoolConfig,
+    NetworkConfig, ObservabilityConfig, PrivateApiConfig, ProofStorageConfig, ProverApiConfig,
     ProverInputGeneratorConfig, RebuildBlocksConfig, RpcConfig, SequencerConfig,
     StateBackendConfig, StatusServerConfig, TxValidatorConfig,
 };
@@ -140,7 +140,7 @@ pub async fn main() {
         observability_config.otlp.tracing_endpoint.clone(),
         observability_config.otlp.logging_endpoint.clone(),
     )
-        .expect("Failed to create OpenTelemetry config");
+    .expect("Failed to create OpenTelemetry config");
 
     let _observability_guard = zksync_os_observability::ObservabilityBuilder::new()
         .with_logs(Some(logs))
@@ -314,6 +314,12 @@ async fn build_external_config(repo: ConfigRepository<'_>) -> Config {
         .parse()
         .expect("Failed to parse L1 watcher config");
 
+    let external_da_config = repo
+        .single::<ExternalDaConfig>()
+        .expect("Failed to load external DA config")
+        .parse()
+        .expect("Failed to parse external DA config");
+
     let private_api_config = repo
         .single::<PrivateApiConfig>()
         .expect("Failed to load Private API config")
@@ -426,6 +432,7 @@ async fn build_external_config(repo: ConfigRepository<'_>) -> Config {
         l1_sender_config,
         l1_watcher_config,
         batcher_config,
+        external_da_config,
         prover_input_generator_config,
         prover_api_config,
         status_server_config,

@@ -122,14 +122,14 @@ zk_os_forward_system_0_2_8 = { package = "forward_system", git = "https://github
 # airbender dependencies that are necessary to verify said proofs on the server end.
 #
 # When a new version is released this version gets downgraded to the "previous version" section above.
-zk_os_forward_system = { package = "forward_system", git = "https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS", tag = "v0.2.8-interface-v0.0.14-b", features = [
+zk_os_forward_system = { package = "forward_system", git = "https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS", branch = "feature/alt_da", features = [
     "production",
     "no_print",
 ], default-features = false }
-zk_ee = { git = "https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS", tag = "v0.2.8-interface-v0.0.14-b" }
-zk_os_basic_system = { package = "basic_system", git = "https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS", tag = "v0.2.8-interface-v0.0.14-b" }
-zk_os_api = { package = "zksync_os_api", git = "https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS", tag = "v0.2.8-interface-v0.0.14-b" }
-zk_os_evm_interpreter = { package = "evm_interpreter", git = "https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS", tag = "v0.2.8-interface-v0.0.14-b" }
+zk_ee = { git = "https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS", branch = "feature/alt_da" }
+zk_os_basic_system = { package = "basic_system", git = "https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS", branch = "feature/alt_da" }
+zk_os_api = { package = "zksync_os_api", git = "https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS", branch = "feature/alt_da" }
+zk_os_evm_interpreter = { package = "evm_interpreter", git = "https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS", branch = "feature/alt_da" }
 execution_utils = { git = "https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git", tag = "v0.5.2-b" }
 full_statement_verifier = { git = "https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git", tag = "v0.5.2-b" }
 

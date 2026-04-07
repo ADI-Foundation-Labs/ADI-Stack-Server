@@ -151,6 +151,7 @@ fn load_config_from_path(config_path: &Path) -> Config {
         sequencer_config: Default::default(),
         l1_watcher_config: Default::default(),
         batcher_config: Default::default(),
+        external_da_config: Default::default(),
         prover_input_generator_config: Default::default(),
         prover_api_config: Default::default(),
         status_server_config: Default::default(),

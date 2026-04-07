@@ -21,8 +21,8 @@ use tokio::task::JoinHandle;
 use zksync_os_network::NodeRecord;
 use zksync_os_server::config::{
     BatchVerificationConfig, Config, FakeFriProversConfig, FakeSnarkProversConfig, FeeConfig,
-    GeneralConfig, NetworkConfig, ProofStorageConfig, ProverApiConfig, ProverInputGeneratorConfig,
-    RpcConfig, PrivateApiConfig, SequencerConfig, StatusServerConfig,
+    GeneralConfig, NetworkConfig, PrivateApiConfig, ProofStorageConfig, ProverApiConfig,
+    ProverInputGeneratorConfig, RpcConfig, SequencerConfig, StatusServerConfig,
 };
 use zksync_os_server::default_protocol_version::{NEXT_PROTOCOL_VERSION, PROTOCOL_VERSION};
 use zksync_os_state_full_diffs::FullDiffsState;
@@ -188,7 +188,10 @@ impl Tester {
             ..Default::default()
         };
         let private_api_config = PrivateApiConfig {
-            address: SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), private_api_locked_port.port),
+            address: SocketAddr::new(
+                IpAddr::V4(Ipv4Addr::LOCALHOST),
+                private_api_locked_port.port,
+            ),
         };
         let prover_api_config = ProverApiConfig {
             fake_fri_provers: FakeFriProversConfig {
@@ -252,6 +255,7 @@ impl Tester {
             l1_sender_config: default_config.l1_sender_config.clone(),
             l1_watcher_config: Default::default(),
             batcher_config: Default::default(),
+            external_da_config: default_config.external_da_config.clone(),
             prover_input_generator_config: ProverInputGeneratorConfig {
                 logging_enabled: enable_prover,
                 ..Default::default()
