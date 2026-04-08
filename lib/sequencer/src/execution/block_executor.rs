@@ -1,4 +1,5 @@
 use crate::config::SequencerConfig;
+use crate::config::TxValidatorConfig;
 use crate::execution::block_context_provider::BlockContextProvider;
 use crate::execution::execute_block_in_vm::execute_block_in_vm;
 use crate::execution::metrics::{EXECUTION_METRICS, SequencerState};
@@ -6,6 +7,8 @@ use crate::execution::utils::save_dump;
 use crate::model::blocks::{BlockCommand, BlockCommandType};
 use anyhow::Context;
 use async_trait::async_trait;
+use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 use tokio::sync::{mpsc, watch};
 use tokio::time::Instant;
 use zksync_os_interface::types::BlockOutput;
@@ -13,6 +16,7 @@ use zksync_os_mempool::subpools::l2::L2Subpool;
 use zksync_os_observability::{ComponentStateHandle, ComponentStateReporter};
 use zksync_os_pipeline::{PeekableReceiver, PipelineComponent};
 use zksync_os_storage_api::{OverlayBuffer, ReadStateHistory, ReplayRecord, WriteState};
+use zksync_os_tx_validators::deployment_filter;
 use zksync_os_types::{NotAcceptingReason, TransactionAcceptanceState};
 
 /// Executes blocks, while only updating local in-memory state (mempool, block context).
@@ -29,6 +33,11 @@ where
     /// Controls transaction acceptance state.
     /// When max_blocks_to_produce limit is reached, sequencer sends NotAccepting to stop RPC from accepting new txs.
     pub tx_acceptance_state_sender: watch::Sender<TransactionAcceptanceState>,
+    /// TEMPORARY: `BlockExecutor` waits for `BlockApplier` to apply block `N`
+    /// before starting block `N + 1`. This works around an `OverlayBuffer` bug
+    /// that reproduces during rebuilds when the runtime truncates base state.
+    /// Once that bug is fixed, this wait can be removed.
+    pub applied_block_number_receiver: watch::Receiver<u64>,
 }
 
 #[async_trait]
@@ -68,15 +77,20 @@ where
         // `BlockExecutor` doesn't persist/update state after block execution.
         // Instead, we keep the diff in memory - and apply it on top of the last persisted block
         let mut state_overlay_buffer = OverlayBuffer::default();
-
         loop {
             latency_tracker.enter_state(SequencerState::WaitingForCommand);
 
             let Some(cmd) = input.recv().await else {
-                anyhow::bail!("inbound channel closed");
+                tracing::info!("inbound channel closed");
+                return Ok(());
             };
-            tracing::debug!("Command {cmd} received by BlockExecutor");
+            tracing::info!("Command {cmd} received by BlockExecutor");
             let cmd_type = cmd.command_type();
+            wait_for_block_applier(
+                &mut self.applied_block_number_receiver,
+                self.block_context_provider.next_block_number() - 1,
+            )
+            .await?;
 
             // For Produce commands: check limit (will await indefinitely if limit reached) and increment counter
             if matches!(cmd, BlockCommand::Produce(_))
@@ -100,7 +114,7 @@ where
                 block_number,
                 "Prepared context for block {block_number}. expected_block_output_hash: {:?}, starting_l1_priority_id: {}, timestamp: {}, execution_version: {}. Executing..",
                 prepared_command.expected_block_output_hash,
-                prepared_command.starting_l1_priority_id,
+                prepared_command.starting_cursors.l1_priority_id,
                 prepared_command.block_context.timestamp,
                 prepared_command.block_context.execution_version,
             );
@@ -108,18 +122,27 @@ where
             let exec_view = state_overlay_buffer
                 .sync_with_base_and_build_view_for_block(&self.state, block_number)?;
 
-            let (block_output, replay_record, purged_txs, strict_subpool_cleanup) =
-                execute_block_in_vm(prepared_command, exec_view, &latency_tracker)
-                    .await
-                    .map_err(|dump| {
-                        let error = anyhow::anyhow!("{}", dump.error);
-                        tracing::info!("Saving dump..");
-                        if let Err(err) = save_dump(self.config.block_dump_path.clone(), dump) {
-                            tracing::error!(?err, "Failed to write block dump");
-                        }
-                        error
-                    })
-                    .context("execute_block")?;
+            let is_produce = matches!(cmd_type, BlockCommandType::Produce);
+            let (tracer, validator) = make_tx_validator(is_produce, &self.config.tx_validator);
+            let (block_output, replay_record, purged_txs, strict_subpool_cleanup) = {
+                execute_block_in_vm(
+                    prepared_command,
+                    exec_view,
+                    &latency_tracker,
+                    tracer,
+                    validator,
+                )
+                .await
+            }
+            .map_err(|dump| {
+                let error = anyhow::anyhow!("{}", dump.error);
+                tracing::info!("Saving dump..");
+                if let Err(err) = save_dump(self.config.block_dump_path.clone(), dump) {
+                    tracing::error!(?err, "Failed to write block dump");
+                }
+                error
+            })
+            .context("execute_block_in_vm")?;
 
             let time_since_last_block = last_processed_block_at
                 .map(|last_processed_block_at| last_processed_block_at.elapsed());
@@ -130,7 +153,7 @@ where
             }
             last_processed_block_at = Some(Instant::now());
 
-            tracing::debug!(block_number, "Executed. Updating mempools...");
+            tracing::info!(block_number, "Executed. Updating mempools...");
             latency_tracker.enter_state(SequencerState::UpdatingMempool);
 
             self.block_context_provider
@@ -146,7 +169,7 @@ where
                 block_output.published_preimages.clone(),
             )?;
 
-            tracing::debug!(
+            tracing::info!(
                 block_number,
                 time_since_last_block = ?time_since_last_block,
                 "Block processed in `BlockExecutor`. Sending downstream..."
@@ -166,6 +189,40 @@ where
             }
         }
     }
+}
+
+async fn wait_for_block_applier(
+    applied_block_number_receiver: &mut watch::Receiver<u64>,
+    required_block_number: u64,
+) -> anyhow::Result<()> {
+    let applied_block_number = *applied_block_number_receiver.borrow_and_update();
+    if applied_block_number >= required_block_number {
+        tracing::debug!(
+            applied_block_number,
+            required_block_number,
+            "BlockExecutor does not need to wait for BlockApplier"
+        );
+        return Ok(());
+    }
+
+    tracing::debug!(
+        applied_block_number,
+        required_block_number,
+        "BlockExecutor waiting for BlockApplier to catch up"
+    );
+
+    let reached_block_number = applied_block_number_receiver
+        .wait_for(|block_number| *block_number >= required_block_number)
+        .await
+        .context("block applier progress watch closed while executor was waiting")?
+        .to_owned();
+
+    tracing::debug!(
+        reached_block_number,
+        required_block_number,
+        "BlockExecutor resumed after BlockApplier caught up"
+    );
+    Ok(())
 }
 
 /// Checks if block production limit has been reached.
@@ -192,4 +249,28 @@ async fn check_block_production_limit(
         latency_tracker.enter_state(SequencerState::ConfiguredBlockLimitReached);
         std::future::pending::<()>().await;
     }
+}
+
+fn make_tx_validator(
+    is_produce: bool,
+    config: &TxValidatorConfig,
+) -> (deployment_filter::Tracer, deployment_filter::Validator) {
+    make_deployment_filter(is_produce, &config.deployment_filter)
+}
+
+fn make_deployment_filter(
+    is_produce: bool,
+    config: &deployment_filter::Config,
+) -> (deployment_filter::Tracer, deployment_filter::Validator) {
+    let filter_config = if is_produce {
+        config.clone()
+    } else {
+        // Replay and Rebuild commands use an unrestricted config to avoid re-filtering
+        // already-accepted historical blocks.
+        deployment_filter::Config::Unrestricted
+    };
+    let unauthorized_flag = Arc::new(AtomicBool::new(false));
+    let tracer = deployment_filter::Tracer::new(unauthorized_flag.clone(), filter_config);
+    let validator = deployment_filter::Validator::new(unauthorized_flag);
+    (tracer, validator)
 }

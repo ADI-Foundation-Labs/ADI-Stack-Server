@@ -136,6 +136,7 @@ impl BatchInfo {
         );
 
         /* ---------- new state commitment ---------- */
+        // FIXME: extract to a type common batch types?
         let mut hasher = Blake2s256::new();
         hasher.update(last_block_tree.root_hash.as_slice());
         hasher.update(last_block_tree.leaf_count.to_be_bytes());
@@ -207,7 +208,7 @@ impl BatchInfo {
                 )
                     .abi_encode_packed(),
             )),
-            31 => B256::from(keccak256(
+            31 | 32 => B256::from(keccak256(
                 (
                     U256::from(commit_info.chain_id),
                     commit_info.first_block_timestamp,

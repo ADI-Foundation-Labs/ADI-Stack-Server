@@ -2,6 +2,7 @@ use anyhow::Context;
 use fs2::FileExt;
 use std::{
     fs::File,
+    io::ErrorKind,
     net::{Ipv4Addr, SocketAddrV4},
 };
 use tokio::net::TcpListener;
@@ -38,8 +39,14 @@ impl LockedPort {
         loop {
             let port = Self::pick_unused_port().await?;
             let lockpath = std::env::temp_dir().join(format!("zksync-os-port{port}.lock"));
-            let lockfile = File::create(lockpath)
-                .with_context(|| format!("failed to create lockfile for port={port}"))?;
+            let lockfile = match File::create(lockpath) {
+                Ok(lockfile) => lockfile,
+                Err(err) if err.kind() == ErrorKind::PermissionDenied => continue,
+                Err(err) => {
+                    return Err(err)
+                        .with_context(|| format!("failed to create lockfile for port={port}"));
+                }
+            };
             if lockfile.try_lock_exclusive().is_ok() {
                 break Ok(Self { port, lockfile });
             }
@@ -55,4 +62,20 @@ impl Drop for LockedPort {
             .with_context(|| format!("failed to unlock lockfile for port={}", self.port))
             .unwrap();
     }
+}
+
+#[cfg(feature = "prover-tests")]
+pub(crate) fn materialize_multiblock_batch_bin(
+    base_dir: &std::path::Path,
+    version: &str,
+    bytes: &[u8],
+) -> std::path::PathBuf {
+    let dir_path = base_dir.join(version);
+    std::fs::create_dir_all(&dir_path).unwrap();
+
+    let full_path = dir_path.join("multiblock_batch.bin");
+    if !full_path.exists() {
+        std::fs::write(&full_path, bytes).unwrap();
+    }
+    full_path
 }

@@ -3,6 +3,8 @@ use self::util::{SecretKeyDeserializer, SignerConfigDeserializer};
 use crate::{command_source::RebuildOptions, default_protocol_version::DEFAULT_ROCKS_DB_PATH};
 use alloy::primitives::{Address, Bytes, U128};
 use num::{BigInt, BigUint, rational::Ratio};
+use reth_net_nat::net_if::resolve_net_if_ip;
+use reth_network_peers::TrustedPeer;
 use serde::{Deserialize, Serialize};
 use smart_config::metadata::{SizeUnit, TimeUnit};
 use smart_config::value::SecretString;
@@ -11,26 +13,41 @@ use smart_config::{
     EtherAmount, ParseErrors, Serde, de::Delimited, metadata::EtherUnit,
 };
 use std::collections::{HashMap, HashSet};
-use std::net::Ipv4Addr;
+use std::net::{IpAddr, Ipv4Addr};
 use std::{path::PathBuf, time::Duration};
 use zksync_os_batch_verification;
+use zksync_os_config_validation_macros::ConfigValidate;
 use zksync_os_l1_sender::commands::commit::CommitCommand;
 use zksync_os_l1_sender::commands::execute::ExecuteCommand;
 use zksync_os_l1_sender::commands::prove::ProofCommand;
 use zksync_os_mempool::{DEFAULT_TX_FEE_CAP, SubPoolLimit};
-use zksync_os_network::{NodeRecord, SecretKey};
+use zksync_os_network::{SecretKey, NodeRecord};
 use zksync_os_observability::LogFormat;
 use zksync_os_observability::opentelemetry::OpenTelemetryLevel;
 use zksync_os_operator_signer::SignerConfig;
+use zksync_os_tx_validators::deployment_filter;
 use zksync_os_types::{NodeRole, PubdataMode};
 
+mod build_external_config;
 mod cli;
 mod util;
 
+pub use build_external_config::{build_external_config, load_config_file_sources};
+
 /// Configuration for the sequencer node.
 /// Includes configurations of all subsystems.
-/// Default values are provided for local setup.
-#[derive(Debug)]
+///
+/// ## Config loading order (later sources take precedence)
+/// 1. **Defaults defined here** — production-oriented (testnet/mainnet).
+/// 2. **Config files** passed via `--config`, applied in order. If `--config` is not provided and
+///    `local-chains/{protocol_version}/default/config.yaml` exists on disk, that file (along with
+///    `local-chains/local_dev.yaml`) is loaded automatically — this happens when running via
+///    `cargo run` from the repo root. When `--config` is explicitly specified, only those
+///    files are used. In Docker, the `local-chains/` directory is not copied into the image,
+///    so no files are auto-loaded and config must be provided entirely via environment variables.
+/// 3. **Environment variables** — always override everything.
+#[derive(Debug, ConfigValidate)]
+#[config_validate(root)]
 pub struct Config {
     pub general_config: GeneralConfig,
     pub network_config: NetworkConfig,
@@ -38,8 +55,9 @@ pub struct Config {
     pub rpc_config: RpcConfig,
     pub private_api_config: PrivateApiConfig,
     pub mempool_config: MempoolConfig,
-    pub tx_validator_config: TxValidatorConfig,
+    pub tx_validator_config: MempoolTxValidatorConfig,
     pub sequencer_config: SequencerConfig,
+    #[config_validate(async_validate(Self::validate_operator_signers))]
     pub l1_sender_config: L1SenderConfig,
     pub l1_watcher_config: L1WatcherConfig,
     pub batcher_config: BatcherConfig,
@@ -53,8 +71,106 @@ pub struct Config {
     pub interop_fee_updater_config: InteropFeeUpdaterConfig,
     /// Only required on the Main Node, where the base token price updater runs.
     /// External Nodes never start that component and may omit this config entirely.
+    #[config_validate(required_if = NodeRole::MainNode, skip_nested)]
     pub external_price_api_client_config: Option<ExternalPriceApiClientConfig>,
     pub fee_config: FeeConfig,
+}
+
+#[async_trait::async_trait(?Send)]
+pub trait ConfigValidate {
+    fn validate_conditional(&self, root: &Config, errors: &mut Vec<ValidationError>, prefix: &str);
+
+    async fn validate_async(&self, _errors: &mut Vec<ValidationError>) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    async fn validate(&self) -> anyhow::Result<()>
+    where
+        Self: Sized + std::borrow::Borrow<Config>,
+    {
+        let root = self.borrow();
+        let mut errors = Vec::new();
+        Self::validate_conditional(self, root, &mut errors, "");
+        self.validate_async(&mut errors).await?;
+        if !errors.is_empty() {
+            anyhow::bail!(format_validation_errors("invalid config", &errors));
+        }
+        Ok(())
+    }
+}
+
+trait MaybeConditionalConfigValidator<T: ?Sized> {
+    fn maybe_validate_conditional(
+        &self,
+        value: &T,
+        root: &Config,
+        errors: &mut Vec<ValidationError>,
+        prefix: &str,
+    );
+}
+
+impl<T: ConfigValidate + ?Sized> MaybeConditionalConfigValidator<T>
+    for std::marker::PhantomData<T>
+{
+    fn maybe_validate_conditional(
+        &self,
+        value: &T,
+        root: &Config,
+        errors: &mut Vec<ValidationError>,
+        prefix: &str,
+    ) {
+        value.validate_conditional(root, errors, prefix);
+    }
+}
+
+impl<T: ?Sized> MaybeConditionalConfigValidator<T> for &std::marker::PhantomData<T> {
+    fn maybe_validate_conditional(
+        &self,
+        _value: &T,
+        _root: &Config,
+        _errors: &mut Vec<ValidationError>,
+        _prefix: &str,
+    ) {
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ValidationError {
+    path: String,
+    message: String,
+}
+
+impl ValidationError {
+    pub fn new(path: impl Into<String>, message: impl Into<String>) -> Self {
+        Self {
+            path: path.into(),
+            message: message.into(),
+        }
+    }
+}
+
+impl std::fmt::Display for ValidationError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "`{}` {}", self.path, self.message)
+    }
+}
+
+pub(crate) fn join_validation_path(prefix: &str, segment: &str) -> String {
+    if prefix.is_empty() {
+        segment.to_owned()
+    } else {
+        format!("{prefix}.{segment}")
+    }
+}
+
+pub(crate) fn format_validation_errors(prefix: &str, errors: &[ValidationError]) -> String {
+    let formatted_errors = errors
+        .iter()
+        .enumerate()
+        .map(|(idx, error)| format!("{}. {error}", idx + 1))
+        .collect::<Vec<_>>()
+        .join("\n");
+    format!("{prefix}:\n{formatted_errors}")
 }
 
 impl Config {
@@ -79,7 +195,7 @@ impl Config {
             .insert(&MempoolConfig::DESCRIPTION, "mempool")
             .expect("Failed to insert mempool config");
         schema
-            .insert(&TxValidatorConfig::DESCRIPTION, "tx_validator")
+            .insert(&MempoolTxValidatorConfig::DESCRIPTION, "tx_validator")
             .expect("Failed to insert tx_validator config");
         schema
             .insert(&SequencerConfig::DESCRIPTION, "sequencer")
@@ -140,6 +256,75 @@ impl Config {
         let repo = ConfigRepository::new(&schema).with_all(sources);
         repo.single()?.parse().map_err(log_all_errors)
     }
+
+    async fn validate_operator_signers(
+        root: &Self,
+        l1_sender_config: &L1SenderConfig,
+        errors: &mut Vec<ValidationError>,
+    ) -> anyhow::Result<()> {
+        if !root.general_config.node_role.is_main() {
+            return Ok(());
+        }
+
+        let Some(commit) = &l1_sender_config.operator_commit_sk else {
+            return Ok(());
+        };
+        let Some(prove) = &l1_sender_config.operator_prove_sk else {
+            return Ok(());
+        };
+        let Some(execute) = &l1_sender_config.operator_execute_sk else {
+            return Ok(());
+        };
+
+        let commit_addr = match commit.address().await {
+            Ok(address) => Some(address),
+            Err(err) => {
+                errors.push(ValidationError::new(
+                    "l1_sender.operator_commit_sk",
+                    format!("failed to resolve signer address: {err}"),
+                ));
+                None
+            }
+        };
+        let prove_addr = match prove.address().await {
+            Ok(address) => Some(address),
+            Err(err) => {
+                errors.push(ValidationError::new(
+                    "l1_sender.operator_prove_sk",
+                    format!("failed to resolve signer address: {err}"),
+                ));
+                None
+            }
+        };
+        let execute_addr = match execute.address().await {
+            Ok(address) => Some(address),
+            Err(err) => {
+                errors.push(ValidationError::new(
+                    "l1_sender.operator_execute_sk",
+                    format!("failed to resolve signer address: {err}"),
+                ));
+                None
+            }
+        };
+
+        if let (Some(commit_addr), Some(prove_addr), Some(execute_addr)) =
+            (commit_addr, prove_addr, execute_addr)
+            && (commit_addr == prove_addr
+                || prove_addr == execute_addr
+                || execute_addr == commit_addr)
+        {
+            errors.push(ValidationError::new(
+                "l1_sender.operator_commit_sk",
+                format!(
+                    "must be different from `l1_sender.operator_prove_sk` and \
+                     `l1_sender.operator_execute_sk`; got commit={commit_addr}, \
+                     prove={prove_addr}, execute={execute_addr}"
+                ),
+            ));
+        }
+
+        Ok(())
+    }
 }
 
 fn log_all_errors(errors: ParseErrors) -> anyhow::Error {
@@ -177,7 +362,7 @@ fn log_all_errors(errors: ParseErrors) -> anyhow::Error {
 /// "Umbrella" config for the node.
 /// If variable is shared i.e. used by multiple components OR does not belong to any specific component
 /// then it belongs here.
-#[derive(Clone, Debug, DescribeConfig, DeserializeConfig)]
+#[derive(Clone, Debug, DescribeConfig, DeserializeConfig, ConfigValidate)]
 #[config(derive(Default))]
 pub struct GeneralConfig {
     #[config(default_t = NodeRole::MainNode, with = Serde![str])]
@@ -188,8 +373,13 @@ pub struct GeneralConfig {
     pub l1_rpc_url: String,
 
     /// Gateway's JSON RPC API.
-    /// Currently, it's a marker of whether chain settles to Gateway or not.
+    /// Must be present if the chain is currently settling to Gateway.
     pub gateway_rpc_url: Option<String>,
+
+    /// Gateway chain ID. Used by the migration watcher to construct `SetSLChainId` system
+    /// transactions when a `MigrateToGateway` event fires. Defaults to 506 (ZKsync Gateway).
+    #[config(default_t = 506)]
+    pub gateway_chain_id: u64,
 
     /// Min number of blocks to replay on restart
     /// Depending on L1/persistence state, we may need to replay more blocks than this number
@@ -226,6 +416,7 @@ pub struct GeneralConfig {
     /// **IMPORTANT: It must be set for an external node. However, setting this DOES NOT make the node into an external node.
     /// [`GeneralConfig::node_role`] is the source of truth for node type. **
     #[config(default_t = None)]
+    #[config_validate(required_if = NodeRole::ExternalNode)]
     pub main_node_rpc_url: Option<String>,
 
     /// Whether to run the priority tree component.
@@ -233,6 +424,10 @@ pub struct GeneralConfig {
     /// Optional for External Nodes - if disabled on EN, the priority tree will need to be rebuilt
     /// from scratch before turning this EN into a Main Node.
     #[config(default_t = true)]
+    #[config_validate(custom(
+        |root: &Config, value: &bool| !root.general_config.node_role.is_main() || *value,
+        "must be true when `general.node_role=main`"
+    ))]
     pub run_priority_tree: bool,
 
     /// Enables ephemeral mode that isolates RocksDB into a temporary directory.
@@ -243,23 +438,41 @@ pub struct GeneralConfig {
 
     /// Path to ephemeral state to load at startup.
     #[config(default_t = None)]
+    #[config_validate(custom(
+        |root: &Config, value: &Option<PathBuf>| root.general_config.ephemeral || value.is_none(),
+        "requires `general.ephemeral=true`"
+    ))]
     pub ephemeral_state: Option<PathBuf>,
 }
 
-#[derive(Clone, Debug, DescribeConfig, DeserializeConfig)]
+#[derive(Clone, Debug, DescribeConfig, DeserializeConfig, ConfigValidate)]
 #[config(derive(Default))]
 pub struct NetworkConfig {
     /// Whether devp2p-based networking should be enabled.
     #[config(default_t = false)]
+    #[config_validate(custom(
+        |root: &Config, value: &bool| !root.general_config.node_role.is_external() || *value,
+        "must be true when `general.node_role=external`"
+    ))]
     pub enabled: bool,
     /// The node's secret key (256-bit ECDSA), from which the node's identity is derived. Used during
     /// initial RLPx handshake.
     #[config(secret)]
     #[config(default, with = SecretKeyDeserializer)]
+    #[config_validate(custom(
+        |root: &Config, value: &Option<SecretKey>| !root.network_config.enabled || value.is_some(),
+        "is required when `network.enabled=true`"
+    ))]
     pub secret_key: Option<SecretKey>,
-    /// IPv4 address to use for Node Discovery Protocol v5 (discv5) and RLPx Transport Protocol (rlpx).
+    /// IPv4 address to use for Node Discovery Protocol v5 (discv5) and RLPx Transport Protocol
+    /// (rlpx).
     #[config(default_t = Ipv4Addr::UNSPECIFIED, with = Serde![str])]
     pub address: Ipv4Addr,
+    /// Optional networking interface override. If set, this is used instead of `network.address`.
+    /// The interface IP is resolved at startup; for example, `eth0` may resolve to a private LAN
+    /// address such as `172.16.1.12`.
+    #[config(default_t = None)]
+    pub interface: Option<String>,
     /// Port to use for Node Discovery Protocol v5 (discv5) and RLPx Transport Protocol (rlpx).
     #[config(default_t = 3060)]
     pub port: u16,
@@ -270,7 +483,24 @@ pub struct NetworkConfig {
         default,
         with = Delimited::repeat(Serde![str], ",")
     )]
-    pub boot_nodes: Vec<String>,
+    pub boot_nodes: Vec<TrustedPeer>,
+}
+
+impl NetworkConfig {
+    fn resolved_address(&self) -> Ipv4Addr {
+        let Some(interface) = self.interface.as_deref() else {
+            return self.address;
+        };
+
+        match resolve_net_if_ip(interface).unwrap_or_else(|err| {
+            panic!("failed to resolve network interface '{interface}': {err}")
+        }) {
+            IpAddr::V4(ip) => ip,
+            IpAddr::V6(ip) => panic!(
+                "failed to resolve network interface '{interface}': resolved to unsupported IPv6 address {ip}"
+            ),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -279,20 +509,24 @@ pub enum StateBackendConfig {
     Compacted,
 }
 
-#[derive(Clone, Debug, DescribeConfig, DeserializeConfig)]
+#[derive(Clone, Debug, DescribeConfig, DeserializeConfig, ConfigValidate)]
 pub struct GenesisConfig {
     /// L1 address of `Bridgehub` contract. This address and chain ID is an entrypoint into L1 discoverability so most
     /// other contracts should be discoverable through it.
+    #[config_validate(required_if = NodeRole::MainNode)]
     pub bridgehub_address: Option<Address>,
 
     /// L1 address of the `BytecodeSupplier` contract. This address right now cannot be discovered through `Bridgehub`,
     /// so it has to be provided explicitly.
+    #[config_validate(required_if = NodeRole::MainNode)]
     pub bytecode_supplier_address: Option<Address>,
 
     /// Chain ID of the chain node operates on.
+    #[config_validate(required_if = NodeRole::MainNode)]
     pub chain_id: Option<u64>,
 
     /// Path to the file with genesis input.
+    #[config_validate(required_if = NodeRole::MainNode)]
     pub genesis_input_path: Option<PathBuf>,
 }
 
@@ -321,7 +555,7 @@ pub struct RebuildBlocksConfig {
     pub blocks_to_empty: Vec<u64>,
 }
 
-#[derive(Clone, Debug, DescribeConfig, DeserializeConfig)]
+#[derive(Clone, Debug, DescribeConfig, DeserializeConfig, ConfigValidate)]
 #[config(derive(Default))]
 pub struct SequencerConfig {
     /// Defines the block time for the sequencer.
@@ -377,7 +611,7 @@ pub struct SequencerConfig {
     /// If the state diffs are inconsistent, a warning or debug message will be logged, but it won't crash.
     /// The consistency checker propagates the output to the next pipeline item, so it is not a
     /// blocking process and the overhead should be small.
-    #[config(default_t = false)]
+    #[config(default_t = true)]
     pub revm_consistency_checker_enabled: bool,
     /// If enabled, node will revert block with divergence detected by REVM consistency checker.
     #[config(default_t = false)]
@@ -394,6 +628,33 @@ pub struct SequencerConfig {
     #[config(default, with = Serde![*])]
     /// List of (block_number, db_key) pairs to override when downloading replay records.
     pub en_replay_record_overrides: Vec<(u64, Bytes)>,
+
+    /// Transaction validator configuration.
+    #[config(nest)]
+    pub tx_validator: TxValidatorConfig,
+}
+
+/// Configuration for all transaction validators applied during block production.
+#[derive(Clone, Debug, DescribeConfig, DeserializeConfig, ConfigValidate)]
+#[config(derive(Default))]
+pub struct TxValidatorConfig {
+    /// Deployment filter configuration.
+    #[config(nest)]
+    pub deployment_filter: DeploymentFilterConfig,
+}
+
+/// Configuration for the deployment filter.
+/// When enabled, only transactions from allowed deployers can deploy contracts.
+#[derive(Clone, Debug, DescribeConfig, DeserializeConfig)]
+#[config(derive(Default))]
+pub struct DeploymentFilterConfig {
+    /// Whether the deployment filter is enabled.
+    #[config(default_t = false)]
+    pub enabled: bool,
+
+    /// List of addresses allowed to deploy contracts.
+    #[config(default, with = Serde![*])]
+    pub allowed_deployers: Vec<Address>,
 }
 
 #[derive(Clone, Debug, DescribeConfig, DeserializeConfig)]
@@ -470,23 +731,26 @@ pub struct PrivateApiConfig {
 ///
 /// Each operator accepts either a hex private key string (backward-compatible) or a GCP KMS
 /// resource object: `{"type": "gcp_kms", "resource": "projects/.../cryptoKeyVersions/N"}`.
-#[derive(Clone, Debug, DescribeConfig, DeserializeConfig)]
+#[derive(Clone, Debug, DescribeConfig, DeserializeConfig, ConfigValidate)]
 pub struct L1SenderConfig {
     /// Signer to commit batches to L1.
     /// Must be consistent with the operator key set on the contract (permissioned!)
     /// Not required for External Nodes, which do not send L1 transactions.
+    #[config_validate(required_if = NodeRole::MainNode)]
     #[config(secret, alias = "operator_commit_pk", with = SignerConfigDeserializer)]
     pub operator_commit_sk: Option<SignerConfig>,
 
     /// Signer to submit proofs to L1.
     /// Can be arbitrary funded address - proof submission is permissionless.
     /// Not required for External Nodes, which do not send L1 transactions.
+    #[config_validate(required_if = NodeRole::MainNode)]
     #[config(secret, alias = "operator_prove_pk", with = SignerConfigDeserializer)]
     pub operator_prove_sk: Option<SignerConfig>,
 
     /// Signer to execute batches on L1.
     /// Can be arbitrary funded address - execute submission is permissionless.
     /// Not required for External Nodes, which do not send L1 transactions.
+    #[config_validate(required_if = NodeRole::MainNode)]
     #[config(secret, alias = "operator_execute_pk", with = SignerConfigDeserializer)]
     pub operator_execute_sk: Option<SignerConfig>,
 
@@ -507,7 +771,7 @@ pub struct L1SenderConfig {
     pub command_limit: usize,
 
     /// How often to poll L1 for new blocks.
-    #[config(default_t = Duration::from_millis(100))]
+    #[config(default_t = 1 * TimeUnit::Seconds)]
     pub poll_interval: Duration,
 
     /// Use Fusaka blob transaction format if the timestamp has passed.
@@ -526,6 +790,7 @@ pub struct L1SenderConfig {
 
     /// Pubdata mode is used by block-producing components on the Main Node.
     /// External Nodes only replay blocks, so they may leave this unset.
+    #[config_validate(required_if = NodeRole::MainNode)]
     #[config(with = Serde![str])]
     pub pubdata_mode: Option<PubdataMode>,
 }
@@ -544,8 +809,12 @@ pub struct L1WatcherConfig {
     #[config(default_t = 1000)]
     pub max_blocks_to_process: u64,
 
+    /// Number of latest L1 blocks to leave unprocessed in order to reduce reorg risk.
+    #[config(default_t = 2)]
+    pub confirmations: u64,
+
     /// How often to poll L1 for new priority requests.
-    #[config(default_t = 100 * TimeUnit::Millis)]
+    #[config(default_t = 1 * TimeUnit::Seconds)]
     pub poll_interval: Duration,
 
     /// Whether to run gateway migration watcher.
@@ -557,6 +826,7 @@ pub struct L1WatcherConfig {
     /// the node will retry for this duration before panicking.
     /// This allows time for a sidecar sync process to fetch proofs from the main node.
     /// Default: 10 minutes
+
     #[config(default_t = 10 * TimeUnit::Minutes)]
     pub proof_storage_grace_period: Duration,
 }
@@ -576,7 +846,7 @@ pub struct MempoolConfig {
 
 #[derive(Clone, Debug, DescribeConfig, DeserializeConfig)]
 #[config(derive(Default))]
-pub struct TxValidatorConfig {
+pub struct MempoolTxValidatorConfig {
     /// Max input size of a transaction to be accepted by mempool
     #[config(default_t = 128 * 1024 * 1024)]
     pub max_input_bytes: usize,
@@ -592,13 +862,18 @@ pub struct TxValidatorConfig {
 #[derive(Clone, Debug, DescribeConfig, DeserializeConfig)]
 #[config(derive(Default))]
 pub struct BatcherConfig {
-    /// How long to keep a batch open before sealing it.
-    #[config(default_t = Duration::from_secs(1))]
-    pub batch_timeout: Duration,
+    /// Whether to run the batcher subsystem and all downstream components (prover input
+    /// generation, L1 settlement, priority tree, etc.). Defaults to `true`.
+    /// Set to `false` to run the node without committing batches to L1 — useful for
+    /// testing or operating a read-only / replay-only node.
+    #[config(default_t = true)]
+    pub enabled: bool,
 
-    /// Max number of blocks per batch
-    #[config(default_t = 10)]
-    pub blocks_per_batch_limit: u64,
+    /// How long to keep a batch open before sealing it.
+    /// On mainnet environments with low load, consider setting a higher value (e.g. 3 hours),
+    /// as L1 settlement has a non-trivial gas overhead per each batch.
+    #[config(default_t = 60 * TimeUnit::Seconds)]
+    pub batch_timeout: Duration,
 
     /// Max number of transactions per batch
     #[config(default_t = 10000)]
@@ -628,10 +903,16 @@ pub struct ProverInputGeneratorConfig {
     /// The batcher will wait for block N to finish before starting block N + maximum_in_flight_blocks.
     #[config(default_t = 16)]
     pub maximum_in_flight_blocks: usize,
+
+    /// When false, skip prover input generation and emit `ProverInput::Fake` instead.
+    /// Used for tests and some testnets where the expensive RiscV witness computation
+    /// is unnecessary.
+    #[config(default_t = true)]
+    pub enable_input_generation: bool,
 }
 
 /// Only used on the Main Node.
-#[derive(Clone, Debug, DescribeConfig, DeserializeConfig)]
+#[derive(Clone, Debug, DescribeConfig, DeserializeConfig, ConfigValidate)]
 #[config(derive(Default))]
 pub struct ProverApiConfig {
     /// Whether to enable prover server.
@@ -642,14 +923,15 @@ pub struct ProverApiConfig {
     #[config(default_t = "0.0.0.0:3124".into())]
     pub address: String,
 
-    /// Enabled by default.
-    /// Use `prover_fake_fri_provers_enabled=false` to disable fake fri provers.
+    /// Pool of in-process fake FRI provers that instantly produce dummy proofs, bypassing real proving.
+    /// Useful for local development and testnets where real provers are unavailable or insufficient.
     #[config(nest)]
     pub fake_fri_provers: FakeFriProversConfig,
 
     #[config(nest)]
-    /// Enabled by default.
-    /// Use `prover_fake_snark_provers_enabled=false` to disable fake SNARK provers.
+    /// Pool of in-process fake SNARK provers that instantly produce dummy proofs, bypassing real proving.
+    /// Useful for local development and testnets where real provers are unavailable or insufficient.
+    /// Must not be enabled on mainnets (Fake proofs will be rejected by L1)
     ///
     /// Note that if SNARK provers are disabled but FRI fake provers are enabled,
     /// we'll still use fake SNARK proofs for fake FRI proofs -
@@ -657,7 +939,7 @@ pub struct ProverApiConfig {
     pub fake_snark_provers: FakeSnarkProversConfig,
 
     /// Timeout after which a FRI prover job is assigned to another Fri Prover Worker.
-    #[config(alias = "job_timeout", default_t = Duration::from_secs(300))]
+    #[config(alias = "job_timeout", default_t = 60 * TimeUnit::Seconds)]
     pub fri_job_timeout: Duration,
 
     /// Timeout after which a SNARK prover job is assigned to another SNARK Prover Worker.
@@ -684,7 +966,7 @@ pub struct ProverApiConfig {
 #[config(derive(Default))]
 pub struct FakeFriProversConfig {
     /// Whether to enable the fake provers pool.
-    #[config(default_t = true)]
+    #[config(default_t = false)]
     pub enabled: bool,
 
     /// Number of fake provers to run in parallel.
@@ -713,7 +995,7 @@ pub struct FakeFriProversConfig {
 #[config(derive(Default))]
 pub struct FakeSnarkProversConfig {
     /// Whether to enable the fake provers pool.
-    #[config(default_t = true)]
+    #[config(default_t = false)]
     pub enabled: bool,
 
     /// Only pick up jobs that are this time old.
@@ -738,7 +1020,7 @@ pub struct ProofStorageConfig {
 
 /// Set of options related to the observability stack,
 /// e.g. logging, metrics, tracing, error tracking, etc.
-#[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
+#[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig, ConfigValidate)]
 #[config(derive(Default))]
 pub struct ObservabilityConfig {
     /// Configuration for Prometheus metrics.
@@ -783,12 +1065,12 @@ pub struct SentryConfig {
 #[config(derive(Default))]
 pub struct LogConfig {
     /// Format of the logs emitted by the node.
-    #[config(default)]
+    #[config(default_t = LogFormat::Json)]
     #[config(with = Serde![str])]
     pub format: LogFormat,
 
     /// Whether to use color in logs.
-    #[config(default_t = true)]
+    #[config(default_t = false)]
     pub use_color: bool,
 }
 
@@ -835,7 +1117,7 @@ pub struct BatchVerificationConfig {
     #[config(default_t = false)]
     pub server_enabled: bool,
     /// [server] Batch verification server address to listen on.
-    #[config(default_t = "0.0.0.0:3072".into())]
+    #[config(default_t = "0.0.0.0:3055".into())]
     pub listen_address: String,
     /// [en] If we are signing batches
     #[config(default_t = false)]
@@ -989,7 +1271,7 @@ impl From<NetworkConfig> for zksync_os_network::config::NetworkConfig {
             secret_key: value
                 .secret_key
                 .expect("`network.secret_key` is required for running p2p networking stack"),
-            address: value.address,
+            address: value.resolved_address(),
             port: value.port,
             boot_nodes: value
                 .boot_nodes
@@ -1002,15 +1284,18 @@ impl From<NetworkConfig> for zksync_os_network::config::NetworkConfig {
 }
 
 /// Parse an enode URL, resolving the host portion if it is a hostname rather than an IP address.
-fn resolve_enode(enode: &str) -> Result<NodeRecord, String> {
-    // standard IP-based enode.
-    if let Ok(record) = enode.parse::<NodeRecord>() {
-        return Ok(record);
+fn resolve_enode(enode: &TrustedPeer) -> Result<TrustedPeer, String> {
+    let enode_str = enode.to_string();
+
+    if let Ok(record) = enode_str.parse::<NodeRecord>() {
+        return Ok(TrustedPeer::from(record));
     }
-    // hostname in enode URL — resolve it, substitute the IP, then re-parse.
-    let url = url::Url::parse(enode).map_err(|e| e.to_string())?;
+
+    let mut url = url::Url::parse(&enode_str).map_err(|e| e.to_string())?;
     let host = url.host_str().ok_or("enode URL has no host")?;
+
     use std::net::ToSocketAddrs;
+
     let ip = (host, 0u16)
         .to_socket_addrs()
         .map_err(|e| e.to_string())?
@@ -1019,8 +1304,12 @@ fn resolve_enode(enode: &str) -> Result<NodeRecord, String> {
             _ => None,
         })
         .ok_or_else(|| format!("DNS resolution returned no IPv4 address for `{host}`"))?;
-    let resolved = enode.replace(host, &ip);
-    resolved.parse::<NodeRecord>().map_err(|e| e.to_string())
+
+    url.set_host(Some(&ip)).map_err(|e| e.to_string())?;
+    let resolved = url.to_string();
+
+    let record = resolved.parse::<NodeRecord>().map_err(|e| e.to_string())?;
+    Ok(TrustedPeer::from(record))
 }
 
 impl From<RpcConfig> for zksync_os_rpc::RpcConfig {
@@ -1053,6 +1342,16 @@ impl From<&Config> for zksync_os_sequencer::config::SequencerConfig {
             block_pubdata_limit_bytes: c.sequencer_config.block_pubdata_limit_bytes,
             max_blocks_to_produce: c.sequencer_config.max_blocks_to_produce,
             interop_roots_per_tx: c.sequencer_config.interop_roots_per_tx,
+            tx_validator: {
+                let df = &c.sequencer_config.tx_validator.deployment_filter;
+                zksync_os_sequencer::config::TxValidatorConfig {
+                    deployment_filter: if df.enabled {
+                        deployment_filter::Config::allow_list(df.allowed_deployers.iter().copied())
+                    } else {
+                        deployment_filter::Config::Unrestricted
+                    },
+                }
+            },
         }
     }
 }
@@ -1109,6 +1408,7 @@ impl From<L1WatcherConfig> for zksync_os_l1_watcher::L1WatcherConfig {
     fn from(c: L1WatcherConfig) -> Self {
         Self {
             max_blocks_to_process: c.max_blocks_to_process,
+            confirmations: c.confirmations,
             poll_interval: c.poll_interval,
             proof_storage_grace_period: c.proof_storage_grace_period,
         }
@@ -1125,8 +1425,8 @@ impl From<MempoolConfig> for zksync_os_mempool::PoolConfig {
     }
 }
 
-impl From<TxValidatorConfig> for zksync_os_mempool::TxValidatorConfig {
-    fn from(c: TxValidatorConfig) -> Self {
+impl From<MempoolTxValidatorConfig> for zksync_os_mempool::TxValidatorConfig {
+    fn from(c: MempoolTxValidatorConfig) -> Self {
         Self {
             max_input_bytes: c.max_input_bytes,
             tx_fee_cap: c.tx_fee_cap,
@@ -1259,5 +1559,214 @@ impl From<FeeConfig> for zksync_os_sequencer::execution::FeeConfig {
                 .native_price_override
                 .map(|n| BigUint::from(n.to::<u128>())),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloy::signers::k256::ecdsa::SigningKey;
+    use smart_config::{ConfigRepository, ConfigSchema, DescribeConfig, Environment};
+    use std::net::Ipv4Addr;
+
+    const TEST_SECRET_KEY: &str =
+        "0x1111111111111111111111111111111111111111111111111111111111111111";
+
+    fn loopback_interface() -> &'static str {
+        ["lo", "lo0"]
+            .into_iter()
+            .find(|interface| super::resolve_net_if_ip(interface).is_ok())
+            .expect("expected a loopback interface")
+    }
+
+    fn parse_network_config<const N: usize>(env_vars: [(&str, &str); N]) -> NetworkConfig {
+        let schema = ConfigSchema::new(&NetworkConfig::DESCRIPTION, "network");
+        let repo = ConfigRepository::new(&schema).with(Environment::from_iter("", env_vars));
+        repo.single::<NetworkConfig>().unwrap().parse().unwrap()
+    }
+
+    #[test]
+    fn network_interface_is_a_separate_field_and_overrides_address() {
+        let config = parse_network_config([
+            ("NETWORK_SECRET_KEY", TEST_SECRET_KEY),
+            ("NETWORK_ADDRESS", "10.0.0.1"),
+            ("NETWORK_INTERFACE", loopback_interface()),
+        ]);
+        assert_eq!(config.address, Ipv4Addr::new(10, 0, 0, 1));
+        assert_eq!(config.interface.as_deref(), Some(loopback_interface()));
+
+        let runtime_config = zksync_os_network::config::NetworkConfig::from(config);
+        assert_eq!(runtime_config.address, Ipv4Addr::LOCALHOST);
+    }
+
+    #[test]
+    fn network_boot_nodes_accept_dns_names() {
+        let config = parse_network_config([(
+            "NETWORK_BOOT_NODES",
+            "enode://6f8a80d14311c39f35f516fa664deaaaa13e85b2f7493f37f6144d86991ec012937307647bd3b9a82abe2974e1407241d54947bbb39763a4cac9f77166ad92a0@localhost:30303?discport=30301",
+        )]);
+
+        assert_eq!(config.boot_nodes.len(), 1);
+        assert_eq!(config.boot_nodes[0].host.to_string(), "localhost");
+        let record = config.boot_nodes[0].resolve_blocking().unwrap();
+        assert!(record.address.is_loopback());
+        assert_eq!(record.tcp_port, 30303);
+        assert_eq!(record.udp_port, 30301);
+    }
+
+    #[test]
+    #[should_panic(expected = "failed to resolve network interface 'definitely-missing-if'")]
+    fn invalid_network_interface_panics() {
+        let _ = zksync_os_network::config::NetworkConfig::from(parse_network_config([
+            ("NETWORK_SECRET_KEY", TEST_SECRET_KEY),
+            ("NETWORK_INTERFACE", "definitely-missing-if"),
+            ("NETWORK_ADDRESS", "10.0.0.1"),
+        ]));
+    }
+
+    fn local_signer(byte: u8) -> SignerConfig {
+        SignerConfig::Local(SigningKey::from_slice(&[byte; 32]).unwrap())
+    }
+
+    fn base_config(node_role: NodeRole) -> Config {
+        Config {
+            general_config: GeneralConfig {
+                node_role,
+                run_priority_tree: true,
+                ..Default::default()
+            },
+            network_config: NetworkConfig::default(),
+            genesis_config: GenesisConfig {
+                bridgehub_address: Some(Address::ZERO),
+                bytecode_supplier_address: Some(Address::with_last_byte(0x01)),
+                chain_id: Some(270),
+                genesis_input_path: Some("genesis.json".into()),
+            },
+            rpc_config: RpcConfig::default(),
+            private_api_config: PrivateApiConfig::default(),
+            mempool_config: MempoolConfig::default(),
+            tx_validator_config: MempoolTxValidatorConfig::default(),
+            sequencer_config: SequencerConfig::default(),
+            l1_sender_config: L1SenderConfig {
+                operator_commit_sk: Some(local_signer(0x11)),
+                operator_prove_sk: Some(local_signer(0x22)),
+                operator_execute_sk: Some(local_signer(0x33)),
+                max_fee_per_gas: 200 * EtherUnit::Gwei,
+                max_priority_fee_per_gas: 1 * EtherUnit::Gwei,
+                max_fee_per_blob_gas: 2 * EtherUnit::Gwei,
+                command_limit: 16,
+                poll_interval: Duration::from_millis(100),
+                fusaka_upgrade_timestamp: u64::MAX,
+                enabled: true,
+                pubdata_mode: Some(PubdataMode::Blobs),
+            },
+            l1_watcher_config: L1WatcherConfig::default(),
+            batcher_config: BatcherConfig::default(),
+            prover_input_generator_config: ProverInputGeneratorConfig::default(),
+            prover_api_config: ProverApiConfig::default(),
+            status_server_config: StatusServerConfig::default(),
+            observability_config: ObservabilityConfig::default(),
+            gas_adjuster_config: GasAdjusterConfig::default(),
+            batch_verification_config: BatchVerificationConfig::default(),
+            base_token_price_updater_config: BaseTokenPriceUpdaterConfig::default(),
+            interop_fee_updater_config: InteropFeeUpdaterConfig::default(),
+            external_price_api_client_config: Some(ExternalPriceApiClientConfig::Forced {
+                forced: ForcedPriceClientConfig::default(),
+            }),
+            fee_config: FeeConfig::default(),
+        }
+    }
+
+    #[tokio::test]
+    async fn main_node_validation_reports_all_main_only_required_fields() {
+        let mut config = base_config(NodeRole::MainNode);
+        config.genesis_config.bridgehub_address = None;
+        config.genesis_config.bytecode_supplier_address = None;
+        config.genesis_config.chain_id = None;
+        config.genesis_config.genesis_input_path = None;
+        config.l1_sender_config.operator_commit_sk = None;
+        config.l1_sender_config.operator_prove_sk = None;
+        config.l1_sender_config.operator_execute_sk = None;
+        config.l1_sender_config.pubdata_mode = None;
+        config.external_price_api_client_config = None;
+
+        let err = config.validate().await.unwrap_err().to_string();
+
+        assert!(
+            err.contains("`genesis.bridgehub_address` is required when `general.node_role=main`")
+        );
+        assert!(err.contains(
+            "`genesis.bytecode_supplier_address` is required when `general.node_role=main`"
+        ));
+        assert!(err.contains("`genesis.chain_id` is required when `general.node_role=main`"));
+        assert!(
+            err.contains("`genesis.genesis_input_path` is required when `general.node_role=main`")
+        );
+        assert!(
+            err.contains(
+                "`l1_sender.operator_commit_sk` is required when `general.node_role=main`"
+            )
+        );
+        assert!(
+            err.contains("`l1_sender.operator_prove_sk` is required when `general.node_role=main`")
+        );
+        assert!(
+            err.contains(
+                "`l1_sender.operator_execute_sk` is required when `general.node_role=main`"
+            )
+        );
+        assert!(err.contains("`l1_sender.pubdata_mode` is required when `general.node_role=main`"));
+        assert!(
+            err.contains("`external_price_api_client` is required when `general.node_role=main`")
+        );
+    }
+
+    #[tokio::test]
+    async fn external_node_can_omit_main_only_fields() {
+        let mut config = base_config(NodeRole::ExternalNode);
+        config.general_config.main_node_rpc_url = Some("http://127.0.0.1:3050".into());
+        config.network_config.enabled = true;
+        config.network_config.secret_key = Some(SecretKey::from_slice(&[0x44; 32]).unwrap());
+        config.genesis_config.bridgehub_address = None;
+        config.genesis_config.bytecode_supplier_address = None;
+        config.genesis_config.chain_id = None;
+        config.genesis_config.genesis_input_path = None;
+        config.l1_sender_config.operator_commit_sk = None;
+        config.l1_sender_config.operator_prove_sk = None;
+        config.l1_sender_config.operator_execute_sk = None;
+        config.l1_sender_config.pubdata_mode = None;
+        config.external_price_api_client_config = None;
+
+        config.validate().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn main_node_validation_rejects_duplicate_operator_addresses() {
+        let mut config = base_config(NodeRole::MainNode);
+        let signer = local_signer(0x55);
+        config.l1_sender_config.operator_commit_sk = Some(signer.clone());
+        config.l1_sender_config.operator_prove_sk = Some(signer.clone());
+        config.l1_sender_config.operator_execute_sk = Some(local_signer(0x66));
+
+        let err = config.validate().await.unwrap_err().to_string();
+
+        assert!(err.contains("must be different"));
+    }
+
+    #[tokio::test]
+    async fn main_node_validation_aggregates_sync_and_async_errors() {
+        let mut config = base_config(NodeRole::MainNode);
+        config.genesis_config.bridgehub_address = None;
+        let signer = local_signer(0x77);
+        config.l1_sender_config.operator_commit_sk = Some(signer.clone());
+        config.l1_sender_config.operator_prove_sk = Some(signer);
+
+        let err = config.validate().await.unwrap_err().to_string();
+
+        assert!(
+            err.contains("`genesis.bridgehub_address` is required when `general.node_role=main`")
+        );
+        assert!(err.contains("`l1_sender.operator_commit_sk`"));
+        assert!(err.contains("must be different"));
     }
 }

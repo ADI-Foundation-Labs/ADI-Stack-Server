@@ -52,7 +52,7 @@ impl RepositoryManager {
 
     // fixme: as this loop is not tied to state compacting, it can fall behind and result in
     //        unrecoverable state on restart
-    pub async fn run_persist_loop(&self) {
+    pub async fn run_persist_loop(self) {
         loop {
             if self.db_ready_to_process_blocks.load(Ordering::Relaxed) {
                 break;
@@ -95,6 +95,13 @@ impl RepositoryManager {
             );
 
             REPOSITORIES_METRICS.persist_block_number.set(block_number);
+        }
+    }
+
+    pub async fn wait_for_db_ready_to_process_blocks(&self) {
+        while !self.db_ready_to_process_blocks.load(Ordering::Relaxed) {
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            tracing::debug!("waiting for `db_ready_to_process_blocks`");
         }
     }
 }

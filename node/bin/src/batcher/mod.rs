@@ -93,10 +93,13 @@ impl<ReadState: ReadStateHistory + Clone + Send + 'static> PipelineComponent
         // We might receive some blocks that belong to already executed batches. We can skip these
         // as there is no need to perform any L1 operations on them.
         loop {
-            let next_block_number = input
+            let Some(next_block_number) = input
                 .peek_recv(|(_, replay_record, _, _)| replay_record.block_context.block_number)
                 .await
-                .context("batcher inbound channel unexpectedly closed")?;
+            else {
+                tracing::info!("inbound channel closed");
+                return Ok(());
+            };
             if next_block_number >= first_expected_block {
                 break;
             }
@@ -117,47 +120,58 @@ impl<ReadState: ReadStateHistory + Clone + Send + 'static> PipelineComponent
             latency_tracker.enter_state(GenericComponentState::WaitingRecv);
 
             // Peek at the next block to decide whether to recreate or create anew.
-            let next_block_number = input
+            let Some(next_block_number) = input
                 .peek_recv(|(_, replay_record, _, _)| replay_record.block_context.block_number)
                 .await
-                .context("batcher inbound channel unexpectedly closed")?;
+            else {
+                tracing::info!("inbound channel closed");
+                return Ok(());
+            };
             latency_tracker.enter_state(GenericComponentState::Processing);
 
-            let batch_envelope;
             let recreated;
-            if prev_batch_info.batch_number < self.startup_config.last_committed_batch {
-                let committed_batch = self
-                    .committed_batch_provider
-                    .get(prev_batch_info.batch_number + 1)
-                    .with_context(|| {
-                        format!(
-                            "committed batch {} must have been discovered on L1",
-                            prev_batch_info.batch_number + 1
-                        )
-                    })?;
-                // Validate that the existing batch's first block matches the next block in the stream
-                anyhow::ensure!(
-                    committed_batch.first_block_number() == next_block_number,
-                    "Existing batch first block ({}) does not match next block in stream ({})",
-                    committed_batch.first_block_number(),
-                    next_block_number
-                );
+            let batch_envelope =
+                if prev_batch_info.batch_number < self.startup_config.last_committed_batch {
+                    let committed_batch = self
+                        .committed_batch_provider
+                        .get(prev_batch_info.batch_number + 1)
+                        .with_context(|| {
+                            format!(
+                                "committed batch {} must have been discovered on L1",
+                                prev_batch_info.batch_number + 1
+                            )
+                        })?;
+                    // Validate that the existing batch's first block matches the next block in the stream
+                    anyhow::ensure!(
+                        committed_batch.first_block_number() == next_block_number,
+                        "Existing batch first block ({}) does not match next block in stream ({})",
+                        committed_batch.first_block_number(),
+                        next_block_number
+                    );
 
-                batch_envelope = self
-                    .recreate_existing_batch(
-                        &mut input,
-                        &latency_tracker,
-                        &prev_batch_info,
-                        committed_batch,
-                    )
-                    .await?;
-                recreated = true;
-            } else {
-                batch_envelope = self
-                    .create_batch(&mut input, &latency_tracker, &prev_batch_info)
-                    .await?;
-                recreated = false;
-            };
+                    let Some(batch_envelope) = self
+                        .recreate_existing_batch(
+                            &mut input,
+                            &latency_tracker,
+                            &prev_batch_info,
+                            committed_batch,
+                        )
+                        .await?
+                    else {
+                        return Ok(());
+                    };
+                    recreated = true;
+                    batch_envelope
+                } else {
+                    let Some(batch_envelope) = self
+                        .create_batch(&mut input, &latency_tracker, &prev_batch_info)
+                        .await?
+                    else {
+                        return Ok(());
+                    };
+                    recreated = false;
+                    batch_envelope
+                };
 
             let time_since_last_batch =
                 last_created_batch_at.map(|last_created_batch_at| last_created_batch_at.elapsed());
@@ -202,10 +216,10 @@ impl<ReadState: ReadStateHistory + Clone + Send + 'static> PipelineComponent
                     .await
                     .map_err(|e| anyhow::anyhow!("Failed to send sidecar: {e}"))?;
             }
-            output
-                .send(batch_envelope)
-                .await
-                .map_err(|e| anyhow::anyhow!("Failed to send batch data: {e}"))?;
+            if output.send(batch_envelope).await.is_err() {
+                tracing::info!("outbound channel closed");
+                return Ok(());
+            }
         }
     }
 }
@@ -221,14 +235,13 @@ impl<ReadState: ReadStateHistory + Clone + Send + 'static> Batcher<ReadState> {
         )>,
         latency_tracker: &ComponentStateHandle<GenericComponentState>,
         prev_batch_info: &StoredBatchInfo,
-    ) -> anyhow::Result<BatchForSigning<ProverInput>> {
+    ) -> anyhow::Result<Option<BatchForSigning<ProverInput>>> {
         // will be set to `Some` when we process the first block that the batch can be sealed after
         let mut deadline: Option<Pin<Box<Sleep>>> = None;
 
         let batch_number = prev_batch_info.batch_number + 1;
         let mut blocks: Vec<(BlockOutput, ReplayRecord, TreeBatchOutput, ProverInput)> = vec![];
         let mut accumulator = BatchInfoAccumulator::new(
-            self.batcher_config.blocks_per_batch_limit,
             self.batcher_config.tx_per_batch_limit,
             self.pubdata_limit_bytes,
             self.batcher_config.interop_roots_per_batch_limit,
@@ -304,7 +317,8 @@ impl<ReadState: ReadStateHistory + Clone + Send + 'static> Batcher<ReadState> {
                             }
                         }
                         None => {
-                            anyhow::bail!("Batcher's block receiver channel closed unexpectedly");
+                            tracing::info!("inbound channel closed");
+                            return Ok(None);
                         }
                     }
                 }
@@ -330,7 +344,7 @@ impl<ReadState: ReadStateHistory + Clone + Send + 'static> Batcher<ReadState> {
             self.sl_chain_id,
             &self.read_state,
         )?;
-        Ok(batch_envelope)
+        Ok(Some(batch_envelope))
     }
 
     async fn recreate_existing_batch(
@@ -344,7 +358,7 @@ impl<ReadState: ReadStateHistory + Clone + Send + 'static> Batcher<ReadState> {
         latency_tracker: &ComponentStateHandle<GenericComponentState>,
         prev_batch_info: &StoredBatchInfo,
         existing_batch: DiscoveredCommittedBatch,
-    ) -> anyhow::Result<BatchForSigning<ProverInput>> {
+    ) -> anyhow::Result<Option<BatchForSigning<ProverInput>>> {
         let batch_number = existing_batch.number();
 
         tracing::info!(
@@ -360,10 +374,12 @@ impl<ReadState: ReadStateHistory + Clone + Send + 'static> Batcher<ReadState> {
         // Collect all blocks in this batch
         while blocks.len() < expected_block_count as usize {
             latency_tracker.enter_state(GenericComponentState::WaitingRecv);
-            let (block_output, replay_record, prover_input, tree) = block_receiver
-                .recv()
-                .await
-                .context("channel closed while recreating batch")?;
+            let Some((block_output, replay_record, prover_input, tree)) =
+                block_receiver.recv().await
+            else {
+                tracing::info!("inbound channel closed");
+                return Ok(None);
+            };
             latency_tracker.enter_state(GenericComponentState::Processing);
 
             let (root_hash, leaf_count) = tree.block_end.root_info()?;
@@ -423,6 +439,6 @@ impl<ReadState: ReadStateHistory + Clone + Send + 'static> Batcher<ReadState> {
             );
         }
 
-        Ok(rebuilt_batch)
+        Ok(Some(rebuilt_batch))
     }
 }

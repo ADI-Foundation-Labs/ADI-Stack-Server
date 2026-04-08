@@ -21,7 +21,6 @@ use alloy::providers::fillers::{FillProvider, TxFiller};
 use alloy::providers::{Provider, WalletProvider};
 use alloy::rpc::types::trace::geth::{CallConfig, GethDebugTracingOptions};
 use alloy::rpc::types::{TransactionReceipt, TransactionRequest};
-use anyhow::Context;
 use std::time::Duration;
 use tokio::sync::mpsc::Sender;
 use zksync_os_observability::{ComponentStateHandle, ComponentStateReporter};
@@ -82,13 +81,18 @@ pub async fn run_l1_sender<Input: SendToL1>(
     let mut cmd_buffer = Vec::with_capacity(config.command_limit);
 
     // Process all potential passthrough commands first
-    process_prepending_passthrough_commands(
+    if process_prepending_passthrough_commands(
         &mut inbound,
         &outbound,
         &latency_tracker,
         command_name,
     )
-    .await?;
+    .await?
+    .is_none()
+    {
+        tracing::info!("inbound channel closed");
+        return Ok(());
+    }
     // At this point, only actual SendToL1 commands are expected
     loop {
         latency_tracker.enter_state(L1SenderState::WaitingRecv);
@@ -115,7 +119,8 @@ pub async fn run_l1_sender<Input: SendToL1>(
         // This method only returns `0` if the channel has been closed and there are no more items
         // in the queue.
         if received == 0 {
-            anyhow::bail!("inbound channel closed");
+            tracing::info!("inbound channel closed");
+            return Ok(());
         }
         latency_tracker.enter_state(L1SenderState::SendingToL1);
         let range = Input::display_range(&commands); // Only for logging
@@ -183,20 +188,22 @@ async fn process_prepending_passthrough_commands<Input: SendToL1>(
     outbound: &Sender<SignedBatchEnvelope<FriProof>>,
     latency_tracker: &ComponentStateHandle<L1SenderState>,
     command_name: &str,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<Option<()>> {
     loop {
         latency_tracker.enter_state(L1SenderState::WaitingRecv);
         match inbound
             .peek_recv(|command| matches!(command, L1SenderCommand::Passthrough(_)))
             .await
         {
-            None => anyhow::bail!("inbound channel closed"),
+            None => return Ok(None),
             // command is SendToL1 (not passthrough)
             // we don't expect anymore passthroughs and can proceed with normal operations
-            Some(false) => return Ok(()),
+            Some(false) => return Ok(Some(())),
             // command is passthrough
             Some(true) => {
-                let next_command = inbound.recv().await.context("Inbound channel closed")?;
+                let Some(next_command) = inbound.recv().await else {
+                    return Ok(None);
+                };
                 match next_command {
                     L1SenderCommand::SendToL1(_) => {
                         anyhow::bail!("Mismatch between peeked and received command")
@@ -321,7 +328,7 @@ where
     .await?
     .with_to(to_address)
     .with_nonce(nonce)
-    .with_input(cmd.solidity_call(gateway));
+    .with_input(cmd.solidity_call(gateway, &operator_address));
 
     if let Some(blob_sidecar) = cmd.blob_sidecar() {
         let fee_per_blob_gas = provider.get_blob_base_fee().await?;

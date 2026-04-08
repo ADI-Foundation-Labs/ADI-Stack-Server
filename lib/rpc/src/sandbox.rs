@@ -5,10 +5,10 @@ use zksync_os_evm_errors::EvmError;
 use zksync_os_interface::error::InvalidTransaction;
 use zksync_os_interface::tracing::{
     AnyTracer, CallModifier, CallResult, EvmFrameInterface, EvmRequest, EvmResources, EvmTracer,
-    NopTracer,
+    NopTracer, NopValidator,
 };
 use zksync_os_interface::traits::{NoopTxCallback, TxListSource};
-use zksync_os_interface::types::{BlockContext, TxOutput};
+use zksync_os_interface::types::{BlockContext, ExecutionResult, TxOutput};
 use zksync_os_multivm::{run_block, simulate_tx};
 use zksync_os_storage_api::ViewState;
 use zksync_os_types::{ZkTransaction, ZksyncOsEncode};
@@ -17,6 +17,18 @@ use zksync_os_types::{ZkTransaction, ZksyncOsEncode};
 pub const STACK_SIZE: usize = 1024;
 /// zksync-os ergs per gas.
 pub const ERGS_PER_GAS: u64 = 256;
+
+/// Error message used when the VM terminates a transaction due to resource exhaustion
+/// (out of native resources or pubdata limit exceeded).
+pub(crate) const RESOURCE_EXHAUSTION_ERROR: &str =
+    "ZKsync OS: out of execution resources or pubdata";
+/// This message is used only for transactions whose top-level EVM execution succeeded,
+/// but whose final tx result was flipped to revert by a post-execution bootloader check.
+/// In the current bootloader implementation, that path is specific to pubdata charging.
+/// If additional post-execution success-to-revert paths are introduced, this message and
+/// the reconciliation logic must be revisited.
+pub(crate) const POST_EXECUTION_PUBDATA_ERROR: &str =
+    "execution reverted: insufficient gas to cover pubdata cost";
 
 pub fn execute(
     tx: ZkTransaction,
@@ -49,7 +61,7 @@ pub fn call_trace_simulate(
 
     block_context.eip1559_basefee = U256::from(0);
 
-    let _ = simulate_tx(
+    let tx_result = simulate_tx(
         encoded_tx,
         block_context,
         state_view.clone(),
@@ -57,12 +69,20 @@ pub fn call_trace_simulate(
         &mut tracer,
     )?;
 
-    Ok(std::mem::take(
-        tracer
-            .transactions
-            .last_mut()
-            .expect("no transaction traced"),
-    ))
+    let frame = tracer
+        .transactions
+        .last_mut()
+        .expect("no transaction traced");
+    let top_level_execution_succeeded = tracer
+        .top_level_execution_succeeded
+        .last()
+        .copied()
+        .unwrap_or(false);
+    if let Ok(tx_output) = tx_result {
+        reconcile_trace_with_output(frame, &tx_output, top_level_execution_succeeded);
+    }
+
+    Ok(std::mem::take(frame))
 }
 
 pub fn call_trace(
@@ -80,25 +100,78 @@ pub fn call_trace(
     let tx_source = TxListSource {
         transactions: txs.into_iter().map(|tx| tx.encode()).collect(),
     };
-    let _ = run_block(
+    let block_output = run_block(
         block_context,
         state_view.clone(),
         state_view,
         tx_source,
         NoopTxCallback,
         &mut tracer,
+        &mut NopValidator,
     )?;
 
+    anyhow::ensure!(
+        tracer.transactions.len() == block_output.tx_results.len(),
+        "tracer recorded {} frames but VM returned {} results",
+        tracer.transactions.len(),
+        block_output.tx_results.len(),
+    );
+    anyhow::ensure!(
+        tracer.transactions.len() == tracer.top_level_execution_succeeded.len(),
+        "tracer recorded {} frames but tracked {} top-level execution results",
+        tracer.transactions.len(),
+        tracer.top_level_execution_succeeded.len(),
+    );
+    for ((frame, tx_result), top_level_execution_succeeded) in tracer
+        .transactions
+        .iter_mut()
+        .zip(block_output.tx_results.iter())
+        .zip(tracer.top_level_execution_succeeded.iter().copied())
+    {
+        if let Ok(tx_output) = tx_result {
+            reconcile_trace_with_output(frame, tx_output, top_level_execution_succeeded);
+        }
+    }
+
     Ok(tracer.transactions)
+}
+
+/// Reconciles the tracer's view of a transaction with the actual execution result.
+///
+/// The tracer sees the EVM execution step but misses post-execution checks done by the
+/// bootloader (e.g. pubdata cost verification). This function patches the trace only
+/// when the top-level frame itself succeeded, but the final tx result is revert.
+///
+/// The error message below intentionally relies on the current bootloader invariant:
+/// the only known post-execution success-to-revert transition is the pubdata charge
+/// check. If that stops being true, this logic needs to be generalized.
+fn reconcile_trace_with_output(
+    frame: &mut CallFrame,
+    tx_output: &TxOutput,
+    top_level_execution_succeeded: bool,
+) {
+    if top_level_execution_succeeded
+        && let ExecutionResult::Revert(revert_bytes) = &tx_output.execution_result
+    {
+        frame.gas_used = U256::from(tx_output.gas_used);
+        frame.error = Some(POST_EXECUTION_PUBDATA_ERROR.to_string());
+        frame.output = Some(Bytes::copy_from_slice(revert_bytes));
+        frame.revert_reason = None;
+        if frame.typ == "CREATE" || frame.typ == "CREATE2" {
+            frame.to = None;
+        }
+    }
 }
 
 #[derive(Default)]
 pub struct CallTracer {
     input_transactions: Vec<ZkTransaction>,
     transactions: Vec<CallFrame>,
+    top_level_execution_succeeded: Vec<bool>,
     unfinished_calls: Vec<CallFrame>,
     finished_calls: Vec<CallFrame>,
     current_call_depth: usize,
+    current_tx_top_level_execution_succeeded: bool,
     collect_logs: bool,
     only_top_call: bool,
 
@@ -120,9 +193,11 @@ impl CallTracer {
         Self {
             input_transactions,
             transactions: vec![],
+            top_level_execution_succeeded: vec![],
             unfinished_calls: vec![],
             finished_calls: vec![],
             current_call_depth: 0,
+            current_tx_top_level_execution_succeeded: false,
             collect_logs,
             only_top_call,
             create_operation_requested: None,
@@ -199,6 +274,9 @@ impl EvmTracer for CallTracer {
 
     fn after_execution_frame_completed(&mut self, result: Option<(EvmResources, CallResult)>) {
         assert_ne!(self.current_call_depth, 0);
+        let is_top_level_frame = self.current_call_depth == 1;
+        let top_level_execution_succeeded =
+            matches!(&result, Some((_, CallResult::Successful { .. })));
 
         if !self.only_top_call || self.current_call_depth == 1 {
             let mut finished_call = self.unfinished_calls.pop().expect("Should exist");
@@ -243,10 +321,13 @@ impl EvmTracer for CallTracer {
 
                         // Note: we can't distinguish runtime resources exhaustion from fatal internal errors here.
                         // Tracer should not be used if VM panics.
-                        finished_call.error =
-                            Some("ZKsync OS: out of execution resources or pubdata".to_string());
+                        finished_call.error = Some(RESOURCE_EXHAUSTION_ERROR.to_string());
                     }
                 }
+            }
+
+            if is_top_level_frame {
+                self.current_tx_top_level_execution_succeeded = top_level_execution_succeeded;
             }
             if let Some(parent_call) = self.unfinished_calls.last_mut() {
                 parent_call.calls.push(finished_call);
@@ -265,6 +346,7 @@ impl EvmTracer for CallTracer {
 
     fn begin_tx(&mut self, _calldata: &[u8]) {
         self.current_call_depth = 0;
+        self.current_tx_top_level_execution_succeeded = false;
 
         // Sanity check
         assert!(self.create_operation_requested.is_none());
@@ -279,6 +361,8 @@ impl EvmTracer for CallTracer {
 
         if let Some(top_level_call) = self.finished_calls.pop() {
             self.transactions.push(top_level_call);
+            self.top_level_execution_succeeded
+                .push(self.current_tx_top_level_execution_succeeded);
         } else {
             // We can have some edge cases when tx fails before any call frame is created
             // In this case currently we populate minimal call frame info from the input tx data
@@ -302,11 +386,16 @@ impl EvmTracer for CallTracer {
                         "CREATE".to_string()
                     },
                 });
+                self.top_level_execution_succeeded.push(false);
             }
         }
     }
 
     fn on_event(&mut self, address: Address, topics: Vec<B256>, data: &[u8]) {
+        if self.only_top_call && self.current_call_depth > 1 {
+            return;
+        }
+
         if self.collect_logs {
             let call = self.unfinished_calls.last_mut().expect("Should exist");
             call.logs.push(CallLogFrame {
@@ -357,6 +446,10 @@ impl EvmTracer for CallTracer {
         _new_internal_bytecode_hash: B256,
         new_observable_bytecode_length: u32,
     ) {
+        if self.only_top_call && self.current_call_depth > 1 {
+            return;
+        }
+
         let call = self.unfinished_calls.last_mut().expect("Should exist");
 
         if call.typ == "CREATE" || call.typ == "CREATE2" {
@@ -392,8 +485,13 @@ impl EvmTracer for CallTracer {
 
     /// Opcode failed for some reason. Note: call frame ends immediately
     fn on_opcode_error(&mut self, error: &EvmError, _frame_state: impl EvmFrameInterface) {
-        if self.only_top_call && self.current_call_depth > 1 {
+        if self.only_top_call
+            && (self.current_call_depth > 1 || self.create_operation_requested.is_some())
+        {
             // Ignore errors in subcalls if only the top call should be traced
+            if self.create_operation_requested.is_some() {
+                self.create_operation_requested = None;
+            }
             return;
         }
 
@@ -409,16 +507,22 @@ impl EvmTracer for CallTracer {
     /// Special cases, when error happens in frame before any opcode is executed (unfortunately we can't provide access to state)
     /// Note: call frame ends immediately
     fn on_call_error(&mut self, error: &EvmError) {
-        if self.only_top_call && self.current_call_depth > 1 {
+        if self.only_top_call
+            && (self.current_call_depth > 1 || self.create_operation_requested.is_some())
+        {
             // Ignore errors in subcalls if only the top call should be traced
+            if self.create_operation_requested.is_some() {
+                self.create_operation_requested = None;
+            }
             return;
         }
 
         let current_call = self.unfinished_calls.last_mut().expect("Should exist");
         current_call.error = Some(fmt_error_msg(error));
 
-        // Sanity check
-        assert!(self.create_operation_requested.is_none());
+        if self.create_operation_requested.is_some() {
+            self.create_operation_requested = None;
+        }
     }
 
     /// We should treat selfdestruct as a special kind of a call
@@ -428,6 +532,10 @@ impl EvmTracer for CallTracer {
         token_value: U256,
         frame_state: impl EvmFrameInterface,
     ) {
+        if self.only_top_call && self.current_call_depth > 1 {
+            return;
+        }
+
         // Following Geth implementation: https://github.com/ethereum/go-ethereum/blob/2dbb580f51b61d7ff78fceb44b06835827704110/core/vm/instructions.go#L894
         //
         // It's debatable whether post-Cancun SELFDESTRUCT invocation should create a "SELFDESTURCT"
@@ -462,9 +570,9 @@ impl EvmTracer for CallTracer {
         assert!(self.create_operation_requested.is_none());
 
         self.create_operation_requested = if is_create2 {
-            Some(CreateType::Create)
-        } else {
             Some(CreateType::Create2)
+        } else {
+            Some(CreateType::Create)
         };
     }
 }
@@ -519,5 +627,307 @@ pub(crate) fn fmt_error_msg(error: &EvmError) -> String {
         EvmError::CreateContractStartingWithEF => {
             "invalid code: must not begin with 0xef".to_string()
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloy::sol_types::{Revert, SolError};
+    use zksync_os_interface::tracing::EvmTracer;
+    use zksync_os_interface::types::ExecutionOutput;
+
+    #[derive(Default)]
+    struct TestStack;
+
+    impl zksync_os_interface::tracing::EvmStackInterface for TestStack {
+        fn to_slice(&self) -> &[U256] {
+            &[]
+        }
+
+        fn len(&self) -> usize {
+            0
+        }
+
+        fn peek_n(&self, _index: usize) -> Result<&U256, EvmError> {
+            unreachable!("stack access is not expected in these tests")
+        }
+    }
+
+    #[derive(Default)]
+    struct TestFrame {
+        address: Address,
+        stack: TestStack,
+    }
+
+    impl EvmFrameInterface for TestFrame {
+        fn instruction_pointer(&self) -> usize {
+            0
+        }
+
+        fn resources(&self) -> EvmResources {
+            EvmResources::default()
+        }
+
+        fn stack(&self) -> &impl zksync_os_interface::tracing::EvmStackInterface {
+            &self.stack
+        }
+
+        fn caller(&self) -> Address {
+            Address::ZERO
+        }
+
+        fn address(&self) -> Address {
+            self.address
+        }
+
+        fn calldata(&self) -> &[u8] {
+            &[]
+        }
+
+        fn return_data(&self) -> &[u8] {
+            &[]
+        }
+
+        fn heap(&self) -> &[u8] {
+            &[]
+        }
+
+        fn bytecode(&self) -> &[u8] {
+            &[]
+        }
+
+        fn call_value(&self) -> &U256 {
+            static ZERO: U256 = U256::ZERO;
+            &ZERO
+        }
+
+        fn refund_counter(&self) -> u32 {
+            0
+        }
+
+        fn is_static(&self) -> bool {
+            false
+        }
+
+        fn is_constructor(&self) -> bool {
+            false
+        }
+    }
+
+    fn make_tx_output(execution_result: ExecutionResult) -> TxOutput {
+        TxOutput {
+            execution_result,
+            gas_used: 50_000,
+            gas_refunded: 0,
+            computational_native_used: 100,
+            native_used: 200,
+            pubdata_used: 300,
+            contract_address: None,
+            logs: vec![],
+            l2_to_l1_logs: vec![],
+            storage_writes: vec![],
+        }
+    }
+
+    fn make_empty_call_frame() -> CallFrame {
+        CallFrame {
+            from: Address::ZERO,
+            gas: U256::ZERO,
+            gas_used: U256::ZERO,
+            to: None,
+            input: Bytes::new(),
+            output: Some(Bytes::from(vec![0xaa, 0xbb])),
+            error: None,
+            revert_reason: None,
+            calls: vec![],
+            logs: vec![],
+            value: None,
+            typ: "CALL".to_string(),
+        }
+    }
+
+    fn make_create_call_frame() -> CallFrame {
+        CallFrame {
+            to: Some(Address::from([0x11; 20])),
+            typ: "CREATE".to_string(),
+            output: Some(Bytes::from(vec![0xca, 0xfe])),
+            ..make_empty_call_frame()
+        }
+    }
+
+    #[test]
+    fn reconcile_patches_frame_when_tracer_missed_revert() {
+        let tx_output = make_tx_output(ExecutionResult::Revert(
+            Revert::from("coincidental success bytes").abi_encode(),
+        ));
+        let mut frame = make_empty_call_frame();
+
+        reconcile_trace_with_output(&mut frame, &tx_output, true);
+
+        let error = frame.error.expect("missing patched error");
+        assert_eq!(error, POST_EXECUTION_PUBDATA_ERROR);
+        assert_eq!(frame.gas_used, U256::from(50_000));
+        assert_eq!(
+            frame.output,
+            Some(Bytes::from(
+                Revert::from("coincidental success bytes").abi_encode()
+            ))
+        );
+        assert!(frame.revert_reason.is_none());
+    }
+
+    #[test]
+    fn reconcile_no_op_when_top_level_execution_failed() {
+        let tx_output = make_tx_output(ExecutionResult::Revert(vec![]));
+        let mut frame = make_empty_call_frame();
+        frame.error = Some("execution reverted".to_string());
+        frame.output = Some(Bytes::new());
+
+        reconcile_trace_with_output(&mut frame, &tx_output, false);
+
+        let error = frame.error.expect("missing preserved error");
+        assert_eq!(error, "execution reverted");
+        assert_eq!(frame.gas_used, U256::ZERO);
+        assert_eq!(frame.output, Some(Bytes::new()));
+        assert!(frame.revert_reason.is_none());
+    }
+
+    #[test]
+    fn reconcile_no_op_on_success() {
+        let tx_output = make_tx_output(ExecutionResult::Success(ExecutionOutput::Call(vec![
+            1, 2, 3,
+        ])));
+        let mut frame = make_empty_call_frame();
+        let original_output = frame.output.clone();
+
+        reconcile_trace_with_output(&mut frame, &tx_output, true);
+
+        assert!(frame.error.is_none());
+        assert_eq!(frame.output, original_output);
+        assert_eq!(frame.gas_used, U256::ZERO);
+    }
+
+    #[test]
+    fn reconcile_keeps_existing_non_resource_error() {
+        let tx_output = make_tx_output(ExecutionResult::Revert(vec![0xde, 0xad]));
+        let mut frame = make_empty_call_frame();
+        frame.error = Some("execution reverted".to_string());
+
+        reconcile_trace_with_output(&mut frame, &tx_output, false);
+
+        assert_eq!(frame.error.as_deref(), Some("execution reverted"));
+        assert_eq!(frame.output, Some(Bytes::from(vec![0xaa, 0xbb])));
+        assert_eq!(frame.gas_used, U256::ZERO);
+    }
+
+    #[test]
+    fn reconcile_clears_created_address_for_post_execution_revert() {
+        let tx_output = make_tx_output(ExecutionResult::Revert(vec![]));
+        let mut frame = make_create_call_frame();
+
+        reconcile_trace_with_output(&mut frame, &tx_output, true);
+
+        assert_eq!(frame.error.as_deref(), Some(POST_EXECUTION_PUBDATA_ERROR));
+        assert!(frame.to.is_none());
+    }
+
+    #[test]
+    fn create_request_tracks_create_opcode_type() {
+        let mut tracer = CallTracer::default();
+
+        tracer.on_create_request(false);
+        assert!(matches!(
+            tracer.create_operation_requested,
+            Some(CreateType::Create)
+        ));
+
+        // Use a fresh tracer for the CREATE2 case instead of mutating internal state.
+        let mut tracer = CallTracer::default();
+
+        tracer.on_create_request(true);
+        assert!(matches!(
+            tracer.create_operation_requested,
+            Some(CreateType::Create2)
+        ));
+    }
+
+    #[test]
+    fn only_top_call_ignores_nested_logs() {
+        let mut tracer = CallTracer::new_with_config(vec![], true, true);
+        tracer.current_call_depth = 2;
+        tracer.unfinished_calls.push(make_empty_call_frame());
+
+        tracer.on_event(
+            Address::from([0x22; 20]),
+            vec![B256::from([0x33; 32])],
+            &[0x44],
+        );
+
+        assert!(tracer.unfinished_calls[0].logs.is_empty());
+    }
+
+    #[test]
+    fn only_top_call_ignores_nested_selfdestruct() {
+        let mut tracer = CallTracer::new_with_config(vec![], false, true);
+        tracer.current_call_depth = 2;
+        tracer.unfinished_calls.push(make_empty_call_frame());
+
+        tracer.on_selfdestruct(
+            Address::from([0x22; 20]),
+            U256::from(7),
+            TestFrame {
+                address: Address::from([0x11; 20]),
+                ..Default::default()
+            },
+        );
+
+        assert!(tracer.unfinished_calls[0].calls.is_empty());
+    }
+
+    #[test]
+    fn only_top_call_ignores_nested_create_bytecode_changes() {
+        let mut tracer = CallTracer::new_with_config(vec![], false, true);
+        tracer.current_call_depth = 2;
+        let original_output = Bytes::from(vec![0xca, 0xfe]);
+        tracer.unfinished_calls.push(CallFrame {
+            output: Some(original_output.clone()),
+            ..make_create_call_frame()
+        });
+
+        tracer.on_bytecode_change(
+            Address::from([0x22; 20]),
+            Some(&[0xde, 0xad, 0xbe, 0xef]),
+            B256::ZERO,
+            4,
+        );
+
+        assert_eq!(tracer.unfinished_calls[0].output, Some(original_output));
+    }
+
+    #[test]
+    fn only_top_call_ignores_nested_create_pre_frame_opcode_error() {
+        let mut tracer = CallTracer::new_with_config(vec![], false, true);
+        tracer.current_call_depth = 1;
+        tracer.unfinished_calls.push(make_empty_call_frame());
+        tracer.on_create_request(false);
+
+        tracer.on_opcode_error(&EvmError::OutOfGas, TestFrame::default());
+
+        assert!(tracer.unfinished_calls[0].error.is_none());
+        assert!(tracer.create_operation_requested.is_none());
+    }
+
+    #[test]
+    fn only_top_call_ignores_nested_create_pre_frame_call_error() {
+        let mut tracer = CallTracer::new_with_config(vec![], false, true);
+        tracer.current_call_depth = 1;
+        tracer.unfinished_calls.push(make_empty_call_frame());
+        tracer.on_create_request(true);
+
+        tracer.on_call_error(&EvmError::OutOfGas);
+
+        assert!(tracer.unfinished_calls[0].error.is_none());
+        assert!(tracer.create_operation_requested.is_none());
     }
 }

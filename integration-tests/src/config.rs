@@ -1,16 +1,17 @@
-use smart_config::{ConfigRepository, ConfigSources, Json, Yaml};
+use smart_config::{ConfigRepository, ConfigSources};
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
-use zksync_os_server::config::{Config, GenesisConfig};
-use zksync_os_types::ConfigFormat;
+use zksync_os_server::config::{Config, build_external_config, load_config_file_sources};
 
 /// Layout of local chain directories.
 #[derive(Debug, Clone, Copy)]
 pub enum ChainLayout<'a> {
     /// local-chains/<version>/default/...
     Default { protocol_version: &'a str },
-    /// local-chains/<version>/multi_chain/...
-    MultiChain {
+    /// local-chains/<version>/multi_chain/chain_506.yaml
+    Gateway { protocol_version: &'a str },
+    /// local-chains/<version>/multi_chain/chain_<id>.yaml for chains settling to the gateway.
+    GatewayChain {
         protocol_version: &'a str,
         chain_index: usize, // 0 -> 6565, 1 -> 6566, ...
     },
@@ -20,20 +21,16 @@ impl<'a> ChainLayout<'a> {
     fn chain_id(self) -> Option<u64> {
         match self {
             ChainLayout::Default { .. } => None,
-            ChainLayout::MultiChain { chain_index, .. } => {
-                if chain_index == 0 {
-                    Some(506u64)
-                } else {
-                    Some(6565u64 - 1 + chain_index as u64)
-                }
-            }
+            ChainLayout::Gateway { .. } => Some(506),
+            ChainLayout::GatewayChain { chain_index, .. } => Some(6565u64 + chain_index as u64),
         }
     }
 
-    fn protocol_version(self) -> &'a str {
+    pub fn protocol_version(self) -> &'a str {
         match self {
             ChainLayout::Default { protocol_version } => protocol_version,
-            ChainLayout::MultiChain {
+            ChainLayout::Gateway { protocol_version } => protocol_version,
+            ChainLayout::GatewayChain {
                 protocol_version, ..
             } => protocol_version,
         }
@@ -42,7 +39,7 @@ impl<'a> ChainLayout<'a> {
     fn dir(self) -> &'static str {
         match self {
             ChainLayout::Default { .. } => "default",
-            ChainLayout::MultiChain { .. } => "multi_chain",
+            ChainLayout::Gateway { .. } | ChainLayout::GatewayChain { .. } => "multi_chain",
         }
     }
 
@@ -59,7 +56,7 @@ impl<'a> ChainLayout<'a> {
     fn config_path(self) -> PathBuf {
         match self {
             ChainLayout::Default { .. } => self.base_dir().join("config.yaml"),
-            ChainLayout::MultiChain { .. } => {
+            ChainLayout::Gateway { .. } | ChainLayout::GatewayChain { .. } => {
                 let chain_id = self.chain_id().expect("multi-chain always has chain_id");
                 self.base_dir().join(format!("chain_{chain_id}.yaml"))
             }
@@ -91,9 +88,17 @@ impl<'a> ChainLayout<'a> {
 }
 
 /// Load a `Config` from either default or multi-chain layout.
-pub fn load_chain_config(layout: ChainLayout<'_>) -> Config {
-    let mut config = load_config_from_path(&layout.config_path());
+/// Also loads `local-chains/local_dev.yaml` as a base layer when present.
+pub async fn load_chain_config(layout: ChainLayout<'_>) -> Config {
+    let local_dev_path = workspace_dir().join("local-chains").join("local_dev.yaml");
+    let chain_config_path = layout.config_path();
+    let mut config = load_config_from_paths(&[local_dev_path, chain_config_path]).await;
     config.genesis_config.genesis_input_path = Some(layout.genesis_input_path());
+    if let Some(ephemeral_state) = &config.general_config.ephemeral_state
+        && ephemeral_state.is_relative()
+    {
+        config.general_config.ephemeral_state = Some(workspace_dir().join(ephemeral_state));
+    }
     config
 }
 
@@ -109,57 +114,12 @@ fn workspace_dir() -> &'static Path {
     WORKSPACE_DIR.as_path()
 }
 
-/// Load config from the given path.
-fn load_config_from_path(config_path: &Path) -> Config {
+/// Load config from the given list of paths, each layered on top of the previous.
+async fn load_config_from_paths(config_paths: &[PathBuf]) -> Config {
     let config_schema = Config::schema();
     let mut config_sources = ConfigSources::default();
-    let config_contents = std::fs::read_to_string(config_path)
-        .unwrap_or_else(|e| panic!("Failed to read config file {}: {e}", config_path.display()));
-    let source_name = config_path.to_string_lossy();
-
-    match ConfigFormat::from_path(config_path) {
-        ConfigFormat::Yaml => {
-            let config_yaml: serde_yaml::Mapping = serde_yaml::from_str(&config_contents)
-                .expect("Failed to parse YAML config file from provided path");
-
-            config_sources.push(
-                Yaml::new(source_name.as_ref(), config_yaml)
-                    .expect("Failed to create YAML config source"),
-            );
-        }
-        ConfigFormat::Json => {
-            let config_json: serde_json::Map<String, serde_json::Value> =
-                serde_json::from_str(&config_contents)
-                    .expect("Failed to parse JSON config file from provided path");
-            config_sources.push(Json::new(source_name.as_ref(), config_json));
-        }
-    }
+    load_config_file_sources(&mut config_sources, config_paths);
 
     let config_repo = ConfigRepository::new(&config_schema).with_all(config_sources);
-    let single = config_repo.single().unwrap();
-    let genesis_config: GenesisConfig = single.parse().unwrap();
-
-    Config {
-        genesis_config,
-        l1_sender_config: config_repo.single().unwrap().parse().unwrap(),
-        general_config: config_repo.single().unwrap().parse().unwrap(),
-        network_config: Default::default(),
-        rpc_config: Default::default(),
-        private_api_config: Default::default(),
-        mempool_config: Default::default(),
-        tx_validator_config: Default::default(),
-        sequencer_config: Default::default(),
-        l1_watcher_config: Default::default(),
-        batcher_config: Default::default(),
-        prover_input_generator_config: Default::default(),
-        prover_api_config: Default::default(),
-        status_server_config: Default::default(),
-        observability_config: Default::default(),
-        gas_adjuster_config: Default::default(),
-        batch_verification_config: Default::default(),
-        base_token_price_updater_config: config_repo.single().unwrap().parse().unwrap(),
-        interop_fee_updater_config: Default::default(),
-        external_price_api_client_config: Some(config_repo.single().unwrap().parse().unwrap()),
-        fee_config: Default::default(),
-    }
+    build_external_config(config_repo).await
 }

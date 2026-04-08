@@ -1,5 +1,5 @@
 use reth_network::config::SecretKey;
-use reth_network_peers::NodeRecord;
+use reth_network_peers::TrustedPeer;
 use std::net::Ipv4Addr;
 
 #[derive(Debug)]
@@ -13,5 +13,5 @@ pub struct NetworkConfig {
     pub port: u16,
     /// All boot nodes to start network discovery with. Expected format is
     /// `enode://<node ID>@<IP address or hostname>:<port>`.
-    pub boot_nodes: Vec<NodeRecord>,
+    pub boot_nodes: Vec<TrustedPeer>,
 }
