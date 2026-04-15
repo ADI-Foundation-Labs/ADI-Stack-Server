@@ -16,6 +16,7 @@ use serde_json::Value as JsonValue;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::watch;
 use zk_os_api::helpers::{get_balance, get_nonce};
+use zksync_os_fee_overrides::ConfigOverrides;
 use zksync_os_interface::types::{BlockHashes, ExecutionOutput};
 use zksync_os_interface::{
     error::InvalidTransaction,
@@ -41,6 +42,8 @@ pub struct EthCallHandler<RpcStorage> {
     chain_id: u64,
     /// Last block context constructed by sequencer but not necessarily executed yet.
     last_constructed_block_context: watch::Receiver<Option<BlockContext>>,
+    /// Runtime fee overrides from the private `config.setOverrides` API.
+    config_overrides: watch::Receiver<ConfigOverrides>,
 }
 
 struct ExecutionEnv {
@@ -54,12 +57,14 @@ impl<RpcStorage: ReadRpcStorage> EthCallHandler<RpcStorage> {
         storage: RpcStorage,
         chain_id: u64,
         last_constructed_block_context: watch::Receiver<Option<BlockContext>>,
+        config_overrides: watch::Receiver<ConfigOverrides>,
     ) -> Self {
         Self {
             config,
             storage,
             chain_id,
             last_constructed_block_context,
+            config_overrides,
         }
     }
 
@@ -247,7 +252,8 @@ impl<RpcStorage: ReadRpcStorage> EthCallHandler<RpcStorage> {
         }
     }
 
-    fn resolve_block_context(
+    /// Resolve the block context for the given block ID without applying fee overrides.
+    fn resolve_block_context_raw(
         &self,
         block_id: Option<BlockId>,
     ) -> Result<BlockContext, EthCallError> {
@@ -273,6 +279,17 @@ impl<RpcStorage: ReadRpcStorage> EthCallHandler<RpcStorage> {
                 .get_context(block_number)
                 .ok_or(RpcStorageError::BlockNotFound(block_id).into())
         }
+    }
+
+    /// Resolve the block context with runtime fee overrides applied.
+    /// Used by `eth_call` and tracers so they see the fees the next block will carry.
+    fn resolve_block_context(
+        &self,
+        block_id: Option<BlockId>,
+    ) -> Result<BlockContext, EthCallError> {
+        let mut ctx = self.resolve_block_context_raw(block_id)?;
+        self.config_overrides.borrow().apply_to(&mut ctx);
+        Ok(ctx)
     }
 
     fn prepare_execution_env(
@@ -426,7 +443,14 @@ impl<RpcStorage: ReadRpcStorage> EthCallHandler<RpcStorage> {
         block: Option<BlockId>,
         state_override: Option<StateOverride>,
     ) -> Result<U256, EthCallError> {
-        let mut block_context = self.resolve_block_context(block)?;
+        // Use the raw (non-overridden) block context for gas estimation.
+        // Fee overrides affect the *next produced block's* basefee, but clients
+        // (e.g. `cast`) populate `maxFeePerGas` from the *sealed block header*
+        // which doesn't know about overrides yet. Applying overrides here would
+        // make the `ensure_fees` check reject valid estimate requests.
+        // The actual gas-unit estimate doesn't depend on basefee (it's zeroed
+        // for simulation below anyway).
+        let mut block_context = self.resolve_block_context_raw(block)?;
 
         // Overestimate pubdata price to leave some space for fluctuations. Usual Ethereum tooling
         // assumes that gas limit stays constant in most scenarios, which is not the case in our system.

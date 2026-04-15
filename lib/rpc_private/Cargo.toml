@@ -10,6 +10,8 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
+zksync_os_fee_overrides.workspace = true
+
 alloy = { workspace = true, default-features = false, features = ["rpc-types"] }
 anyhow.workspace = true
 async-trait.workspace = true

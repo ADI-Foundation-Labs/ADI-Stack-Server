@@ -48,6 +48,7 @@ use jsonrpsee::ws_client::RpcServiceBuilder;
 use reth_rpc_eth_types::EthSubscriptionIdProvider;
 use reth_tasks::Runtime;
 use tower_http::cors::{Any, CorsLayer};
+use zksync_os_fee_overrides::ConfigOverrides;
 use zksync_os_genesis::GenesisInputSource;
 use zksync_os_interface::types::BlockContext;
 use zksync_os_mempool::subpools::l2::L2Subpool;
@@ -73,6 +74,7 @@ pub async fn spawn<RpcStorage: ReadRpcStorage, Mempool: L2Subpool>(
     genesis_input_source: Arc<dyn GenesisInputSource>,
     acceptance_state: watch::Receiver<TransactionAcceptanceState>,
     last_constructed_block_context: watch::Receiver<Option<BlockContext>>,
+    config_overrides: watch::Receiver<ConfigOverrides>,
     tx_forwarder: Option<DynProvider>,
     gateway_provider: Option<DynProvider>,
     runtime: &Runtime,
@@ -86,6 +88,7 @@ pub async fn spawn<RpcStorage: ReadRpcStorage, Mempool: L2Subpool>(
         storage.clone(),
         chain_id,
         last_constructed_block_context,
+        config_overrides.clone(),
     );
     rpc.merge(
         EthNamespace::new(
@@ -96,6 +99,7 @@ pub async fn spawn<RpcStorage: ReadRpcStorage, Mempool: L2Subpool>(
             chain_id,
             acceptance_state,
             tx_forwarder,
+            config_overrides,
         )
         .into_rpc(),
     )?;

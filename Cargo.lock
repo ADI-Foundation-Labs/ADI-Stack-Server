@@ -14381,6 +14381,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_os_fee_overrides"
+version = "0.18.2"
+dependencies = [
+ "alloy",
+ "serde",
+ "tracing",
+ "zksync_os_interface",
+]
+
+[[package]]
 name = "zksync_os_gas_adjuster"
 version = "0.19.0"
 dependencies = [
@@ -14892,6 +14902,7 @@ dependencies = [
  "zksync_os_batch_types",
  "zksync_os_contract_interface",
  "zksync_os_evm_errors",
+ "zksync_os_fee_overrides",
  "zksync_os_genesis",
  "zksync_os_interface",
  "zksync_os_l1_watcher",
@@ -14933,6 +14944,7 @@ dependencies = [
  "serde_json",
  "tokio",
  "tracing",
+ "zksync_os_fee_overrides",
 ]
 
 [[package]]
@@ -15010,6 +15022,7 @@ dependencies = [
  "tracing",
  "vise",
  "zk_ee 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.9-interface-v0.0.14-b)",
+ "zksync_os_fee_overrides",
  "zksync_os_gas_adjuster",
  "zksync_os_genesis",
  "zksync_os_interface",
@@ -15018,7 +15031,6 @@ dependencies = [
  "zksync_os_multivm",
  "zksync_os_observability",
  "zksync_os_pipeline",
- "zksync_os_rpc_private",
  "zksync_os_storage_api",
  "zksync_os_tx_validators",
  "zksync_os_types",
