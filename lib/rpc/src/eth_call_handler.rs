@@ -513,7 +513,6 @@ impl<RpcStorage: ReadRpcStorage> EthCallHandler<RpcStorage> {
                     .saturating_to(),
             );
         }
-
         request.set_gas_limit(
             request
                 .gas

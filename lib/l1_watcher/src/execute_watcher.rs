@@ -110,12 +110,12 @@ impl<Finality: WriteFinality> ProcessL1Event for L1ExecuteWatcher<Finality> {
             if batch_number <= current.last_executed_batch
                 || last_executed_block <= current.last_executed_block
             {
-                return Err(anyhow::anyhow!(
+                return Err(L1WatcherError::Other(anyhow::anyhow!(
                     "non-monotonous executed event: batch {batch_number} block {last_executed_block}, \
                      current batch {} block {}",
                     current.last_executed_batch,
                     current.last_executed_block,
-                ).into());
+                )).into());
             }
             self.finality.update_finality_status(|finality| {
                 finality.last_executed_batch = batch_number;

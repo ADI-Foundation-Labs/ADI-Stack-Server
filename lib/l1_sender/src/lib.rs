@@ -23,6 +23,7 @@ use alloy::rpc::types::trace::geth::{CallConfig, GethDebugTracingOptions};
 use alloy::rpc::types::{TransactionReceipt, TransactionRequest};
 use std::time::Duration;
 use tokio::sync::mpsc::Sender;
+use tokio::sync::watch;
 use zksync_os_observability::{ComponentStateHandle, ComponentStateReporter};
 use zksync_os_operator_signer::SignerConfig;
 use zksync_os_pipeline::PeekableReceiver;
@@ -71,6 +72,7 @@ pub async fn run_l1_sender<Input: SendToL1>(
     >,
     config: L1SenderConfig<Input>,
     gateway: bool,
+    commit_submitted_tx: Option<watch::Sender<u64>>,
 ) -> anyhow::Result<()> {
     let latency_tracker =
         ComponentStateReporter::global().handle_for(Input::NAME, L1SenderState::WaitingRecv);
@@ -140,6 +142,7 @@ pub async fn run_l1_sender<Input: SendToL1>(
                     operator_address,
                     &config,
                     gateway,
+                    &commit_submitted_tx,
                 )
                 .await
                 {
@@ -309,6 +312,7 @@ async fn build_send_and_validate_command<Input, F, P>(
     operator_address: Address,
     config: &L1SenderConfig<Input>,
     gateway: bool,
+    commit_submitted_tx: &Option<watch::Sender<u64>>,
 ) -> anyhow::Result<()>
 where
     Input: SendToL1,
@@ -371,6 +375,30 @@ where
     };
 
     let pending_tx = provider.send_raw_transaction(&tx.encoded_2718()).await?;
+    let tx_hash = *pending_tx.tx_hash();
+
+    tracing::info!(
+        command_name = Input::NAME,
+        ?tx_hash,
+        "L1 transaction submitted, waiting for inclusion..."
+    );
+
+    // Notify CommitWatcher: this batch number has been submitted to L1.
+    if let Some(sender) = commit_submitted_tx {
+        let batch_number = cmd
+            .as_ref()
+            .last()
+            .expect("commands is non-empty")
+            .batch_number();
+        sender.send_if_modified(|current| {
+            if batch_number > *current {
+                *current = batch_number;
+                true
+            } else {
+                false
+            }
+        });
+    }
 
     cmd.as_mut()
         .iter_mut()
