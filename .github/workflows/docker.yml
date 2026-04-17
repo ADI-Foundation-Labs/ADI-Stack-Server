@@ -24,6 +24,7 @@ defaults:
 jobs:
 
   build-images:
+    if: github.repository == 'matter-labs/zksync-os-server'
     name: Build and Push Docker Images
     runs-on: matterlabs-ci-runner-high-performance
     permissions:

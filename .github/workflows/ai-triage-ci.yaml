@@ -15,7 +15,7 @@ defaults:
 
 jobs:
   triage:
-    if: github.event.workflow_run.conclusion == 'failure'
+    if: github.repository == 'matter-labs/zksync-os-server' && github.event.workflow_run.conclusion == 'failure'
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

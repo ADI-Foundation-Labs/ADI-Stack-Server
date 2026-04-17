@@ -33,6 +33,7 @@ jobs:
   #       Build server       #
   ############################
   build:
+    if: github.repository == 'matter-labs/zksync-os-server'
     runs-on: matterlabs-ci-runner-high-performance
     steps:
       - name: Checkout code
@@ -57,6 +58,7 @@ jobs:
   #     Format and lint      #
   ############################
   format-and-lint:
+    if: github.repository == 'matter-labs/zksync-os-server'
     runs-on: matterlabs-ci-runner-high-performance
     env:
       ZKSYNC_USE_CUDA_STUBS: true
@@ -78,6 +80,7 @@ jobs:
   #      Run unit and core integration tests      #
   #################################################
   test:
+    if: github.repository == 'matter-labs/zksync-os-server'
     runs-on: matterlabs-ci-runner-high-performance
     steps:
       - name: Checkout code
@@ -137,6 +140,7 @@ jobs:
   #   Enforce wire format file immutability  #
   ############################################
   check-wire-version:
+    if: github.repository == 'matter-labs/zksync-os-server'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -169,6 +173,7 @@ jobs:
   #  Build prover integration tests  #
   ####################################
   build-prover-tests:
+    if: github.repository == 'matter-labs/zksync-os-server'
     runs-on: matterlabs-ci-runner-ultra-performance
     steps:
 
@@ -205,6 +210,7 @@ jobs:
   #  Run prover integration tests on GPU machine  #
   #################################################
   prover-tests:
+    if: github.repository == 'matter-labs/zksync-os-server'
     runs-on: [matterlabs-ci-hetzner-rtx6000-gpu]
     needs: build-prover-tests
     steps:
@@ -256,6 +262,7 @@ jobs:
   #     Configs smoke test      #
   ###############################
   config-tests:
+    if: github.repository == 'matter-labs/zksync-os-server'
     needs: build
     runs-on: ubuntu-latest
     steps:
@@ -284,7 +291,7 @@ jobs:
   ci-success:
     name: Github Status Check
     runs-on: ubuntu-latest
-    if: always() && !cancelled()
+    if: github.repository == 'matter-labs/zksync-os-server' && always() && !cancelled()
     needs:
       [
         build,
