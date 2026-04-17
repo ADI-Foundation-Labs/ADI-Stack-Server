@@ -1,0 +1,131 @@
+name: ADI Docker PR build
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+
+concurrency:
+  group: adi-docker-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+  pull-requests: write
+
+jobs:
+
+  compute-meta:
+    if: startsWith(github.head_ref, 'feat/') || startsWith(github.head_ref, 'bug/')
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      suffix: ${{ steps.v.outputs.suffix }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compute version and suffix
+        id: v
+        run: |
+          VERSION=$(awk -F\" '/^\[workspace.package\]/{f=1} f && /^version/{print $2; exit}' Cargo.toml)
+          SANITIZED=$(echo "${{ github.head_ref }}" | sed 's|/|-|g; s|[^a-zA-Z0-9._-]|-|g')
+          SUFFIX="pr-${{ github.event.pull_request.number }}-${SANITIZED}"
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "suffix=${SUFFIX}" >> "${GITHUB_OUTPUT}"
+
+  build:
+    needs: compute-meta
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-latest
+            arch: amd64
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push by digest
+        id: bake
+        uses: docker/bake-action@v7
+        env:
+          VERSION: ${{ needs.compute-meta.outputs.version }}
+          SUFFIX: ${{ needs.compute-meta.outputs.suffix }}
+          PLATFORMS: ${{ matrix.platform }}
+          CACHE_REF: "ghcr.io/${{ github.repository_owner }}/adi-stack-server:buildcache-${{ matrix.arch }}"
+        with:
+          targets: zksync-os-server
+          set: |
+            *.output=type=image,"name=ghcr.io/${{ github.repository_owner }}/adi-stack-server",push-by-digest=true,name-canonical=true,push=true
+
+      - name: Export digest
+        run: |
+          mkdir -p /tmp/digests
+          DIGEST=$(jq -r '."zksync-os-server"."containerimage.digest"' <<< '${{ steps.bake.outputs.metadata }}')
+          echo "${DIGEST}" > /tmp/digests/${{ matrix.arch }}.txt
+
+      - name: Upload digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ matrix.arch }}
+          path: /tmp/digests/*
+          retention-days: 1
+
+  merge:
+    needs: [compute-meta, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download digests
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digests-*
+          merge-multiple: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create multi-arch manifest
+        env:
+          IMAGE: "ghcr.io/${{ github.repository_owner }}/adi-stack-server"
+          TAG: "${{ needs.compute-meta.outputs.version }}-${{ needs.compute-meta.outputs.suffix }}"
+        run: |
+          AMD64=$(cat /tmp/digests/amd64.txt)
+          ARM64=$(cat /tmp/digests/arm64.txt)
+          docker buildx imagetools create -t "${IMAGE}:${TAG}" \
+            "${IMAGE}@${AMD64}" "${IMAGE}@${ARM64}"
+
+      - name: Comment on PR
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: adi-docker-image
+          message: |
+            **Docker image built** &#x1f4e6;
+            ```
+            ghcr.io/${{ github.repository_owner }}/adi-stack-server:${{ needs.compute-meta.outputs.version }}-${{ needs.compute-meta.outputs.suffix }}
+            ```
+            Platforms: `linux/amd64`, `linux/arm64`
