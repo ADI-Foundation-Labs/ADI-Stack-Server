@@ -1,0 +1,35 @@
+name: ADI Docker PR cleanup
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+
+  cleanup:
+    if: startsWith(github.head_ref, 'feat/') || startsWith(github.head_ref, 'bug/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compute tag to delete
+        id: tag
+        run: |
+          VERSION=$(awk -F\" '/^\[workspace.package\]/{f=1} f && /^version/{print $2; exit}' Cargo.toml)
+          SANITIZED=$(echo "${{ github.head_ref }}" | sed 's|/|-|g; s|[^a-zA-Z0-9._-]|-|g')
+          TAG="${VERSION}-pr-${{ github.event.pull_request.number }}-${SANITIZED}"
+          echo "tag=${TAG}" >> "${GITHUB_OUTPUT}"
+
+      - name: Delete image by tag
+        uses: dataaxiom/ghcr-cleanup-action@v1
+        with:
+          package: adi-stack-server
+          delete-tags: ${{ steps.tag.outputs.tag }}
+          delete-untagged: true
+          token: ${{ secrets.GITHUB_TOKEN }}
