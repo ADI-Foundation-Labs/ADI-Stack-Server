@@ -24,6 +24,7 @@ concurrency:
 jobs:
   # Prepare the release PR with changelog updates and create github releases
   release-please:
+    if: github.repository == 'matter-labs/zksync-os-server'
     uses: matter-labs/zksync-ci-common/.github/workflows/release-please.yaml@v1 # use v1 to get bugfixes here instead of SHA
     secrets:
       slack_webhook: ${{ secrets.SLACK_WEBHOOK_RELEASES }}  # Slack webhook for release notifications
@@ -38,7 +39,7 @@ jobs:
 
   # Trigger workflow to generate artifacts
   release-bins:
-    if: ${{ always() && needs.release-please.outputs.releases_created == 'true' }}
+    if: ${{ github.repository == 'matter-labs/zksync-os-server' && always() && needs.release-please.outputs.releases_created == 'true' }}
     needs: release-please
     uses: ./.github/workflows/release-bins.yml
     with:
