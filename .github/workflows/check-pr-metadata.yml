@@ -14,6 +14,7 @@ on:
 
 jobs:
   lint-pr-title:
+    if: github.repository == 'matter-labs/zksync-os-server'
     runs-on: ubuntu-latest
     permissions:
       statuses: write
@@ -54,6 +55,7 @@ jobs:
           delete: true
 
   check-breaking-metadata:
+    if: github.repository == 'matter-labs/zksync-os-server'
     runs-on: ubuntu-latest
     needs: lint-pr-title
 
