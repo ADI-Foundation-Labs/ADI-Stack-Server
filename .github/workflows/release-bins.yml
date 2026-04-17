@@ -34,6 +34,7 @@ defaults:
 jobs:
   # Build server binaries for all target platforms
   build-bins:
+    if: github.repository == 'matter-labs/zksync-os-server'
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -106,6 +107,7 @@ jobs:
   # Smoke test release binaries
   # on different macOS and Linux runners
   test-bins:
+    if: github.repository == 'matter-labs/zksync-os-server'
     needs: build-bins
     runs-on: ${{ matrix.runner }}
     strategy:
@@ -191,6 +193,7 @@ jobs:
 
   # Attach binaries to the GitHub release
   release-bins:
+    if: github.repository == 'matter-labs/zksync-os-server'
     needs: [build-bins, test-bins]
     # Run on macOS to combine binaries into a single one for macOS
     runs-on: macos-latest-xlarge
