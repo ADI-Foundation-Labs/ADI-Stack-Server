@@ -34,6 +34,7 @@ concurrency:
 jobs:
 
   deploy-docs:
+    if: github.repository == 'matter-labs/zksync-os-server'
     runs-on: ubuntu-latest
     permissions:
       contents: write
