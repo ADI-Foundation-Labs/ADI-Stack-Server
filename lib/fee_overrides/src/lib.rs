@@ -31,11 +31,22 @@ pub struct ConfigOverrides {
     pub native_price: Option<U256>,
 }
 
+/// The bootloader requires `basefee / native_price == NATIVE_PER_GAS`.
+/// This must match the `native_per_gas` config value (default 100).
+const NATIVE_PER_GAS: u64 = 100;
+
 impl ConfigOverrides {
     /// Apply any present overrides on top of an existing [`BlockContext`].
+    ///
+    /// When `base_fee` is overridden but `native_price` is not, `native_price`
+    /// is automatically derived as `base_fee / NATIVE_PER_GAS` to maintain the
+    /// invariant the bootloader expects (`basefee = native_price × native_per_gas`).
     pub fn apply_to(&self, ctx: &mut BlockContext) {
         if let Some(base_fee) = self.base_fee {
             ctx.eip1559_basefee = base_fee;
+            if self.native_price.is_none() {
+                ctx.native_price = base_fee / U256::from(NATIVE_PER_GAS);
+            }
         }
         if let Some(pubdata_price) = self.pubdata_price {
             ctx.pubdata_price = pubdata_price;
