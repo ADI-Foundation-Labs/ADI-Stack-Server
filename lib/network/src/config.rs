@@ -14,4 +14,8 @@ pub struct NetworkConfig {
     /// All boot nodes to start network discovery with. Expected format is
     /// `enode://<node ID>@<IP address or hostname>:<port>`.
     pub boot_nodes: Vec<NodeRecord>,
+    /// If set, the node's ENR is pinned to this IPv4 address and discv5
+    /// auto-update is disabled. If None, behavior is unchanged: the ENR is
+    /// initialized from `address` and updated dynamically via PONG quorum.
+    pub advertised_address: Option<Ipv4Addr>,
 }

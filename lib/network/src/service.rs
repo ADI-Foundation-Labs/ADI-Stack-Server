@@ -58,7 +58,33 @@ impl NetworkService {
             }
         };
         let rlpx_address = SocketAddr::V4(SocketAddrV4::new(config.address, config.port));
+
+        // Decide the ENR address — either the pinned advertise IP, or the bind IP
+        let enr_ip = config.advertised_address.unwrap_or(config.address);
+        let enr_pinned = config.advertised_address.is_some();
+        let enr_address = SocketAddr::V4(SocketAddrV4::new(enr_ip, config.port));
+
         let (protocol_tx, protocol_rx) = mpsc::unbounded_channel();
+
+        let discv5_config = {
+            let mut b = discv5::ConfigBuilder::new(discv5::ListenConfig::from_ip(
+                enr_address.ip(),
+                config.port,
+            ));
+            b.vote_duration(Duration::from_secs(3600));
+            b.ban_duration(Some(Duration::from_secs(1)));
+
+            if enr_pinned {
+                // Disable peer-driven ENR updates; trust the operator-provided IP.
+                // NOTE: enr_peer_update_min panics if < 2, so we use usize::MAX.
+                b.enr_peer_update_min(usize::MAX);
+            } else {
+                // Require only 2 peers to agree on our external IP to update our local ENR.
+                b.enr_peer_update_min(2);
+            }
+            b.build()
+        };
+
         let cfg_builder = RethNetworkConfig::builder(config.secret_key)
             .boot_nodes(config.boot_nodes.clone())
             // Configure node identity
@@ -74,27 +100,16 @@ impl NetworkService {
             .disable_discv4_discovery()
             // Disable DNS-based discovery (EIP-1459), unused in ZKsync OS
             .disable_dns_discovery()
-            // Disable built-in NAT resolver as discv5 does not need it (ENR socket address is
-            // updated based on PONG responses from the majority of peers)
+            // Disable built-in NAT resolver; we manage the ENR address ourselves when
+            // advertised_address is set, and discv5 PONG quorum handles it otherwise.
             .disable_nat()
-            // Setup Node Discovery Protocol v5 on `localhost:<port>:UDP` that points to RLPx socket
-            // at `localhost:<port>:TCP`
-            .discovery_v5(
-                reth_discv5::Config::builder(rlpx_address).discv5_config(
-                    discv5::ConfigBuilder::new(discv5::ListenConfig::from_ip(
-                        rlpx_address.ip(),
-                        config.port,
-                    ))
-                    // Require only 2 peers to agree on our external IP to update our local ENR
-                    .enr_peer_update_min(2)
-                    // 2 peers from above must agree on external IP within 1h from each other.
-                    // This can make the node less responsive to dynamic IP changes.
-                    .vote_duration(Duration::from_secs(3600))
-                    // Sets peer ban duration to 1 second, effectively disabling it
-                    .ban_duration(Some(Duration::from_secs(1)))
-                    .build(),
-                ),
-            )
+            // Setup Node Discovery Protocol v5. When advertised_address is set, the
+            // ENR is seeded with the advertise IP and peer-driven updates are disabled.
+            // The reth_discv5 Config::builder tcp_socket also determines the discv5 UDP
+            // bind address (via amend_listen_config_wrt_rlpx). For local testing the
+            // advertise IP is bindable; in K8s with a non-local LB IP, the pod needs
+            // net.ipv4.ip_nonlocal_bind=1 or an equivalent infra-level workaround.
+            .discovery_v5(reth_discv5::Config::builder(enr_address).discv5_config(discv5_config))
             .peer_config(
                 PeersConfig::default()
                     // Sets peer ban duration to 1 second, effectively disabling it

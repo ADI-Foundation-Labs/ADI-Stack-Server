@@ -260,6 +260,13 @@ pub struct NetworkConfig {
     /// IPv4 address to use for Node Discovery Protocol v5 (discv5) and RLPx Transport Protocol (rlpx).
     #[config(default_t = Ipv4Addr::UNSPECIFIED, with = Serde![str])]
     pub address: Ipv4Addr,
+    /// Optional IPv4 address to advertise in the node's ENR. Set this when the
+    /// bind address is not reachable from peers (e.g., behind a Kubernetes
+    /// LoadBalancer where the bind is 0.0.0.0 or a pod IP but peers must reach
+    /// the LB's external IP). If unset, the ENR IP is learned via discv5 PONG
+    /// quorum — which may be wrong in NATed environments.
+    #[config(default, with = Serde![str])]
+    pub advertised_address: Option<Ipv4Addr>,
     /// Port to use for Node Discovery Protocol v5 (discv5) and RLPx Transport Protocol (rlpx).
     #[config(default_t = 3060)]
     pub port: u16,
@@ -994,9 +1001,12 @@ impl From<NetworkConfig> for zksync_os_network::config::NetworkConfig {
             boot_nodes: value
                 .boot_nodes
                 .iter()
-                .map(|s| resolve_enode(s)
-                    .unwrap_or_else(|e| panic!("failed to resolve boot node `{s}`: {e}")))
+                .map(|s| {
+                    resolve_enode(s)
+                        .unwrap_or_else(|e| panic!("failed to resolve boot node `{s}`: {e}"))
+                })
                 .collect(),
+            advertised_address: value.advertised_address,
         }
     }
 }
