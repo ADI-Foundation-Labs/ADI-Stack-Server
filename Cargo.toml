@@ -38,6 +38,7 @@ members = [
     "lib/network",
     "lib/metadata",
     "lib/external_price_api",
+    "lib/fee_overrides",
     "lib/base_token_adjuster",
     "lib/reth_compat",
     "lib/operator_signer",
@@ -284,6 +285,7 @@ zksync_os_network = { version = "=0.19.0", path = "lib/network" }
 zksync_os_raft = { version = "=0.19.0", path = "lib/raft" }
 zksync_os_metadata = { version = "=0.19.0", path = "lib/metadata" }
 zksync_os_external_price_api = { version = "=0.19.0", path = "lib/external_price_api" }
+zksync_os_fee_overrides = { version = "=0.19.0", path = "lib/fee_overrides" }
 zksync_os_base_token_adjuster = { version = "=0.19.0", path = "lib/base_token_adjuster" }
 zksync_os_reth_compat = { version = "=0.19.0", path = "lib/reth_compat" }
 zksync_os_operator_signer = { version = "=0.19.0", path = "lib/operator_signer" }

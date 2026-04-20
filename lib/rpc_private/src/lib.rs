@@ -1,4 +1,3 @@
-use alloy::primitives::U256;
 use async_trait::async_trait;
 use jsonrpsee::RpcModule;
 use jsonrpsee::core::RpcResult;
@@ -7,56 +6,21 @@ use jsonrpsee::server::ServerBuilder;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use tokio::sync::watch;
+pub use zksync_os_fee_overrides::ConfigOverrides;
 
-/// Configuration overrides that can be set via private API.
-#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
-#[serde(default)]
-pub struct ConfigOverrides {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub base_fee: Option<U256>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub pubdata_price: Option<U256>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub native_price: Option<U256>,
+/// Load config overrides from file if it exists.
+fn load_from_file(path: &PathBuf) -> anyhow::Result<ConfigOverrides> {
+    let contents = std::fs::read_to_string(path)?;
+    let overrides: ConfigOverrides = serde_json::from_str(&contents)?;
+    tracing::info!(?path, "Loaded config overrides from file");
+    Ok(overrides)
 }
 
-impl ConfigOverrides {
-    /// Load config overrides from file if it exists.
-    fn load_from_file(path: &PathBuf) -> anyhow::Result<Self> {
-        let contents = std::fs::read_to_string(path)?;
-        let overrides: Self = serde_json::from_str(&contents)?;
-        tracing::info!(?path, "Loaded config overrides from file");
-        Ok(overrides)
-    }
-
-    /// Save config overrides to file.
-    fn save_to_file(&self, path: &PathBuf) -> anyhow::Result<()> {
-        let json = serde_json::to_string_pretty(self)?;
-        std::fs::write(path, json)?;
-        Ok(())
-    }
-
-    /// Merge with another ConfigOverrides, preferring values from self.
-    fn merge_with(self, fallback: Self) -> Self {
-        Self {
-            base_fee: self.base_fee.or(fallback.base_fee),
-            pubdata_price: self.pubdata_price.or(fallback.pubdata_price),
-            native_price: self.native_price.or(fallback.native_price),
-        }
-    }
-
-    /// Remove overrides by field name.
-    fn remove_fields(mut self, fields: Vec<String>) -> Self {
-        for field in fields {
-            match field.as_str() {
-                "base_fee" => self.base_fee = None,
-                "pubdata_price" => self.pubdata_price = None,
-                "native_price" => self.native_price = None,
-                _ => tracing::warn!("Unknown field to remove: {}", field),
-            }
-        }
-        self
-    }
+/// Save config overrides to file.
+fn save_to_file(overrides: &ConfigOverrides, path: &PathBuf) -> anyhow::Result<()> {
+    let json = serde_json::to_string_pretty(overrides)?;
+    std::fs::write(path, json)?;
+    Ok(())
 }
 
 /// Private RPC API for runtime configuration.
@@ -130,7 +94,7 @@ pub async fn run_private_rpc_server(
     );
 
     // Load from file if exists, merge with fallback
-    let loaded = ConfigOverrides::load_from_file(&persistence_path)
+    let loaded = load_from_file(&persistence_path)
         .inspect_err(|e| tracing::debug!(?e, "Could not load config overrides from file"))
         .ok();
 
@@ -169,7 +133,7 @@ pub async fn run_private_rpc_server(
     tokio::spawn(async move {
         while persistence_watcher.changed().await.is_ok() {
             let overrides = persistence_watcher.borrow_and_update().clone();
-            if let Err(e) = overrides.save_to_file(&persistence_path) {
+            if let Err(e) = save_to_file(&overrides, &persistence_path) {
                 tracing::error!(?e, "Failed to persist config overrides");
             }
         }

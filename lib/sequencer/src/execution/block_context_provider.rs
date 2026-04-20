@@ -6,10 +6,10 @@ use anyhow::Context as _;
 use futures::StreamExt;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::{sync::watch, time::Instant};
+use zksync_os_fee_overrides::ConfigOverrides;
 use zksync_os_interface::types::{BlockContext, BlockHashes, BlockOutput};
 use zksync_os_mempool::subpools::l2::L2Subpool;
 use zksync_os_mempool::{MarkingTxStream, Pool};
-use zksync_os_rpc_private::ConfigOverrides;
 use zksync_os_storage_api::ReplayRecord;
 use zksync_os_types::{
     BlockStartCursors, ExecutionVersion, ProtocolSemanticVersion, SystemTxEnvelope, SystemTxType,
@@ -117,7 +117,7 @@ impl<Subpool: L2Subpool> BlockContextProvider<Subpool> {
     ) -> anyhow::Result<PreparedBlockCommand<'_>> {
         let prepared_command = match block_command {
             BlockCommand::Produce(_) => {
-                let mut fee_params = self.fee_provider.produce_fee_params().await?;
+                let fee_params = self.fee_provider.produce_fee_params().await?;
                 self.pool
                     .update_pending_block_fees(fee_params.eip1559_basefee.saturating_to(), None);
                 let block_number = self.next_block_number;
@@ -184,22 +184,12 @@ impl<Subpool: L2Subpool> BlockContextProvider<Subpool> {
                     (best_txs.stream, false)
                 };
 
-                let overrides = self.config_overrides_receiver.borrow();
-                if let Some(base_fee) = overrides.base_fee {
-                    fee_params.eip1559_basefee = base_fee;
-                }
-                if let Some(native_price) = overrides.native_price {
-                    fee_params.native_price = native_price;
-                }
-                if let Some(pubdata_price) = overrides.pubdata_price {
-                    fee_params.pubdata_price = pubdata_price;
-                }
                 let FeeParams {
                     eip1559_basefee,
                     native_price,
                     pubdata_price,
                 } = fee_params;
-                let block_context = BlockContext {
+                let mut block_context = BlockContext {
                     eip1559_basefee,
                     native_price,
                     pubdata_price,
@@ -215,6 +205,9 @@ impl<Subpool: L2Subpool> BlockContextProvider<Subpool> {
                     execution_version: execution_version as u32,
                     blob_fee: U256::ONE,
                 };
+                self.config_overrides_receiver
+                    .borrow()
+                    .apply_to(&mut block_context);
                 self.last_constructed_block_ctx_sender
                     .send_replace(Some(block_context));
                 PreparedBlockCommand {
@@ -299,10 +292,10 @@ impl<Subpool: L2Subpool> BlockContextProvider<Subpool> {
 
                 if rebuild.make_empty
                     && rebuild
-                    .replay_record
-                    .transactions
-                    .iter()
-                    .any(|tx| matches!(tx.envelope(), ZkEnvelope::Upgrade(_)))
+                        .replay_record
+                        .transactions
+                        .iter()
+                        .any(|tx| matches!(tx.envelope(), ZkEnvelope::Upgrade(_)))
                 {
                     anyhow::bail!(
                         "Cannot make an empty block when there is an upgrade transaction in the replay record for block {}",

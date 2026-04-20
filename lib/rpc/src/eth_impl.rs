@@ -25,6 +25,7 @@ use ruint::aliases::B160;
 use tokio::sync::watch;
 use zk_ee::common_structs::derive_flat_storage_key;
 use zk_os_api::helpers::{get_balance, get_code};
+use zksync_os_fee_overrides::ConfigOverrides;
 use zksync_os_interface::traits::ReadStorage;
 use zksync_os_mempool::subpools::l2::L2Subpool;
 use zksync_os_rpc_api::eth::EthApiServer;
@@ -45,9 +46,13 @@ pub struct EthNamespace<RpcStorage, Mempool> {
     mempool: Mempool,
 
     chain_id: u64,
+
+    /// Runtime fee overrides from the private `config.setOverrides` API.
+    config_overrides: watch::Receiver<ConfigOverrides>,
 }
 
 impl<RpcStorage: ReadRpcStorage, Mempool: L2Subpool> EthNamespace<RpcStorage, Mempool> {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         config: RpcConfig,
         storage: RpcStorage,
@@ -56,6 +61,7 @@ impl<RpcStorage: ReadRpcStorage, Mempool: L2Subpool> EthNamespace<RpcStorage, Me
         chain_id: u64,
         acceptance_state: watch::Receiver<TransactionAcceptanceState>,
         tx_forwarder: Option<DynProvider>,
+        config_overrides: watch::Receiver<ConfigOverrides>,
     ) -> Self {
         let tx_handler = TxHandler::new(
             config.clone(),
@@ -72,6 +78,7 @@ impl<RpcStorage: ReadRpcStorage, Mempool: L2Subpool> EthNamespace<RpcStorage, Me
             storage,
             mempool,
             chain_id,
+            config_overrides,
         }
     }
 }
@@ -106,6 +113,15 @@ impl<RpcStorage: ReadRpcStorage, Mempool: L2Subpool> EthNamespace<RpcStorage, Me
                 }
             }
             rpc_block.transactions = BlockTransactions::Full(full_txs);
+        }
+        // Apply basefee override to the latest block header so that clients
+        // (e.g. `cast`) which read `baseFeePerGas` from the block header see
+        // the overridden value immediately, even before a new block is produced.
+        if let Some(base_fee) = self.config_overrides.borrow().base_fee {
+            let latest = self.storage.repository().get_latest_block();
+            if rpc_block.header.inner.number == latest {
+                rpc_block.header.inner.base_fee_per_gas = Some(base_fee.saturating_to());
+            }
         }
         Ok(Some(rpc_block))
     }
@@ -324,7 +340,11 @@ impl<RpcStorage: ReadRpcStorage, Mempool: L2Subpool> EthNamespace<RpcStorage, Me
 
     fn gas_price_impl(&self) -> EthResult<U256> {
         // Only base fee is taken into account, suggested priority fee is zero.
-        if let Some(c) = self.eth_call_handler.last_constructed_block_context() {
+        // Runtime fee overrides are applied so eth_gasPrice reflects the new basefee
+        // immediately after an override — before a block with that basefee is produced.
+        let overrides = self.config_overrides.borrow();
+        if let Some(mut c) = self.eth_call_handler.last_constructed_block_context() {
+            overrides.apply_to(&mut c);
             Ok(scale_gas_price(
                 c.eip1559_basefee,
                 self.config.gas_price_scale_factor,
@@ -335,11 +355,16 @@ impl<RpcStorage: ReadRpcStorage, Mempool: L2Subpool> EthNamespace<RpcStorage, Me
             else {
                 return Err(EthError::BlockNotFound(latest_block_id));
             };
-            self.storage
+            let mut c = self
+                .storage
                 .replay_storage()
                 .get_context(resolved_block_number)
-                .map(|c| scale_gas_price(c.eip1559_basefee, self.config.gas_price_scale_factor))
-                .ok_or(EthError::BlockNotFound(latest_block_id))
+                .ok_or(EthError::BlockNotFound(latest_block_id))?;
+            overrides.apply_to(&mut c);
+            Ok(scale_gas_price(
+                c.eip1559_basefee,
+                self.config.gas_price_scale_factor,
+            ))
         }
     }
 
@@ -394,8 +419,9 @@ impl<RpcStorage: ReadRpcStorage, Mempool: L2Subpool> EthNamespace<RpcStorage, Me
 
         let mut base_fee_per_gas = Vec::with_capacity(block_count as usize + 1);
         let mut pubdata_price_per_byte = Vec::with_capacity(block_count as usize);
+        let overrides = self.config_overrides.borrow();
         for block in start_block..=end_block {
-            let (base_fee, pubdata_price) = self
+            let (mut base_fee, pubdata_price) = self
                 .storage
                 .replay_storage()
                 .get_context(block)
@@ -403,23 +429,34 @@ impl<RpcStorage: ReadRpcStorage, Mempool: L2Subpool> EthNamespace<RpcStorage, Me
                 .ok_or(EthError::BlockNotFound(BlockId::Number(
                     BlockNumberOrTag::Number(block),
                 )))?;
+            // Apply basefee override to the latest block entry (end_block).
+            // Alloy's estimate_eip1559_fees reads `latest_block_base_fee()`
+            // which is the SECOND-TO-LAST element (i.e. end_block, not the
+            // "next" projected bucket). Without this, cast computes
+            // maxFeePerGas from the stale sealed-block basefee.
+            if block == end_block
+                && let Some(bf) = overrides.base_fee
+            {
+                base_fee = bf;
+            }
             base_fee_per_gas.push(base_fee.saturating_to());
             pubdata_price_per_byte.push(pubdata_price);
         }
-        if let Some(base_fee) = self
-            .storage
-            .replay_storage()
-            .get_context(end_block_plus)
-            .map(|c| c.eip1559_basefee)
-        {
-            base_fee_per_gas.push(base_fee.saturating_to());
-        } else if let Some(c) = self.eth_call_handler.last_constructed_block_context()
+        if let Some(mut c) = self.storage.replay_storage().get_context(end_block_plus) {
+            overrides.apply_to(&mut c);
+            base_fee_per_gas.push(c.eip1559_basefee.saturating_to());
+        } else if let Some(mut c) = self.eth_call_handler.last_constructed_block_context()
             && c.block_number == end_block_plus
         {
+            overrides.apply_to(&mut c);
             base_fee_per_gas.push(c.eip1559_basefee.saturating_to());
         } else {
             // block_count is >= 1 so last must be there.
-            base_fee_per_gas.push(*base_fee_per_gas.last().unwrap());
+            let mut last = *base_fee_per_gas.last().unwrap();
+            if let Some(base_fee) = overrides.base_fee {
+                last = base_fee.saturating_to();
+            }
+            base_fee_per_gas.push(last);
         }
 
         // ZKsync OS chains are not fully EIP-1559 compliant and using 0 as a priority fee should always work,

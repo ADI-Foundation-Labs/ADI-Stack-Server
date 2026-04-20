@@ -756,7 +756,7 @@ pub async fn run<State: ReadStateHistory + WriteState + StateInitializer + Clone
         config.sequencer_config.fee_collector_address,
         last_constructed_block_ctx_sender,
         fee_provider,
-        config_overrides_receiver,
+        config_overrides_receiver.clone(),
     );
 
     // ========== Start L1 Upgrade Watcher ===========
@@ -854,6 +854,7 @@ pub async fn run<State: ReadStateHistory + WriteState + StateInitializer + Clone
             rpc_storage.clone(),
             chain_id,
             last_constructed_block_ctx_receiver.clone(),
+            config_overrides_receiver.clone(),
         );
         let interop_fee_updater = InteropFeeUpdater::new(
             eth_call_handler,
@@ -956,6 +957,7 @@ pub async fn run<State: ReadStateHistory + WriteState + StateInitializer + Clone
         genesis_input_source,
         tx_acceptance_state_receiver,
         last_constructed_block_ctx_receiver,
+        config_overrides_receiver,
         main_node_provider,
         gateway_provider.map(|p| p.erased()),
         runtime,
