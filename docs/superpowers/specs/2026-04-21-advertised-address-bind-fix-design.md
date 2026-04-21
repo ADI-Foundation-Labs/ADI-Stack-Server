@@ -2,7 +2,7 @@
 
 ## Problem
 
-When `network_advertised_address` is set to an IP not present on any local interface (typical in K8s: LB public IP, pods only have cluster IP), the node crashes on startup:
+When `advertised_address` (env/vault key; the `NetworkConfig` field has no `network_` prefix) is set to an IP not present on any local interface (typical in K8s: LB public IP, pods only have cluster IP), the node crashes on startup:
 
 ```
 failed to create network service:
@@ -67,19 +67,74 @@ In `NetworkService::new` (`lib/network/src/service.rs`):
 
 - Fixing the `advertised_address = None` small-deployment quorum issue.
 - Supporting IPv6 (code is Ipv4-only today).
-- Resolving misnamed env keys (e.g., vault secret `advertised_address` without `network_` prefix) — that's an operator-side concern and already surfaces as `advertised_address: None` in the startup config dump.
 - Runtime changes to the advertised IP (pinned means pinned).
 
-## Risks and open items
+## Investigation findings — what does NOT work
+
+Notes captured during spec-to-plan investigation so we don't re-derive these.
+
+### reth `v1.11.1` does not expose the Discv5 handle
+
+`reth_discv5::Discv5::update_local_enr_socket` is the right primitive, but it can only be called via `with_discv5(|d| …)` on a `&reth_discv5::Discv5`. In `reth v1.11.1`:
+
+- The live instance is held in `NetworkInner.discv5: Option<Discv5>` and accessed inside `NetworkHandle` only through private methods like `local_node_record()`.
+- `NetworkManager` has no public accessor returning the Discv5.
+- `NetworkHandleMessage` has no variant for mutating the local ENR (searched all `NetworkHandleMessage::*` match arms — nothing).
+
+Result: the "post-`split()` handle grab" path assumed in the Design section is **not reachable without a reth patch**. Preference (a) from the prior Risks list (use `NetworkHandle` after spawn) is dead; preference (b) (request a reth patch) is required.
+
+### `build_local_enr` drops `ip4` when bound to UNSPECIFIED
+
+`reth-discv5/src/lib.rs:477`:
+
+```rust
+if ip != Ipv4Addr::UNSPECIFIED {
+    builder.ip4(ip);
+}
+```
+
+Meaning: if we bind to `0.0.0.0`, the ENR starts with **no `ip4` field at all**, only `udp4`/`tcp4` ports. Peers typically won't add such an ENR to their kbuckets. Upstream reth relies on PONG-quorum votes to fill in `ip4`, which in a 2-node setup never reaches the default quorum of 2 — so in that topology, discv5 is functionally broken even in the `advertised_address = None` path (pre-existing, not caused by this feature).
+
+### Infra workaround: `ip_nonlocal_bind=1` in PodSpec sysctls — rejected by AKS
+
+Tried patching the `zkos-test-server` StatefulSet with:
+
+```yaml
+spec:
+  template:
+    spec:
+      securityContext:
+        sysctls:
+          - name: net.ipv4.ip_nonlocal_bind
+            value: "1"
+```
+
+AKS kubelet rejects the pod with `SysctlForbidden: "net.ipv4.ip_nonlocal_bind" not allowlisted`. The sysctl is classified "unsafe" by default and would need `--allowed-unsafe-sysctls=net.ipv4.ip_nonlocal_bind` in kubelet config — node-pool-level change, not a Pod-spec change. Infra team would need to customize the AKS node pool.
+
+Even if enabled, an inbound DNAT-based K8s LB rewrites `dst_ip` to the pod IP before delivery. A socket bound to the public LB IP would not match such packets. Only DSR-mode LBs (e.g., Cilium BPF mode with `externalTrafficPolicy: Local` + preserve-dst-ip) would work with this bind. Unconfirmed on the target AKS cluster; probably NOT the default.
+
+### TCP hairpin works; UDP hairpin unknown
+
+During debugging we observed an ESTABLISHED TCP connection between main (`10.1.74.234`) and EN (`10.1.75.178`) through the LB IP `20.233.32.181:3060`, confirming TCP hairpin routes correctly. UDP hairpin is usually configured similarly but wasn't independently verified. The discv5-level crash masked UDP observation.
+
+## Risks and open items (revised)
 
 1. **Timing race.** If discv5 sends any outbound traffic (e.g., initial bootnode PING) carrying its ENR before the post-split rewrite lands, peers briefly see a wrong ENR. Mitigations:
    - Call `update_local_enr_socket` synchronously after `split()` and before spawning the manager task, if the API allows it.
-   - If the handle is only reachable after spawn, any peer that learned the stale ENR will re-learn the updated ENR on the next contact (ENR sequence bumps on each call to `set_udp_socket` / `set_tcp_socket`). This is acceptable; the race window is bounded to the first few hundred milliseconds of startup.
-   The implementation plan picks the tightest available ordering and documents the chosen approach.
+   - If the handle is only reachable after spawn, any peer that learned the stale ENR will re-learn the updated ENR on the next contact (ENR sequence bumps on each call to `set_udp_socket` / `set_tcp_socket`). The race window is bounded to the first few hundred milliseconds of startup.
 
-2. **reth handle exposure.** The precise call path from `NetworkManager::split()` return to an object that implements `with_discv5` needs to be confirmed against reth `v1.11.1`. If the path is not trivially available, the implementation plan will either (a) use `NetworkHandle` after spawn or (b) request a small reth patch upstream. Preference: (a), since it keeps the change local.
+2. **UDP hairpin in K8s.** Unverified on the target cluster. If UDP hairpin is broken, this fix won't be sufficient — but the symptom is unambiguous (UDP counters never climb) and it's an infra concern not a code concern.
 
-3. **Hairpin NAT for UDP.** We confirmed TCP hairpin works in this cluster (an ESTABLISHED main↔EN session was present). UDP hairpin is usually configured the same way but isn't guaranteed. If UDP hairpin turns out to be broken, this fix won't be sufficient — but that would be an infra issue, not a code issue, and surfaces clearly (no UDP traffic counters climbing on either side). Out of scope for this fix.
+## Status: BLOCKED
+
+The design as written requires post-start ENR mutation, which needs access to reth's internal `Discv5` handle. Reth `v1.11.1` does not expose it. The user has ruled out forking/vendoring reth (maintenance burden). The AKS infra workaround was also ruled out (kubelet rejects the sysctl). No viable path to implement this spec as written.
+
+Next step is to pick a different approach and rewrite the spec, or to drop/neuter the `advertised_address` feature entirely. Candidate directions (not yet agreed):
+
+- **Drop the feature.** Remove `NetworkConfig::advertised_address` and the branch in `service.rs`. Accept that discv5 in small K8s deployments is noisy-but-harmless (RLPx + HTTP-RPC sync still work).
+- **Neuter the feature without removing the field.** Ignore the value in `service.rs` (log a warning that it's currently a no-op). Preserves config schema while eliminating the crash. No behavioral improvement.
+- **Lower `enr_peer_update_min` to 1** in the `None` path. Makes discv5 functional in 2-node clusters via peer votes, at the cost of ENRs advertising whatever IP one peer observed (usually the pod IP — fine for intra-cluster, useless for external peers). Does not deliver the original "pin a public IP" feature.
+- **Upstream the `pub fn discv5(&self)` accessor to reth** via a PR, and defer this fix until that merges and we upgrade reth. No local hack, no immediate fix.
 
 ## Testing
 
