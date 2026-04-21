@@ -41,6 +41,10 @@ impl ConfigOverrides {
     /// When `base_fee` is overridden but `native_price` is not, `native_price`
     /// is automatically derived as `base_fee / NATIVE_PER_GAS` to maintain the
     /// invariant the bootloader expects (`basefee = native_price × native_per_gas`).
+    ///
+    /// `pubdata_price` defaults to 0 unless explicitly overridden because the
+    /// base fee already includes all extra costs (L1 pubdata price,
+    /// infrastructure costs, etc.).
     pub fn apply_to(&self, ctx: &mut BlockContext) {
         if let Some(base_fee) = self.base_fee {
             ctx.eip1559_basefee = base_fee;
@@ -48,9 +52,7 @@ impl ConfigOverrides {
                 ctx.native_price = base_fee / U256::from(NATIVE_PER_GAS);
             }
         }
-        if let Some(pubdata_price) = self.pubdata_price {
-            ctx.pubdata_price = pubdata_price;
-        }
+        ctx.pubdata_price = self.pubdata_price.unwrap_or(U256::ZERO);
         if let Some(native_price) = self.native_price {
             ctx.native_price = native_price;
         }
