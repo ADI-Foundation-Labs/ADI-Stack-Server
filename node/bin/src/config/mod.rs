@@ -7,7 +7,7 @@ use reth_net_nat::net_if::resolve_net_if_ip;
 use reth_network_peers::TrustedPeer;
 use serde::{Deserialize, Serialize};
 use smart_config::metadata::{SizeUnit, TimeUnit};
-use smart_config::value::SecretString;
+use smart_config::value::{ExposeSecret, SecretString};
 use smart_config::{
     ByteSize, ConfigRepository, ConfigSchema, ConfigSources, DescribeConfig, DeserializeConfig,
     EtherAmount, ParseErrors, Serde, de::Delimited, metadata::EtherUnit,
@@ -934,8 +934,12 @@ pub struct ProverApiConfig {
     pub enabled: bool,
 
     /// Prover API address to listen on.
-    #[config(default_t = "0.0.0.0:3124".into())]
+    #[config(default_t = "127.0.0.1:3124".into())]
     pub address: String,
+
+    /// Optional Basic Auth credentials required by external provers.
+    #[config(nest)]
+    pub auth: ProverApiAuthConfig,
 
     /// Pool of in-process fake FRI provers that instantly produce dummy proofs, bypassing real proving.
     /// Useful for local development and testnets where real provers are unavailable or insufficient.
@@ -974,6 +978,59 @@ pub struct ProverApiConfig {
     /// Default: store files in ./db/fri_proofs/ with 1GiB disk usage cap
     #[config(nest, default)]
     pub proof_storage: ProofStorageConfig,
+}
+
+#[derive(Clone, Debug, DescribeConfig, DeserializeConfig)]
+#[config(derive(Default))]
+pub struct ProverApiAuthConfig {
+    /// Basic Auth username accepted by the prover API.
+    #[config(default_t = None)]
+    pub username: Option<String>,
+
+    /// Basic Auth password accepted by the prover API.
+    #[config(secret, default_t = None)]
+    pub password: Option<SecretString>,
+}
+
+impl ProverApiAuthConfig {
+    pub fn is_enabled(&self) -> bool {
+        self.username.is_some() || self.password.is_some()
+    }
+}
+
+impl ConfigValidate for ProverApiAuthConfig {
+    fn validate_conditional(
+        &self,
+        _root: &Config,
+        errors: &mut Vec<ValidationError>,
+        prefix: &str,
+    ) {
+        if self.username.is_some() != self.password.is_some() {
+            let credentials_path = if prefix.is_empty() { "auth" } else { prefix };
+            errors.push(ValidationError::new(
+                credentials_path,
+                "`username` and `password` must be configured together",
+            ));
+        }
+
+        if self.username.as_deref().is_some_and(str::is_empty) {
+            errors.push(ValidationError::new(
+                join_validation_path(prefix, "username"),
+                "must not be empty",
+            ));
+        }
+
+        if self
+            .password
+            .as_ref()
+            .is_some_and(|password| password.expose_secret().is_empty())
+        {
+            errors.push(ValidationError::new(
+                join_validation_path(prefix, "password"),
+                "must not be empty",
+            ));
+        }
+    }
 }
 
 #[derive(Clone, Debug, DescribeConfig, DeserializeConfig)]
