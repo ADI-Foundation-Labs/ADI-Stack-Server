@@ -8,11 +8,12 @@ use alloy::consensus::transaction::Recovered;
 use alloy::consensus::{SignableTransaction, TxEip1559, TxEip2930, TxLegacy, TxType};
 use alloy::eips::{BlockId, BlockNumberOrTag};
 use alloy::network::TransactionBuilder;
-use alloy::primitives::{Address, B256, Bytes, Signature, TxKind, U256};
+use alloy::primitives::{Address, B256, BlockNumber, Bytes, Signature, TxKind, U256};
 use alloy::rpc::types::state::StateOverride;
 use alloy::rpc::types::trace::geth::{CallConfig, GethTrace};
 use alloy::rpc::types::{BlockOverrides, TransactionRequest};
 use serde_json::Value as JsonValue;
+use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::watch;
 use zk_os_api::helpers::{get_balance, get_nonce};
 use zksync_os_interface::types::ExecutionOutput;
@@ -42,6 +43,9 @@ pub struct EthCallHandler<RpcStorage> {
 
 struct ExecutionEnv {
     block_context: BlockContext,
+    /// For `Pending` it is `parent + 1`. For all other tags it
+    /// equals `block_context.block_number`.
+    state_block_number: BlockNumber,
     transaction: ZkTransaction,
 }
 
@@ -64,6 +68,7 @@ impl<RpcStorage: ReadRpcStorage> EthCallHandler<RpcStorage> {
         &self,
         request: TransactionRequest,
         block_context: &BlockContext,
+        state_block_number: BlockNumber,
         for_estimate_gas: bool,
     ) -> Result<ZkTransaction, EthCallError> {
         let tx_type = request.minimal_tx_type();
@@ -95,7 +100,7 @@ impl<RpcStorage: ReadRpcStorage> EthCallHandler<RpcStorage> {
             nonce
         } else {
             self.storage
-                .state_view_at(block_context.block_number)?
+                .state_view_at(state_block_number)?
                 .get_account(from.unwrap_or_default())
                 .as_ref()
                 .map(get_nonce)
@@ -208,21 +213,49 @@ impl<RpcStorage: ReadRpcStorage> EthCallHandler<RpcStorage> {
         }
 
         let block_id = block.unwrap_or_default();
-        let Some(block_number) = self.storage.resolve_block_number(block_id)? else {
-            return Err(EthCallError::BlockNotFound(block_id));
-        };
-        let block_context = self
-            .storage
-            .replay_storage()
-            .get_context(block_number)
-            .ok_or(EthCallError::BlockNotFound(block_id))?;
+        let (block_context, state_block_number) =
+            self.resolve_simulation_block_context(block_id)?;
 
-        let transaction = self.create_tx_from_request(request, &block_context, false)?;
+        let transaction =
+            self.create_tx_from_request(request, &block_context, state_block_number, false)?;
 
         Ok(ExecutionEnv {
             transaction,
             block_context,
+            state_block_number,
         })
+    }
+
+    /// Mirrors reth's `evm_env_at`: for `pending` the env describes `parent + 1` with a
+    /// freshly-stamped `timestamp = max(parent + 1, now)`, while the state view stays at
+    /// `parent`. All other tags use the stored block context and read state at that block.
+    fn resolve_simulation_block_context(
+        &self,
+        block_id: BlockId,
+    ) -> Result<(BlockContext, BlockNumber), EthCallError> {
+        let Some(resolved_block_number) = self.storage.resolve_block_number(block_id)? else {
+            return Err(EthCallError::BlockNotFound(block_id));
+        };
+        let parent_context = self
+            .storage
+            .replay_storage()
+            .get_context(resolved_block_number)
+            .ok_or(EthCallError::BlockNotFound(block_id))?;
+
+        let block_context = match block_id {
+            BlockId::Number(BlockNumberOrTag::Pending) => {
+                let now = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .map(|d| d.as_secs())
+                    .unwrap_or(parent_context.timestamp);
+                let mut ctx = parent_context;
+                ctx.block_number = parent_context.block_number.saturating_add(1);
+                ctx.timestamp = parent_context.timestamp.saturating_add(1).max(now);
+                ctx
+            }
+            _ => parent_context,
+        };
+        Ok((block_context, resolved_block_number))
     }
 
     pub fn call_impl(
@@ -235,7 +268,7 @@ impl<RpcStorage: ReadRpcStorage> EthCallHandler<RpcStorage> {
         let mut execution_env = self.prepare_execution_env(request, block, block_overrides)?;
         let storage_view = self
             .storage
-            .state_view_at(execution_env.block_context.block_number)?;
+            .state_view_at(execution_env.state_block_number)?;
 
         execution_env.block_context.eip1559_basefee = U256::from(0);
         let res = match state_overrides {
@@ -275,7 +308,7 @@ impl<RpcStorage: ReadRpcStorage> EthCallHandler<RpcStorage> {
         let execution_env = self.prepare_execution_env(request, block, block_overrides)?;
         let storage_view = self
             .storage
-            .state_view_at(execution_env.block_context.block_number)?;
+            .state_view_at(execution_env.state_block_number)?;
 
         match state_overrides {
             Some(overrides) => call_trace_simulate(
@@ -306,7 +339,7 @@ impl<RpcStorage: ReadRpcStorage> EthCallHandler<RpcStorage> {
         let execution_env = self.prepare_execution_env(request, block, block_overrides)?;
         let storage_view = self
             .storage
-            .state_view_at(execution_env.block_context.block_number)?;
+            .state_view_at(execution_env.state_block_number)?;
 
         let mut tracer_output = match state_overrides {
             Some(overrides) => {
@@ -358,33 +391,8 @@ impl<RpcStorage: ReadRpcStorage> EthCallHandler<RpcStorage> {
         state_override: Option<StateOverride>,
     ) -> Result<U256, EthCallError> {
         let block_id = block_number.unwrap_or_default();
-
-        let mut block_context = {
-            let Some(resolved_block_number) = self.storage.resolve_block_number(block_id)? else {
-                return Err(EthCallError::BlockNotFound(block_id));
-            };
-            match block_id {
-                BlockId::Number(BlockNumberOrTag::Pending) => {
-                    if let Some(mut pending_block_context) = *self.pending_block_context.borrow() {
-                        if pending_block_context.block_number > resolved_block_number {
-                            // Decrease block number so we get latest available state view
-                            pending_block_context.block_number = resolved_block_number;
-                        }
-                        pending_block_context
-                    } else {
-                        self.storage
-                            .replay_storage()
-                            .get_context(resolved_block_number)
-                            .ok_or(EthCallError::BlockNotFound(block_id))?
-                    }
-                }
-                block_id => self
-                    .storage
-                    .replay_storage()
-                    .get_context(resolved_block_number)
-                    .ok_or(EthCallError::BlockNotFound(block_id))?,
-            }
-        };
+        let (mut block_context, state_block_number) =
+            self.resolve_simulation_block_context(block_id)?;
 
         // Overestimate pubdata price to leave some space for fluctuations. Usual Ethereum tooling
         // assumes that gas limit stays constant in most scenarios, which is not the case in our system.
@@ -393,14 +401,20 @@ impl<RpcStorage: ReadRpcStorage> EthCallHandler<RpcStorage> {
         );
 
         // Choose storage view (with optional overrides) once and reuse it throughout.
-        let base_view = self.storage.state_view_at(block_context.block_number)?;
+        let base_view = self.storage.state_view_at(state_block_number)?;
         match state_override {
             Some(overrides) => self.estimate_gas_with_view(
                 request,
                 block_context,
+                state_block_number,
                 OverriddenStateView::new(base_view, overrides),
             ),
-            None => self.estimate_gas_with_view(request, block_context, base_view),
+            None => self.estimate_gas_with_view(
+                request,
+                block_context,
+                state_block_number,
+                base_view,
+            ),
         }
     }
 }
@@ -410,6 +424,7 @@ impl<RpcStorage: ReadRpcStorage> EthCallHandler<RpcStorage> {
         &self,
         mut request: TransactionRequest,
         mut block_context: BlockContext,
+        state_block_number: BlockNumber,
         mut storage_view: V,
     ) -> Result<U256, EthCallError> {
         // Rest of the flow was heavily borrowed from reth, which in turn closely follows the
@@ -480,7 +495,7 @@ impl<RpcStorage: ReadRpcStorage> EthCallHandler<RpcStorage> {
                 .unwrap_or(highest_gas_limit)
                 .min(highest_gas_limit),
         );
-        let tx = self.create_tx_from_request(request, &block_context, true)?;
+        let tx = self.create_tx_from_request(request, &block_context, state_block_number, true)?;
 
         // Execute the transaction with the highest possible gas limit.
         let mut res = execute(tx.clone(), block_context, storage_view.clone())
