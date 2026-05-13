@@ -63,7 +63,7 @@ impl ConfigApiServer for ConfigNamespace {
         let current = self.receiver.borrow().clone();
         let updated = overrides.clone().merge_with(current);
         self.sender.send_replace(updated.clone());
-        tracing::info!(?overrides, ?updated, "config overrides set via private API");
+        tracing::debug!(?overrides, ?updated, "config overrides set via private API");
         Ok(())
     }
 
@@ -71,7 +71,11 @@ impl ConfigApiServer for ConfigNamespace {
         let current = self.receiver.borrow().clone();
         let updated = current.remove_fields(fields.clone());
         self.sender.send_replace(updated.clone());
-        tracing::info!(?fields, ?updated, "config overrides removed via private API");
+        tracing::debug!(
+            ?fields,
+            ?updated,
+            "config overrides removed via private API"
+        );
         Ok(())
     }
 
