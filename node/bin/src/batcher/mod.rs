@@ -9,7 +9,9 @@ use std::pin::Pin;
 use tokio::sync::mpsc;
 use tokio::time::{Instant, Sleep};
 use tracing;
-use zksync_os_batch_types::{BlockMerkleTreeData, DiscoveredCommittedBatch};
+use zksync_os_batch_types::{
+    BlockMerkleTreeData, DiscoveredCommittedBatch, decode_external_da_data_with_commitment_for_mode,
+};
 use zksync_os_contract_interface::models::StoredBatchInfo;
 use zksync_os_interface::types::BlockOutput;
 use zksync_os_l1_sender::batcher_metrics::BATCHER_METRICS;
@@ -27,6 +29,7 @@ use zksync_os_types::PubdataMode;
 
 pub mod batch_builder;
 mod batch_deadline_policy;
+pub mod external_da;
 mod seal_criteria;
 pub mod util;
 
@@ -51,10 +54,25 @@ pub struct Batcher<ReadState> {
     pub chain_address_sl: Address,
     pub pubdata_limit_bytes: u64,
     pub batcher_config: BatcherConfig,
+    pub external_da_client: Option<external_da::ExternalDaHttpClient>,
     pub pubdata_mode: PubdataMode,
     pub sidecar_sender: mpsc::Sender<BlobTransactionSidecar>,
     pub committed_batch_provider: CommittedBatchProvider,
     pub read_state: ReadState,
+}
+
+fn collect_total_pubdata(
+    blocks: &[(BlockOutput, ReplayRecord, TreeBatchOutput, ProverInput)],
+) -> Vec<u8> {
+    let total_pubdata_len = blocks
+        .iter()
+        .map(|(block_output, _, _, _)| block_output.pubdata.len())
+        .sum();
+    let mut total_pubdata = Vec::with_capacity(total_pubdata_len);
+    for (block_output, _, _, _) in blocks {
+        total_pubdata.extend_from_slice(&block_output.pubdata);
+    }
+    total_pubdata
 }
 
 #[async_trait]
@@ -207,8 +225,9 @@ impl<ReadState: ReadStateHistory + Clone + Send + 'static> PipelineComponent
 
             tracing::debug!(
                 batch_number = batch_envelope.batch_number(),
-                da_commitment = ?batch_envelope.batch.batch_info.operator_da_input,
-                "Batch da_input",
+                da_commitment = ?batch_envelope.batch.batch_info.commit_info.da_commitment,
+                operator_da_input_len = batch_envelope.batch.batch_info.operator_da_input.len(),
+                "Batch DA metadata",
             );
 
             latency_tracker.enter_state(GenericComponentState::WaitingSend);
@@ -344,6 +363,30 @@ impl<ReadState: ReadStateHistory + Clone + Send + 'static> Batcher<ReadState> {
         accumulator.report_accumulated_resources_to_metrics();
 
         let protocol_version = &blocks.first().as_ref().unwrap().1.protocol_version;
+        // we need to adapt pubdata mode depending on protocol version, to ensure automatic DA mode change during v30 upgrade
+        let pubdata_mode = self
+            .pubdata_mode
+            .adapt_for_protocol_version(protocol_version);
+        let external_da_data = if let Some(external_da_client) = self.external_da_client.as_ref() {
+            anyhow::ensure!(
+                pubdata_mode.uses_external_da(),
+                "external DA client configured for non-external pubdata mode {:?}",
+                pubdata_mode
+            );
+            let total_pubdata = collect_total_pubdata(&blocks);
+            Some(
+                external_da_client
+                    .fetch_external_da_data(&external_da::ExternalDaRequest {
+                        chain_id: self.chain_id,
+                        sl_chain_id: self.sl_chain_id,
+                        batch_number,
+                        pubdata: &total_pubdata,
+                    })
+                    .await?,
+            )
+        } else {
+            None
+        };
 
         /* ---------- seal the batch ---------- */
         let batch_envelope = batch_builder::seal_batch(
@@ -352,11 +395,10 @@ impl<ReadState: ReadStateHistory + Clone + Send + 'static> Batcher<ReadState> {
             batch_number,
             self.chain_id,
             self.chain_address_sl,
-            // we need to adapt pubdata mode depending on protocol version, to ensure automatic DA mode change during v30 upgrade
-            self.pubdata_mode
-                .adapt_for_protocol_version(protocol_version),
+            pubdata_mode,
             self.sl_chain_id,
             &self.read_state,
+            external_da_data,
         )?;
         Ok(Some(batch_envelope))
     }
@@ -417,6 +459,32 @@ impl<ReadState: ReadStateHistory + Clone + Send + 'static> Batcher<ReadState> {
             "Block number mismatch in last block of a rebuilt batch"
         );
 
+        let protocol_version = blocks.first().unwrap().1.protocol_version.clone();
+        // Mode should not change within one rebuilt batch, but we still adapt by protocol version for safety.
+        let pubdata_mode = self
+            .pubdata_mode
+            .adapt_for_protocol_version(&protocol_version);
+        let external_da_data = if pubdata_mode.uses_external_da() {
+            let commit_info = existing_batch
+                .commit_info
+                .as_ref()
+                .context("missing commit info for external DA batch recreation")?;
+            // decode_external_da_data_with_commitment_for_mode validates the commitment internally
+            decode_external_da_data_with_commitment_for_mode(
+                pubdata_mode,
+                commit_info.da_commitment,
+                &commit_info.operator_da_input,
+            )
+            .map_err(|err| {
+                anyhow::anyhow!(
+                    "failed to decode external DA payload in committed batch {}: {err}",
+                    batch_number
+                )
+            })?
+        } else {
+            None
+        };
+
         // Rebuild the batch from blocks
         let rebuilt_batch = batch_builder::seal_batch(
             &blocks,
@@ -424,10 +492,10 @@ impl<ReadState: ReadStateHistory + Clone + Send + 'static> Batcher<ReadState> {
             batch_number,
             self.chain_id,
             self.chain_address_sl,
-            // Assume pubdata mode does not change
-            self.pubdata_mode,
+            pubdata_mode,
             self.sl_chain_id,
             &self.read_state,
+            external_da_data,
         )?;
 
         // Verify that the rebuilt batch matches the stored batch by comparing hashes

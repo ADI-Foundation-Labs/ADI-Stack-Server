@@ -4,8 +4,8 @@ use crate::{L1WatcherConfig, ProcessL1Event, util};
 use alloy::primitives::Address;
 use alloy::providers::{DynProvider, Provider};
 use alloy::rpc::types::Log;
-use tokio::sync::watch;
 use std::time::Duration;
+use tokio::sync::watch;
 use zksync_os_batch_types::{BatchInfo, DiscoveredCommittedBatch};
 use zksync_os_contract_interface::IExecutor::ReportCommittedBatchRangeZKsyncOS;
 use zksync_os_contract_interface::ZkChain;
@@ -132,6 +132,7 @@ impl<Finality: WriteFinality> ProcessL1Event for L1CommitWatcher<Finality> {
                 &format!("committed batch {}", batch_number),
             )
             .await?;
+            let commit_info = committed_batch.commit_info.clone();
 
             // todo: stop using this struct once fully migrated from S3
             let last_executed_batch_info = BatchInfo {
@@ -145,6 +146,7 @@ impl<Finality: WriteFinality> ProcessL1Event for L1CommitWatcher<Finality> {
             let committed_batch = DiscoveredCommittedBatch {
                 batch_info,
                 block_range: report.firstBlockNumber..=report.lastBlockNumber,
+                commit_info: Some(commit_info),
             };
 
             let last_committed_block = committed_batch.last_block_number();
@@ -157,7 +159,7 @@ impl<Finality: WriteFinality> ProcessL1Event for L1CommitWatcher<Finality> {
                      current batch {} block {}",
                     current.last_committed_batch,
                     current.last_committed_block,
-                )).into());
+                )));
             }
             self.finality.update_finality_status(|finality| {
                 finality.last_committed_batch = batch_number;

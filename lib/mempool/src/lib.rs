@@ -2,7 +2,7 @@ mod transaction;
 pub use transaction::L2PooledTransaction;
 
 mod config;
-pub use config::{TxValidatorConfig, DEFAULT_TX_FEE_CAP};
+pub use config::{DEFAULT_TX_FEE_CAP, TxValidatorConfig};
 
 pub mod subpools;
 

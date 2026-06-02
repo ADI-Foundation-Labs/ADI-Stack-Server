@@ -21,7 +21,7 @@ use zksync_os_l1_sender::commands::commit::CommitCommand;
 use zksync_os_l1_sender::commands::execute::ExecuteCommand;
 use zksync_os_l1_sender::commands::prove::ProofCommand;
 use zksync_os_mempool::{DEFAULT_TX_FEE_CAP, SubPoolLimit};
-use zksync_os_network::{SecretKey, NodeRecord};
+use zksync_os_network::{NodeRecord, SecretKey};
 use zksync_os_observability::LogFormat;
 use zksync_os_observability::opentelemetry::OpenTelemetryLevel;
 use zksync_os_operator_signer::SignerConfig;
@@ -61,6 +61,7 @@ pub struct Config {
     pub l1_sender_config: L1SenderConfig,
     pub l1_watcher_config: L1WatcherConfig,
     pub batcher_config: BatcherConfig,
+    pub external_da_config: ExternalDaConfig,
     pub prover_input_generator_config: ProverInputGeneratorConfig,
     pub prover_api_config: ProverApiConfig,
     pub status_server_config: StatusServerConfig,
@@ -209,6 +210,9 @@ impl Config {
         schema
             .insert(&BatcherConfig::DESCRIPTION, "batcher")
             .expect("Failed to insert batcher config");
+        schema
+            .insert(&ExternalDaConfig::DESCRIPTION, "external_da")
+            .expect("Failed to insert external DA config");
         schema
             .insert(
                 &ProverInputGeneratorConfig::DESCRIPTION,
@@ -904,6 +908,50 @@ pub struct BatcherConfig {
     pub assert_rebuilt_batch_hashes: bool,
 }
 
+/// External DA adapter settings.
+/// Used only when the chain runs in an external DA pubdata mode.
+#[derive(Clone, Debug, DescribeConfig, DeserializeConfig)]
+#[config(derive(Default))]
+pub struct ExternalDaConfig {
+    /// Whether external DA integration is enabled.
+    #[config(default_t = false)]
+    pub enabled: bool,
+
+    /// External DA provider identifier.
+    #[config(default_t = "avail".into())]
+    pub provider: String,
+
+    /// URL for publishing data to external DA.
+    /// Expected to accept POST JSON with chain/batch metadata and `pubdata_base64`.
+    /// If the response contains provider-specific DA payload, proof fetch is skipped.
+    pub publish_url: Option<String>,
+
+    /// URL for retrieving external DA proofs.
+    /// Expected to accept POST JSON with chain/batch metadata and `pubdata_hash`.
+    /// Response should contain provider-specific payload either directly or under `data`/`result`.
+    pub proof_url: Option<String>,
+
+    /// Optional API key for external DA provider.
+    #[config(secret)]
+    pub api_key: Option<SecretString>,
+
+    /// Timeout for requests to external DA provider.
+    #[config(default_t = 10 * TimeUnit::Seconds)]
+    pub request_timeout: Duration,
+
+    /// Maximum number of retries for external DA requests.
+    #[config(default_t = 3)]
+    pub max_retries: u32,
+
+    /// Backoff in milliseconds between retry attempts.
+    #[config(default_t = 1_000)]
+    pub retry_backoff_ms: u64,
+
+    /// Validate that the DA adapter returned a proof for the correct pubdata.
+    #[config(default_t = true)]
+    pub validate_pubdata_integrity: bool,
+}
+
 /// Only used on the Main Node.
 #[derive(Clone, Debug, DescribeConfig, DeserializeConfig)]
 #[config(derive(Default))]
@@ -1292,8 +1340,10 @@ impl From<NetworkConfig> for zksync_os_network::config::NetworkConfig {
             boot_nodes: value
                 .boot_nodes
                 .iter()
-                .map(|s| resolve_enode(s)
-                    .unwrap_or_else(|e| panic!("failed to resolve boot node `{s}`: {e}")))
+                .map(|s| {
+                    resolve_enode(s)
+                        .unwrap_or_else(|e| panic!("failed to resolve boot node `{s}`: {e}"))
+                })
                 .collect(),
         }
     }
@@ -1677,6 +1727,7 @@ mod tests {
             },
             l1_watcher_config: L1WatcherConfig::default(),
             batcher_config: BatcherConfig::default(),
+            external_da_config: ExternalDaConfig::default(),
             prover_input_generator_config: ProverInputGeneratorConfig::default(),
             prover_api_config: ProverApiConfig::default(),
             status_server_config: StatusServerConfig::default(),

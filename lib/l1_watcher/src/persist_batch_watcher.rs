@@ -80,6 +80,7 @@ impl<BatchStorage: WriteBatch> L1PersistBatchWatcher<BatchStorage> {
     ) -> Result<DiscoveredCommittedBatch, L1WatcherError> {
         let tx_hash = log.transaction_hash.expect("indexed log without tx hash");
         let committed_batch = util::fetch_commit_calldata(&self.zk_chain, tx_hash).await?;
+        let commit_info = committed_batch.commit_info.clone();
 
         // todo: stop using this struct once fully migrated from S3
         let last_executed_batch_info = BatchInfo {
@@ -92,6 +93,7 @@ impl<BatchStorage: WriteBatch> L1PersistBatchWatcher<BatchStorage> {
         Ok(DiscoveredCommittedBatch {
             batch_info,
             block_range: report.firstBlockNumber..=report.lastBlockNumber,
+            commit_info: Some(commit_info),
         })
     }
 

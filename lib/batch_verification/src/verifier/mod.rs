@@ -8,7 +8,7 @@ use secrecy::{ExposeSecret, SecretString};
 use std::str::FromStr;
 use tokio::sync::{broadcast, mpsc};
 use zksync_os_batch_types::BlockMerkleTreeData;
-use zksync_os_batch_types::{BatchInfo, BatchSignature};
+use zksync_os_batch_types::{BatchInfo, BatchSignature, decode_external_da_data_for_mode};
 use zksync_os_contract_interface::l1_discovery::{BatchVerificationSL, L1State};
 use zksync_os_interface::types::BlockOutput;
 use zksync_os_merkle_tree::TreeBatchOutput;
@@ -121,6 +121,14 @@ impl<Finality: ReadFinality, ReadState: ReadStateHistory>
 
         let state_view = self.read_state.state_view_at(request.last_block_number)?;
         let multichain_root = read_multichain_root(state_view);
+        let external_da_data = decode_external_da_data_for_mode(
+            request.pubdata_mode,
+            &request.commit_data.operator_da_input,
+        )
+        .map_err(|err| {
+            tracing::warn!("invalid external DA payload in verification request: {err}");
+            BatchVerificationError::BatchDataMismatch
+        })?;
 
         let batch_info = BatchInfo::new(
             blocks
@@ -141,7 +149,12 @@ impl<Finality: ReadFinality, ReadState: ReadStateHistory>
             self.l1_state.sl_chain_id,
             multichain_root,
             &blocks.first().unwrap().1.protocol_version,
-        );
+            external_da_data,
+        )
+        .map_err(|err| {
+            tracing::warn!("failed to build batch info during verification: {err}");
+            BatchVerificationError::BatchDataMismatch
+        })?;
 
         let expected_commit_data = normalized_commit_data(
             batch_info.commit_info.clone(),

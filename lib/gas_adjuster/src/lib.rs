@@ -248,6 +248,10 @@ impl GasAdjuster {
     }
 
     pub fn pubdata_price(&self) -> U256 {
+        /// The amount of gas we need to pay for each non-zero pubdata byte.
+        /// Note that it is bigger than 16 to account for potential overhead.
+        const L1_GAS_PER_PUBDATA_BYTE: u32 = 17;
+
         let price = match self.config.pubdata_mode {
             PubdataMode::Blobs => {
                 const BLOB_GAS_PER_BYTE: u128 = 1; // `BYTES_PER_BLOB` = `GAS_PER_BLOB` = 2 ^ 17.
@@ -256,14 +260,20 @@ impl GasAdjuster {
                 U256::from(blob_base_fee_median * BLOB_GAS_PER_BYTE)
             }
             PubdataMode::Calldata => {
-                /// The amount of gas we need to pay for each non-zero pubdata byte.
-                /// Note that it is bigger than 16 to account for potential overhead.
-                const L1_GAS_PER_PUBDATA_BYTE: u32 = 17;
-
                 U256::from(self.gas_price()).saturating_mul(U256::from(L1_GAS_PER_PUBDATA_BYTE))
             }
             PubdataMode::Validium => U256::from(0u32),
             PubdataMode::RelayedL2Calldata => self.gw_pubdata_price_statistics.median(),
+            PubdataMode::External => {
+                // Prefer settlement-layer reported pubdata price when available.
+                // If unavailable, fall back to calldata-based heuristic to keep fee estimation non-zero.
+                let reported_price = self.gw_pubdata_price_statistics.median();
+                if reported_price > U256::ZERO {
+                    reported_price
+                } else {
+                    U256::from(self.gas_price()).saturating_mul(U256::from(L1_GAS_PER_PUBDATA_BYTE))
+                }
+            }
         };
 
         if price <= U256::from(u128::MAX) {

@@ -365,6 +365,7 @@ pub async fn fetch_stored_batch_data(
         return Ok(None);
     };
     let committed_batch = fetch_commit_calldata(zk_chain, tx_hash).await?;
+    let commit_info = committed_batch.commit_info.clone();
 
     // todo: stop using this struct once fully migrated from S3
     let last_executed_batch_info = BatchInfo {
@@ -378,6 +379,7 @@ pub async fn fetch_stored_batch_data(
     Ok(Some(DiscoveredCommittedBatch {
         batch_info,
         block_range: log.firstBlockNumber..=log.lastBlockNumber,
+        commit_info: Some(commit_info),
     }))
 }
 
@@ -513,7 +515,11 @@ where
                         grace_period_sec = grace_period.as_secs(),
                         "Grace period expired, data not found in storage"
                     );
-                    panic!("{} is not present in storage after {} seconds grace period", context, grace_period.as_secs());
+                    panic!(
+                        "{} is not present in storage after {} seconds grace period",
+                        context,
+                        grace_period.as_secs()
+                    );
                 }
 
                 let remaining = grace_period - elapsed;
