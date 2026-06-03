@@ -27,6 +27,9 @@ const INITIAL_LOOKBEHIND_BLOCKS: u64 = 100_000;
 /// and we don't expect a lot of results.
 const UPGRADE_DATA_LOOKBEHIND_BLOCKS: u64 = 2_500_000;
 
+/// HOTFIX: number of confirmation blocks to consider an L1 block final, to avoid reorg issues.
+const CONFIRMATION_BLOCKS: u64 = 2;
+
 pub struct L1UpgradeTxWatcher {
     admin_contract: Address,
 
@@ -126,6 +129,10 @@ impl L1UpgradeTxWatcher {
         // each chain upgrades before the new upgrade is published.
         // This is a temporary solution and should be fixed ASAP.
         let mut current_block = self.provider.get_block_number().await?;
+
+        // HOTFIX: in case of reogranization, the current block may be invalidated after we fetch it.
+        current_block = current_block.saturating_sub(CONFIRMATION_BLOCKS);
+
         let start_block = current_block
             .saturating_sub(UPGRADE_DATA_LOOKBEHIND_BLOCKS) // Upgrade could've been set a long time ago.
             .max(1u64);
