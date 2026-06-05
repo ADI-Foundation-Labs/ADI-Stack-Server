@@ -213,14 +213,14 @@ impl PipelineComponent for ExternalNodeCommandSource {
                     let block_number = record.block_context.block_number;
                     let command = BlockCommand::Replay(Box::new(record));
 
-                    if let Some(expected) = current_block {
-                        if block_number != expected {
-                            tracing::warn!(
-                                expected,
-                                received = block_number,
-                                "Unexpected block number in replay stream"
-                            );
-                        }
+                    if let Some(expected) = current_block
+                        && block_number != expected
+                    {
+                        tracing::warn!(
+                            expected,
+                            received = block_number,
+                            "Unexpected block number in replay stream"
+                        );
                     }
 
                     if let Some(up_to_block) = self.up_to_block
