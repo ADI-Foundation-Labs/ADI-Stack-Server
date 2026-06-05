@@ -21,7 +21,7 @@ use zksync_os_l1_sender::commands::commit::CommitCommand;
 use zksync_os_l1_sender::commands::execute::ExecuteCommand;
 use zksync_os_l1_sender::commands::prove::ProofCommand;
 use zksync_os_mempool::{DEFAULT_TX_FEE_CAP, SubPoolLimit};
-use zksync_os_network::{SecretKey, NodeRecord};
+use zksync_os_network::{NodeRecord, SecretKey};
 use zksync_os_observability::LogFormat;
 use zksync_os_observability::opentelemetry::OpenTelemetryLevel;
 use zksync_os_operator_signer::SignerConfig;
@@ -1292,8 +1292,10 @@ impl From<NetworkConfig> for zksync_os_network::config::NetworkConfig {
             boot_nodes: value
                 .boot_nodes
                 .iter()
-                .map(|s| resolve_enode(s)
-                    .unwrap_or_else(|e| panic!("failed to resolve boot node `{s}`: {e}")))
+                .map(|s| {
+                    resolve_enode(s)
+                        .unwrap_or_else(|e| panic!("failed to resolve boot node `{s}`: {e}"))
+                })
                 .collect(),
         }
     }

@@ -32,8 +32,8 @@ use zksync_os_network::NodeRecord;
 pub use zksync_os_server::config::DeploymentFilterConfig;
 use zksync_os_server::config::{
     BatchVerificationConfig, Config, FakeFriProversConfig, FakeSnarkProversConfig, FeeConfig,
-    GeneralConfig, NetworkConfig, ProofStorageConfig, ProverApiConfig, ProverInputGeneratorConfig,
-    RpcConfig, PrivateApiConfig, SequencerConfig, StatusServerConfig,
+    GeneralConfig, NetworkConfig, PrivateApiConfig, ProofStorageConfig, ProverApiConfig,
+    ProverInputGeneratorConfig, RpcConfig, SequencerConfig, StatusServerConfig,
 };
 use zksync_os_server::default_protocol_version::{
     NEXT_PROTOCOL_VERSION, PROTOCOL_VERSION, PROTOCOL_VERSION_V31_0,
@@ -408,7 +408,10 @@ impl Tester {
             ..default_config.rpc_config
         };
         let private_api_config = PrivateApiConfig {
-            address: SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), private_api_locked_port.port),
+            address: SocketAddr::new(
+                IpAddr::V4(Ipv4Addr::LOCALHOST),
+                private_api_locked_port.port,
+            ),
         };
         let prover_api_config = ProverApiConfig {
             fake_fri_provers: FakeFriProversConfig {

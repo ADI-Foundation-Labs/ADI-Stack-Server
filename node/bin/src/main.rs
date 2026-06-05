@@ -132,7 +132,7 @@ pub async fn main() {
         observability_config.otlp.tracing_endpoint.clone(),
         observability_config.otlp.logging_endpoint.clone(),
     )
-        .expect("Failed to create OpenTelemetry config");
+    .expect("Failed to create OpenTelemetry config");
 
     let _observability_guard = zksync_os_observability::ObservabilityBuilder::new()
         .with_logs(Some(logs))

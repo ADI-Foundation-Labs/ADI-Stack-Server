@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use std::collections::HashSet;
 use std::time::Duration;
-use tokio::sync::{mpsc};
+use tokio::sync::mpsc;
 use zksync_os_pipeline::{PeekableReceiver, PipelineComponent};
 use zksync_os_raft::{ConsensusRole, LeadershipSignal};
 use zksync_os_sequencer::execution::block_context_provider::millis_since_epoch;

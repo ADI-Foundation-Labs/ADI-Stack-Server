@@ -4,8 +4,8 @@ use crate::{L1WatcherConfig, ProcessL1Event, util};
 use alloy::primitives::Address;
 use alloy::providers::{DynProvider, Provider};
 use alloy::rpc::types::Log;
-use tokio::sync::watch;
 use std::time::Duration;
+use tokio::sync::watch;
 use zksync_os_batch_types::{BatchInfo, DiscoveredCommittedBatch};
 use zksync_os_contract_interface::IExecutor::ReportCommittedBatchRangeZKsyncOS;
 use zksync_os_contract_interface::ZkChain;
@@ -157,7 +157,7 @@ impl<Finality: WriteFinality> ProcessL1Event for L1CommitWatcher<Finality> {
                      current batch {} block {}",
                     current.last_committed_batch,
                     current.last_committed_block,
-                )).into());
+                )));
             }
             self.finality.update_finality_status(|finality| {
                 finality.last_committed_batch = batch_number;
