@@ -21,11 +21,18 @@ ENV LD_LIBRARY_PATH=${LIBCLANG_PATH}:${LD_LIBRARY_PATH}
 
 COPY --from=planner /app/recipe.json recipe.json
 # Build dependencies (this is the caching Docker layer)
-RUN cargo chef cook --bin zksync-os-server --release --recipe-path recipe.json
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,target=/app/target \
+    cargo chef cook --bin zksync-os-server --release --recipe-path recipe.json
 
 # Build application
 COPY . .
-RUN cargo build --release --bin zksync-os-server
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,target=/app/target \
+    cargo build --release --bin zksync-os-server && \
+    cp target/release/zksync-os-server /usr/local/bin/zksync-os-server
 
 #################################
 # -------- Runtime -------------#
@@ -43,7 +50,7 @@ RUN useradd -m -u ${UID} app && \
     mkdir -p /db && chown -R app:app /db
 
 # ---- copy binary + genesis.json ----
-COPY --from=builder /app/target/release/zksync-os-server /usr/local/bin/
+COPY --from=builder /usr/local/bin/zksync-os-server /usr/local/bin/
 
 COPY --from=builder /app/local-chains/v30.2/default/genesis.json /app/local-chains/v30.2/default/genesis.json
 
