@@ -10,8 +10,9 @@ use zksync_os_storage_api::ReplayRecord;
 pub struct MainNodeProtocolConfig {
     /// Accepted verifier signers for this main node.
     pub accepted_verifier_signers: Vec<Address>,
-    /// Channel used to forward batch verification results back into the node.
-    pub verify_result_tx: mpsc::Sender<PeerVerifyBatchResult>,
+    /// Forwards `VerifyBatchResult` messages into the node pipeline. `None` for an EN acting as
+    /// replay server: ENs have no batch-verify pipeline, so any incoming result is a protocol error.
+    pub verify_result_tx: Option<mpsc::Sender<PeerVerifyBatchResult>>,
 }
 
 /// Dependencies required to run the external-node side of the `zks` protocol.

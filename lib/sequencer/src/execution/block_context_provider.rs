@@ -54,6 +54,11 @@ pub struct BlockContextProvider<Subpool> {
     last_constructed_block_ctx_sender: watch::Sender<Option<BlockContext>>,
     fee_provider: FeeProvider,
     config_overrides_receiver: watch::Receiver<ConfigOverrides>,
+    /// Set on EN. Skips `Pool::on_canonical_state_change` because EN's L1-fed
+    /// subpools are empty (no watcher populates them in time); the next `Replay`
+    /// supplies fresh `starting_cursors`. FIXME: also drops L2 mined-tx
+    /// tracking — needs per-subpool passive mode.
+    is_external_node: bool,
 }
 
 impl<Subpool: L2Subpool> BlockContextProvider<Subpool> {
@@ -77,6 +82,7 @@ impl<Subpool: L2Subpool> BlockContextProvider<Subpool> {
         last_constructed_block_ctx_sender: watch::Sender<Option<BlockContext>>,
         fee_provider: FeeProvider,
         config_overrides_receiver: watch::Receiver<ConfigOverrides>,
+        is_external_node: bool,
     ) -> Self {
         // If we're already past v31 and not on the very first block, the SetSLChainId tx
         // must have been included in a previous run. For v31 itself at block > 1, it was also
@@ -104,6 +110,7 @@ impl<Subpool: L2Subpool> BlockContextProvider<Subpool> {
             last_constructed_block_ctx_sender,
             fee_provider,
             config_overrides_receiver,
+            is_external_node,
         }
     }
 
@@ -398,31 +405,34 @@ impl<Subpool: L2Subpool> BlockContextProvider<Subpool> {
         replay_record: &ReplayRecord,
         strict_subpool_cleanup: bool,
     ) {
-        let outcome = self
-            .pool
-            .on_canonical_state_change(
-                block_output.header.clone(),
-                &block_output.account_diffs,
-                replay_record,
-                strict_subpool_cleanup,
-            )
-            .await;
-        if let Some(last_l1_priority_id) = outcome.last_l1_priority_id {
-            self.next_cursors.l1_priority_id = last_l1_priority_id + 1;
-            EXECUTION_METRICS
-                .next_l1_priority_id
-                .set(self.next_cursors.l1_priority_id);
-        }
-        if let Some(last_interop_log_id) = outcome.last_interop_log_id {
-            self.next_interop_tx_allowed_after = Instant::now() + self.service_block_delay;
-            self.next_cursors.interop_root_id = last_interop_log_id + 1;
-        }
+        // See `is_external_node` doc for the rationale.
+        if !self.is_external_node {
+            let outcome = self
+                .pool
+                .on_canonical_state_change(
+                    block_output.header.clone(),
+                    &block_output.account_diffs,
+                    replay_record,
+                    strict_subpool_cleanup,
+                )
+                .await;
+            if let Some(last_l1_priority_id) = outcome.last_l1_priority_id {
+                self.next_cursors.l1_priority_id = last_l1_priority_id + 1;
+                EXECUTION_METRICS
+                    .next_l1_priority_id
+                    .set(self.next_cursors.l1_priority_id);
+            }
+            if let Some(last_interop_log_id) = outcome.last_interop_log_id {
+                self.next_interop_tx_allowed_after = Instant::now() + self.service_block_delay;
+                self.next_cursors.interop_root_id = last_interop_log_id + 1;
+            }
 
-        if let Some(last_migration_number) = outcome.last_migration_number {
-            self.next_cursors.migration_number = last_migration_number + 1;
-        }
-        if let Some(last_interop_fee_number) = outcome.last_interop_fee_number {
-            self.next_cursors.interop_fee_number = last_interop_fee_number + 1;
+            if let Some(last_migration_number) = outcome.last_migration_number {
+                self.next_cursors.migration_number = last_migration_number + 1;
+            }
+            if let Some(last_interop_fee_number) = outcome.last_interop_fee_number {
+                self.next_cursors.interop_fee_number = last_interop_fee_number + 1;
+            }
         }
 
         // We update protocol version here, so that we take into account replay records with protocol version bumps.

@@ -1,57 +1,92 @@
 use super::MAX_BLOCKS_PER_MESSAGE;
+use super::ProtocolEvent;
 use super::config::{ExternalNodeProtocolConfig, ExternalNodeVerifierConfig};
+use super::upstream::UpstreamGuard;
 use crate::service::{PeerVerifyBatch, PeerVerifyBatchResult};
 use crate::version::ZksProtocolVersionSpec;
 use crate::wire::auth::{VerifierAuth, verifier_auth_prehash};
 use crate::wire::message::{ZksMessage, ZksMessageId};
 use crate::wire::replays::{RecordOverride, WireReplayRecord};
-use alloy::primitives::BlockNumber;
 use alloy::primitives::bytes::BytesMut;
+use alloy::primitives::{B256, BlockNumber};
 use alloy::signers::{SignerSync, local::PrivateKeySigner};
+use futures::FutureExt;
 use futures::{Stream, StreamExt};
 use reth_network_peers::PeerId;
 use secrecy::ExposeSecret;
+use std::collections::HashMap;
+use std::pin::Pin;
 use std::str::FromStr;
 use std::sync::{Arc, RwLock};
-use tokio::sync::{broadcast, mpsc};
-use zksync_os_storage_api::ReplayRecord;
+use tokio::sync::{OwnedSemaphorePermit, broadcast, mpsc};
+use zksync_os_storage_api::{ReadReplay, ReadReplayExt, ReplayRecord};
 
-/// Background task that drives an external-node side of a connection.
+/// Drives an external-node side of a `zks` connection as a per-node sync-state machine.
 ///
-/// Sends a `GetBlockReplays` request immediately, then forwards each received `BlockReplays`
-/// record to the local sequencer via `replay_sender` and advances `starting_block`.
-pub(super) async fn run_en_connection<P: ZksProtocolVersionSpec>(
+/// Role is chosen by the node's own sync state, never by connection direction. *Synced* means this
+/// node holds the shared [`UpstreamGuard`] (one peer is pinned as upstream).
+///
+/// On every link the driver:
+/// - sends a `GetBlockReplays` probe and, on the first **aligned** `BlockReplays` (its first record
+///   matches the local cursor), pins that peer via [`UpstreamGuard::try_acquire`] and applies the
+///   stream into the local pipeline;
+/// - serves `GetBlockReplays` from the local store for any peer that is not the pinned upstream (an
+///   empty store simply streams nothing until it fills, so sync propagates outward from the main
+///   node);
+/// - never serves the pinned upstream (loop prevention).
+///
+/// The alignment check is what keeps the single-upstream invariant safe: a non-pinned link left
+/// streaming from a stale offset never matches the cursor, so it is ignored rather than applied
+/// (which would panic the sequential `assert_eq!`). Re-parenting happens naturally: once the pinned
+/// link drops and the guard frees, the first connection to deliver a cursor-aligned block wins it.
+pub(super) async fn run_en_connection<P: ZksProtocolVersionSpec, Replay: ReadReplay + Clone>(
     mut conn: impl Stream<Item = ZksMessage<P>> + Unpin,
     outbound_tx: mpsc::Sender<BytesMut>,
+    events_sender: mpsc::UnboundedSender<ProtocolEvent>,
     peer_id: PeerId,
+    replay: Replay,
     config: ExternalNodeProtocolConfig,
+    upstream: UpstreamGuard,
 ) {
     let ExternalNodeProtocolConfig {
         starting_block,
         record_overrides,
         replay_sender,
-        verification: verifier,
+        verification,
     } = config;
-    if perform_verifier_handshake::<P>(&mut conn, &outbound_tx, verifier.as_ref())
+
+    // The verifier handshake (only when configured) must complete before our replay request: a
+    // serving peer stops accepting verifier messages once it begins streaming.
+    if perform_verifier_handshake::<P>(&mut conn, &outbound_tx, verification.as_ref())
         .await
         .is_err()
     {
         return;
     }
 
-    if send_replay_request::<P>(&outbound_tx, &starting_block, record_overrides)
-        .await
-        .is_err()
+    // Probe this link from the current cursor.
+    if send_replay_request::<P>(
+        &outbound_tx,
+        &starting_block,
+        record_overrides,
+        MAX_BLOCKS_PER_MESSAGE,
+    )
+    .await
+    .is_err()
     {
         return;
     }
+
     receive_replay_and_verification(
         conn,
         outbound_tx,
+        events_sender,
+        peer_id,
+        replay,
         starting_block,
         replay_sender,
-        peer_id,
-        verifier,
+        verification,
+        upstream,
     )
     .await;
 }
@@ -84,11 +119,15 @@ async fn perform_verifier_handshake<P: ZksProtocolVersionSpec>(
     let challenge = match conn.next().await {
         Some(ZksMessage::VerifierChallenge(challenge)) => challenge,
         Some(other) => {
+            // Peer does not support verifier role (e.g. another EN whose probe arrived before
+            // it could process our VerifierRoleRequest). Skip the handshake; the probe message
+            // is discarded here — the peer will not be served by us, which is fine since an
+            // EN-as-server holds no batch-verify pipeline.
             tracing::info!(
                 ?other,
-                "received unexpected message while waiting for verifier challenge; terminating"
+                "peer does not support verifier role; skipping handshake"
             );
-            return Err(());
+            return Ok(());
         }
         None => return Err(()),
     };
@@ -114,102 +153,218 @@ async fn send_replay_request<P: ZksProtocolVersionSpec>(
     outbound_tx: &mpsc::Sender<BytesMut>,
     starting_block: &Arc<RwLock<BlockNumber>>,
     record_overrides: Vec<RecordOverride>,
+    max_blocks_per_message: u64,
 ) -> Result<(), ()> {
     let next_block = *starting_block.read().unwrap();
-    tracing::info!(next_block, "requesting block replays from main node");
+    tracing::info!(next_block, "requesting block replays");
     let max_blocks_per_message = P::VERSION
         .supports_message(ZksMessageId::VerifierRoleRequest)
-        .then_some(MAX_BLOCKS_PER_MESSAGE);
+        .then_some(max_blocks_per_message.clamp(1, MAX_BLOCKS_PER_MESSAGE));
     let msg =
         ZksMessage::<P>::get_block_replays(next_block, max_blocks_per_message, record_overrides);
     outbound_tx.send(msg.encoded()).await.map_err(|_| ())
 }
 
-async fn receive_replay_and_verification<P: ZksProtocolVersionSpec>(
+async fn receive_replay_and_verification<P: ZksProtocolVersionSpec, Replay: ReadReplay + Clone>(
     mut conn: impl Stream<Item = ZksMessage<P>> + Unpin,
     outbound_tx: mpsc::Sender<BytesMut>,
+    events_sender: mpsc::UnboundedSender<ProtocolEvent>,
+    peer_id: PeerId,
+    replay: Replay,
     starting_block: Arc<RwLock<BlockNumber>>,
     replay_sender: mpsc::Sender<ReplayRecord>,
-    peer_id: PeerId,
     verifier: Option<ExternalNodeVerifierConfig>,
+    upstream: UpstreamGuard,
 ) {
+    // `Some` once this link has pinned `peer_id` as the single upstream.
+    let mut upstream_pin: Option<OwnedSemaphorePermit> = None;
+    // `Some` while serving `peer_id` from the local store; carries the peer's requested batch size.
+    let mut serve_stream: Option<(Pin<Box<dyn Stream<Item = ReplayRecord> + Send>>, usize)> = None;
+    let mut pending_verifier_nonce: Option<B256> = None;
     let mut outgoing_verify_results = verifier
         .as_ref()
-        .map(|verifier| verifier.outgoing_verify_results.subscribe());
-    loop {
+        .map(|v| v.outgoing_verify_results.subscribe());
+
+    'main: loop {
         tokio::select! {
             msg = conn.next() => {
                 let Some(msg) = msg else {
-                    break;
+                    break 'main;
                 };
                 match msg {
-                    ZksMessage::GetBlockReplays(_) => {
-                        tracing::info!("ignoring request as local node is also waiting for records");
-                    }
-                    ZksMessage::VerifyBatch(request) => {
-                        let Some(verifier) = &verifier else {
-                            tracing::info!("ignoring verify batch request; verifier transport not configured");
-                            continue;
-                        };
-                        if verifier
-                            .verify_batch_tx
-                            .send(PeerVerifyBatch {
-                                peer_id,
-                                message: request,
-                            })
-                            .await
-                            .is_err()
-                        {
-                            tracing::info!("verify batch channel is closed; terminating");
-                            break;
-                        }
-                    }
                     ZksMessage::BlockReplays(response) => {
+                        if upstream_pin.is_none() {
+                            // Pin this peer only if its stream is aligned with our cursor. This both
+                            // enforces the single upstream and rejects a stale stream left over from
+                            // before we synced through another link.
+                            let Some(first_block) =
+                                response.records.first().map(|record| record.block_number())
+                            else {
+                                continue;
+                            };
+                            if first_block != *starting_block.read().unwrap() {
+                                continue;
+                            }
+                            match upstream.try_acquire(peer_id) {
+                                Some(acquired) => {
+                                    upstream_pin = Some(acquired);
+                                    serve_stream = None;
+                                }
+                                None => continue,
+                            }
+                        }
                         for record in response.records {
                             let block_number = record.block_number();
-                            tracing::debug!(block_number, "received block replay");
                             let record: ReplayRecord = match record.try_into() {
                                 Ok(record) => record,
                                 Err(error) => {
                                     tracing::info!(%error, "failed to recover replay block");
-                                    return;
+                                    break 'main;
                                 }
                             };
-
                             let expected_next_block = *starting_block.read().unwrap();
                             assert_eq!(block_number, expected_next_block);
-
                             if replay_sender.send(record).await.is_err() {
                                 tracing::trace!("network replay channel is closed");
-                                return;
+                                break 'main;
                             }
                             *starting_block.write().unwrap() += 1;
                         }
                     }
-                    other => {
+                    ZksMessage::GetBlockReplays(request) => {
+                        // Serve any peer that is not our pinned upstream (loop prevention). An empty
+                        // store streams nothing until it holds the requested blocks.
+                        if upstream.current_upstream() != Some(peer_id) {
+                            events_sender
+                                .send(ProtocolEvent::ReplayRequested {
+                                    peer_id,
+                                    starting_block: request.starting_block,
+                                })
+                                .ok();
+                            let max_batch = request
+                                .max_blocks_per_message
+                                .unwrap_or(1)
+                                .clamp(1, MAX_BLOCKS_PER_MESSAGE) as usize;
+                            serve_stream = Some((
+                                Box::pin(
+                                    replay.clone().stream_from_forever(
+                                        request.starting_block,
+                                        HashMap::new(),
+                                    ),
+                                ),
+                                max_batch,
+                            ));
+                        }
+                    }
+                    ZksMessage::VerifyBatch(request) => match &verifier {
+                        Some(v) => {
+                            if v.verify_batch_tx
+                                .send(PeerVerifyBatch {
+                                    peer_id,
+                                    message: request,
+                                })
+                                .await
+                                .is_err()
+                            {
+                                tracing::info!("verify batch channel is closed; terminating");
+                                break 'main;
+                            }
+                        }
+                        None => tracing::info!(
+                            "ignoring verify batch request; verifier transport not configured"
+                        ),
+                    },
+                    ZksMessage::VerifierRoleRequest(_) => {
+                        // A downstream peer is attempting the verifier handshake. Complete it so
+                        // the peer's perform_verifier_handshake does not terminate the connection,
+                        // but accept no signers: the peer will fail auth and replay still streams.
+                        let nonce = B256::random();
+                        if outbound_tx
+                            .send(ZksMessage::<P>::verifier_challenge(nonce).encoded())
+                            .await
+                            .is_err()
+                        {
+                            break 'main;
+                        }
+                        pending_verifier_nonce = Some(nonce);
+                    }
+                    ZksMessage::VerifierAuth(_) => {
+                        // Auth is always rejected on the EN serve path; just clear the nonce.
+                        pending_verifier_nonce.take();
+                    }
+                    ZksMessage::VerifierChallenge(_) => {
+                        tracing::info!("ignoring unexpected verifier challenge");
+                    }
+                    ZksMessage::VerifyBatchResult(_) => {
                         tracing::info!(
-                            ?other,
-                            "ignoring unsupported message while waiting for replay"
+                            "ignoring verify batch result; EN has no verifier result transport"
                         );
                     }
                 }
             }
-            result = recv_outgoing_verify_result(&mut outgoing_verify_results) => {
-                let Some(result) = result else {
-                    continue;
-                };
-                if result.peer_id != peer_id {
-                    continue;
+            record = next_serve_record(&mut serve_stream) => {
+                match record {
+                    Some((first, max_batch)) => {
+                        let mut records = vec![first];
+                        if let Some((stream, _)) = serve_stream.as_mut() {
+                            while records.len() < max_batch {
+                                match stream.next().now_or_never() {
+                                    Some(Some(r)) => records.push(r),
+                                    _ => break,
+                                }
+                            }
+                        }
+                        let block_numbers: Vec<_> = records
+                            .iter()
+                            .map(|r| r.block_context.block_number)
+                            .collect();
+                        if outbound_tx
+                            .send(ZksMessage::<P>::block_replays(records).encoded())
+                            .await
+                            .is_err()
+                        {
+                            break 'main;
+                        }
+                        for block_number in block_numbers {
+                            events_sender
+                                .send(ProtocolEvent::ReplayBlockSent {
+                                    peer_id,
+                                    block_number,
+                                })
+                                .ok();
+                        }
+                    }
+                    None => serve_stream = None,
                 }
-                if outbound_tx
-                    .send(ZksMessage::<P>::VerifyBatchResult(result.message).encoded())
-                    .await
-                    .is_err()
+            }
+            result = recv_outgoing_verify_result(&mut outgoing_verify_results) => {
+                if let Some(result) = result
+                    && result.peer_id == peer_id
+                    && outbound_tx
+                        .send(ZksMessage::<P>::VerifyBatchResult(result.message).encoded())
+                        .await
+                        .is_err()
                 {
-                    break;
+                    break 'main;
                 }
             }
         }
+    }
+
+    // Release the upstream slot so another link can be pinned.
+    if upstream_pin.is_some() {
+        upstream.clear();
+    }
+}
+
+/// Awaits the first record to serve, returning it alongside the batch size. Returns `None` if the
+/// stream ends. Never resolves when not serving, so the select arm stays idle.
+async fn next_serve_record(
+    serve_stream: &mut Option<(Pin<Box<dyn Stream<Item = ReplayRecord> + Send>>, usize)>,
+) -> Option<(ReplayRecord, usize)> {
+    match serve_stream.as_mut() {
+        Some((stream, max_batch)) => stream.next().await.map(|r| (r, *max_batch)),
+        None => std::future::pending().await,
     }
 }
 

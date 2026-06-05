@@ -117,6 +117,12 @@ pub(super) async fn run_mn_connection<P: ZksProtocolVersionSpec, Replay: ReadRep
             msg = conn.next() => {
                 match msg {
                     Some(ZksMessage::VerifyBatchResult(result)) => {
+                        let Some(verify_result_tx) = &verify_result_tx else {
+                            tracing::info!(
+                                "received verify result but verifier transport is disabled; terminating"
+                            );
+                            return;
+                        };
                         if verify_result_tx
                             .send(PeerVerifyBatchResult {
                                 peer_id,

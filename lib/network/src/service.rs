@@ -1,7 +1,7 @@
 use crate::config::NetworkConfig;
 use crate::protocol::{
     ConnectionRegistry, ExternalNodeProtocolConfig, HandlerSharedState, MainNodeProtocolConfig,
-    ProtocolEvent, ZksProtocolConfig, ZksProtocolHandler,
+    ProtocolEvent, UpstreamGuard, ZksProtocolConfig, ZksProtocolHandler,
 };
 use crate::session::PeerSessionStore;
 use crate::version::{ZksProtocolV1, ZksProtocolV2, ZksProtocolV3};
@@ -339,22 +339,28 @@ impl NetworkService {
         connection_registry: ConnectionRegistry,
     ) -> NetworkConfigBuilder {
         let state = HandlerSharedState::new(protocol_tx, MAX_ACTIVE_CONNECTIONS);
+        // One shared guard for all four version handlers: an EN consumes from at most one upstream
+        // across every `zks` protocol version.
+        let upstream = UpstreamGuard::new();
         builder
             .add_rlpx_sub_protocol(ZksProtocolHandler::<ZksProtocolV1, _>::for_external_node(
                 replay.clone(),
                 protocol.clone(),
+                upstream.clone(),
                 state.clone(),
                 connection_registry.clone(),
             ))
             .add_rlpx_sub_protocol(ZksProtocolHandler::<ZksProtocolV2, _>::for_external_node(
                 replay.clone(),
                 protocol.clone(),
+                upstream.clone(),
                 state.clone(),
                 connection_registry.clone(),
             ))
             .add_rlpx_sub_protocol(ZksProtocolHandler::<ZksProtocolV3, _>::for_external_node(
                 replay,
                 protocol,
+                upstream,
                 state,
                 connection_registry,
             ))

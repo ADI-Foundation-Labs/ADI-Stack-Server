@@ -21,6 +21,7 @@ pub mod js_tracer;
 mod log_proof_utils;
 mod monitoring_middleware;
 mod net_impl;
+mod readiness_middleware;
 mod sandbox;
 mod tx_handler;
 mod types;
@@ -35,6 +36,7 @@ use crate::eth_pubsub_impl::EthPubsubNamespace;
 use crate::monitoring_middleware::Monitoring;
 use crate::net_impl::NetNamespace;
 use crate::ots_impl::OtsNamespace;
+use crate::readiness_middleware::Readiness;
 use crate::unstable_impl::UnstableNamespace;
 use crate::web3_impl::Web3Namespace;
 use crate::zks_impl::ZksNamespace;
@@ -136,7 +138,9 @@ pub async fn spawn<RpcStorage: ReadRpcStorage, Mempool: L2Subpool>(
     let middleware = tower::ServiceBuilder::new().layer(cors);
 
     let max_response_size_bytes = config.max_response_size_bytes();
+    let (ready_tx, ready_rx) = watch::channel(false);
     let rpc_middleware = RpcServiceBuilder::new()
+        .layer_fn(move |service| Readiness::new(service, ready_rx.clone()))
         .layer_fn(move |service| Monitoring::new(service, max_response_size_bytes));
 
     let server_config = ServerConfigBuilder::default()
@@ -159,14 +163,22 @@ pub async fn spawn<RpcStorage: ReadRpcStorage, Mempool: L2Subpool>(
     runtime.spawn_critical_with_graceful_shutdown_signal("rpc server", |shutdown| async move {
         tokio::pin!(shutdown);
 
+        // Start immediately so static config methods (chain ID, bridgehub address, genesis) are
+        // always available. The Readiness middleware gates state-dependent methods until the DB
+        // is ready, returning -32000 instead of silently hanging.
+        let server_handle = server.start(rpc);
+
+        // Signal DB readiness, or stop the server if shutdown fires first.
         tokio::select! {
-            _ready = wait_for_db => {}
+            _ = wait_for_db => { ready_tx.send(true).ok(); }
             _guard = &mut shutdown => {
+                server_handle.stop().expect("failed to stop server");
+                server_handle.stopped().await;
+                tracing::info!("RPC server graceful shutdown complete");
                 return;
             }
         }
 
-        let server_handle = server.start(rpc);
         tokio::select! {
             // The JSON-RPC server stopped on its own before shutdown was requested.
             _ = server_handle.clone().stopped() => {

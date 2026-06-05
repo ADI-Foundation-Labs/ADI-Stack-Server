@@ -43,6 +43,7 @@ use alloy::primitives::BlockNumber;
 use alloy::providers::fillers::{FillProvider, TxFiller};
 use alloy::providers::{Provider, ProviderBuilder, WalletProvider};
 use anyhow::Context;
+use backon::{ExponentialBuilder, Retryable};
 use jsonrpsee::http_client::HttpClient;
 use priority_tree_pipeline_step::PriorityTreePipelineStep;
 use reth_tasks::Runtime;
@@ -178,7 +179,16 @@ pub async fn run<State: ReadStateHistory + WriteState + StateInitializer + Clone
                 .main_node_rpc_url
                 .clone()
                 .expect("Missing `main_node_rpc_url` in external node config");
-            load_remote_config(&main_node_rpc_url, &config.genesis_config)
+            (|| load_remote_config(&main_node_rpc_url, &config.genesis_config))
+                .retry(
+                    ExponentialBuilder::default()
+                        .with_min_delay(Duration::from_secs(1))
+                        .with_max_delay(Duration::from_secs(30))
+                        .with_max_times(10),
+                )
+                .notify(|err, delay| {
+                    tracing::warn!(%err, ?delay, "failed to load remote config; retrying");
+                })
                 .await
                 .expect("Cannot load remote config from Main Node")
         };
@@ -432,7 +442,7 @@ pub async fn run<State: ReadStateHistory + WriteState + StateInitializer + Clone
                 config.network_config.clone().into(),
                 ZksProtocolConfig::MainNode(MainNodeProtocolConfig {
                     accepted_verifier_signers,
-                    verify_result_tx: verify_result_tx.clone(),
+                    verify_result_tx: Some(verify_result_tx.clone()),
                 }),
                 block_replay_storage.clone(),
                 zk_provider_factory,
@@ -757,6 +767,7 @@ pub async fn run<State: ReadStateHistory + WriteState + StateInitializer + Clone
         last_constructed_block_ctx_sender,
         fee_provider,
         config_overrides_receiver.clone(),
+        node_role.is_external(),
     );
 
     // ========== Start L1 Upgrade Watcher ===========
