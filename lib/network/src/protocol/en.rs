@@ -194,17 +194,19 @@ async fn receive_replay_and_verification<P: ZksProtocolVersionSpec, Replay: Read
                 match msg {
                     ZksMessage::BlockReplays(response) => {
                         if upstream_pin.is_none() {
-                            // Pin this peer only if its stream is aligned with our cursor. This both
-                            // enforces the single upstream and rejects a stale stream left over from
-                            // before we synced through another link.
+                            // Skip, if response is empty.
                             let Some(first_block) =
                                 response.records.first().map(|record| record.block_number())
                             else {
                                 continue;
                             };
+                            // Skip, if response is not aligned with the local cursor.
+                            // This rejects a stale stream left over from before we synced through another link.
                             if first_block != *starting_block.read().unwrap() {
                                 continue;
                             }
+                            // Try to pin this peer as the single upstream,
+                            // otherwise - skip.
                             match upstream.try_acquire(peer_id) {
                                 Some(acquired) => {
                                     upstream_pin = Some(acquired);
@@ -213,6 +215,7 @@ async fn receive_replay_and_verification<P: ZksProtocolVersionSpec, Replay: Read
                                 None => continue,
                             }
                         }
+                        // Consume the replay stream into the local pipeline.
                         for record in response.records {
                             let block_number = record.block_number();
                             let record: ReplayRecord = match record.try_into() {
