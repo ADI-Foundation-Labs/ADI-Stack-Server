@@ -513,7 +513,11 @@ where
                         grace_period_sec = grace_period.as_secs(),
                         "Grace period expired, data not found in storage"
                     );
-                    panic!("{} is not present in storage after {} seconds grace period", context, grace_period.as_secs());
+                    panic!(
+                        "{} is not present in storage after {} seconds grace period",
+                        context,
+                        grace_period.as_secs()
+                    );
                 }
 
                 let remaining = grace_period - elapsed;

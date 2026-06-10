@@ -68,11 +68,11 @@ use zksync_os_l1_sender::commands::commit::CommitCommand;
 use zksync_os_l1_sender::commands::prove::ProofCommand;
 use zksync_os_l1_sender::pipeline_component::L1Sender;
 use zksync_os_l1_sender::upgrade_gatekeeper::UpgradeGatekeeper;
+use zksync_os_l1_watcher::util as l1_watcher_util;
 use zksync_os_l1_watcher::{
     CommittedBatchProvider, GatewayMigrationWatcher, L1CommitWatcher, L1ExecuteWatcher,
     L1TxWatcher, L1UpgradeTxWatcher,
 };
-use zksync_os_l1_watcher::util as l1_watcher_util;
 use zksync_os_l1_watcher::{InteropWatcher, L1PersistBatchWatcher};
 use zksync_os_mempool::Pool;
 use zksync_os_mempool::subpools::interop_fee::InteropFeeSubpool;
@@ -335,7 +335,8 @@ pub async fn run<State: ReadStateHistory + WriteState + StateInitializer + Clone
             &l1_state,
             &committed_batch_provider,
             config.l1_watcher_config.proof_storage_grace_period,
-        ).await;
+        )
+        .await;
 
     let node_startup_state = NodeStateOnStartup {
         node_role,
@@ -681,7 +682,10 @@ pub async fn run<State: ReadStateHistory + WriteState + StateInitializer + Clone
             pubdata_price: config.fee_config.pubdata_price_override.map(U256::from),
             native_price: config.fee_config.native_price_override.map(U256::from),
         },
-        config.general_config.rocks_db_path.join(CONFIG_OVERRIDES_FILE),
+        config
+            .general_config
+            .rocks_db_path
+            .join(CONFIG_OVERRIDES_FILE),
     )
     .await
     .expect("Failed to start private API server");
@@ -1390,9 +1394,9 @@ async fn commit_proof_execute_block_numbers(
             Duration::from_secs(5),
             &format!("committed batch {} in proof storage", batch_num),
         )
-            .await
-            .expect("Failed during retry of committed batch lookup")
-            .last_block_number()
+        .await
+        .expect("Failed during retry of committed batch lookup")
+        .last_block_number()
     };
 
     // only used to log on node startup
@@ -1406,9 +1410,9 @@ async fn commit_proof_execute_block_numbers(
             Duration::from_secs(5),
             &format!("proved batch {} in proof storage", batch_num),
         )
-            .await
-            .expect("Failed during retry of proved batch lookup")
-            .last_block_number()
+        .await
+        .expect("Failed during retry of proved batch lookup")
+        .last_block_number()
     };
 
     let last_executed_block = if l1_state.last_executed_batch == 0 {
@@ -1421,9 +1425,9 @@ async fn commit_proof_execute_block_numbers(
             Duration::from_secs(5),
             &format!("executed batch {} in proof storage", batch_num),
         )
-            .await
-            .expect("Failed during retry of executed batch lookup")
-            .last_block_number()
+        .await
+        .expect("Failed during retry of executed batch lookup")
+        .last_block_number()
     };
     (last_committed_block, last_proved_block, last_executed_block)
 }

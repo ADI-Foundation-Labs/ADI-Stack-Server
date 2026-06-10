@@ -115,7 +115,7 @@ impl<Finality: WriteFinality> ProcessL1Event for L1ExecuteWatcher<Finality> {
                      current batch {} block {}",
                     current.last_executed_batch,
                     current.last_executed_block,
-                )).into());
+                )));
             }
             self.finality.update_finality_status(|finality| {
                 finality.last_executed_batch = batch_number;
