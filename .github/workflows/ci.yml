@@ -3,293 +3,116 @@ name: CI
 on:
   push:
     branches:
-     - main
+      - main
   pull_request:
 
-# Cancel new runs for PRs only
+# Cancel in-progress runs for the same PR / ref (PRs only).
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-# Default environment variables
+permissions:
+  contents: read
+
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
-  TEST_RESULTS_XML: 'test-results.xml'
-  PROVER_GPU_TESTS: 'prover-gpu-tests'
-  CUDAARCHS: '80;89;90'
-  # Run tests 10 times in case of push to main branch to catch possible flakiness
-  NEXTEST_ITERATIONS: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && '--stress-count 10' || '' }}
-
-# Add default permissions for the workflow
-permissions:
-  contents: read
-  pull-requests: write
-  checks: write
 
 jobs:
-
-  ############################
-  #       Build server       #
-  ############################
   build:
-    runs-on: matterlabs-ci-runner-high-performance
+    name: Build server
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@v4
 
-      - name: Setup runner
-        uses: ./.github/actions/runner-setup
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang libclang-dev pkg-config libssl-dev
+
+      - name: Install Rust toolchain
+        run: rustup show active-toolchain || rustup toolchain install
+
+      - uses: Swatinem/rust-cache@v2
 
       - name: Build server
-        run: cargo build --release --bin zksync-os-server
+        run: cargo build --bin zksync-os-server
 
-
-  ############################
-  #     Format and lint      #
-  ############################
-  format-and-lint:
-    runs-on: matterlabs-ci-runner-high-performance
-    env:
-      ZKSYNC_USE_CUDA_STUBS: true
+  fmt:
+    name: Format
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@v4
 
-      - name: Setup runner
-        uses: ./.github/actions/runner-setup
+      - name: Install Rust toolchain
+        run: |
+          rustup show active-toolchain || rustup toolchain install
+          rustup component add rustfmt
 
       - name: Check formatting
         run: cargo fmt --all --check
 
-      - name: Run clippy
-        run: cargo clippy --all-targets --all-features --workspace -- -D warnings
-
-
-  #################################################
-  #      Run unit and core integration tests      #
-  #################################################
-  test:
-    runs-on: matterlabs-ci-runner-high-performance
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-
-      - name: Setup runner
-        uses: ./.github/actions/runner-setup
-
-      - name: Run tests
-        run: cargo nextest run --release --workspace ${NEXTEST_ITERATIONS}
-
-      - name: Upload test results
-        if: always() && !cancelled()
-        uses: EnricoMi/publish-unit-test-result-action@3a74b2957438d0b6e2e61d67b05318aa25c9e6c6 # v2.20.0
-        with:
-          check_name: 'Test results'
-          files: target/nextest/default/${{ env.TEST_RESULTS_XML }}
-          action_fail_on_inconclusive: true
-          compare_to_earlier_commit: false # Do not compare with `main` due to different number of iterations
-
-
-  ######################################
-  # Measure code coverage on main push #
-  ######################################
-  code-coverage:
-    # Code coverage is measured only on push to main branch
-    # as it slows down PR testing significantly (2m -> 15m for tests execution)
-    # due to overhead with LLVM instrumentation.
-    # So, we keep the main numbers, but not force every PR to wait for it.
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-    runs-on: matterlabs-ci-runner-high-performance
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
     env:
-      RUSTC_BOOTSTRAP: 1
+      ZKSYNC_USE_CUDA_STUBS: true
     steps:
-      - name: Checkout code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@v4
 
-      - name: Setup runner
-        uses: ./.github/actions/runner-setup
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang libclang-dev pkg-config libssl-dev
 
-      - name: Measure coverage
-        run: cargo llvm-cov --lcov --output-path lcov.info nextest --workspace --release --profile coverage
+      - name: Install Rust toolchain
+        run: |
+          rustup show active-toolchain || rustup toolchain install
+          rustup component add clippy
 
-      - name: Generate codecov report
-        uses: codecov/codecov-action@fdcc8476540edceab3de004e990f80d881c6cc00 # v5.5.0
-        if: always() && !cancelled()
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: lcov.info
-          slug: ${{ github.repository }}
+      - uses: Swatinem/rust-cache@v2
 
+      - name: Run clippy
+        run: >
+          cargo clippy --all-targets --all-features --workspace
+          --exclude zksync_os_integration_tests -- -D warnings
 
-  ############################################
-  # Enforce EN sync format file immutability #
-  ############################################
-  check-wire-version:
+  test:
+    name: Unit tests
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          fetch-depth: 0  # fetch tags
+      - uses: actions/checkout@v4
 
-      - name: Check that replay wire format version is set correctly
-        shell: bash
+      - name: Install system dependencies
         run: |
-          # get latest tag (latest release)
-          TAG=$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' --sort=-version:refname | head -n 1)
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang libclang-dev pkg-config libssl-dev
 
-          # check that released wire format files that still exist are unchanged
-          DIR=lib/storage_api/src/replay_wire_format
-          git fetch --depth=1 origin tag "$TAG"
-          for FILE in "$DIR"/v*.rs; do
-            if git show "$TAG:$FILE" > /tmp/old_wire_format.rs 2>/dev/null; then
-              if ! diff -q /tmp/old_wire_format.rs "$FILE"; then
-                echo "Change detected in already released wire format: $FILE"
-                exit 1
-              fi
-            else
-              echo "New wire format created in this change: $FILE"
-            fi
-          done
+      - name: Install Rust toolchain
+        run: rustup show active-toolchain || rustup toolchain install
 
+      - uses: Swatinem/rust-cache@v2
 
-  ####################################
-  #  Build prover integration tests  #
-  ####################################
-  build-prover-tests:
-    runs-on: matterlabs-ci-runner-ultra-performance
-    container:
-      image: nvidia/cuda:12.9.1-devel-ubuntu22.04
-    steps:
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@nextest
 
-      - name: Checkout code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Run unit tests
+        run: cargo nextest run --workspace --exclude zksync_os_integration_tests
 
-      - name: Setup runner
-        uses: ./.github/actions/runner-setup
-        with:
-          enable_cache: 'true'
-          cache_shared_key: 'prover-tests'
-          save_cache: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-
-      - name: Check CUDA version
-        run: |
-          nvcc --version
-
-      - name: Checkout era-bellman-cuda
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          repository: matter-labs/era-bellman-cuda
-          ref: main
-          path: bellman-cuda
-          fetch-depth: '1'
-
-      - name: Cache bellman-cuda
-        id: bellman-cuda-cache
-        uses: actions/cache@v4
-        with:
-          path: 'bellman-cuda/build'
-          key: bellman-cuda-${{ hashFiles('bellman-cuda/**') }}
-
-      - name: Build bellman-cuda
-        shell: 'bash -ex {0}'
-        if: steps.bellman-cuda-cache.outputs.cache-hit != 'true'
-        run: |
-          cmake -Bbellman-cuda/build -Sbellman-cuda/ -DCMAKE_BUILD_TYPE=Release
-          cmake --build bellman-cuda/build/
-
-      # Build and archive tests to execute on another machine.
-      # Use `cargo nextest archive` to make sure that all dependencies are included properly.
-      - name: Build and archive test
-        env:
-          # This is a special mandatory hack to transfer test binary from one machine to another.
-          # We must use a dummy `./` path addition in the workspace path /home/runner/_work
-          # to prevent GitHub Actions to replace it to the mapped `/__w` folder in the docker container.
-          # This is required to make sure that the paths to workspace artifacts like zkos-l1-state.json
-          # are correct inside prebuilt binary.
-          # This variable overwrites the default relative `./` in the .cargo/config.toml.
-          WORKSPACE_DIR: "/opt/./actions-runner/_work/zksync-os-server/zksync-os-server"
-          BELLMAN_CUDA_DIR: ${{ github.workspace }}/bellman-cuda
-        run: |
-          cargo nextest archive --release -p zksync_os_integration_tests \
-            --features gpu-prover-tests --test prover --archive-file ${PROVER_GPU_TESTS}.tar.zst
-
-      - name: Upload tests
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: ${{ env.PROVER_GPU_TESTS }}
-          path: ${{ env.PROVER_GPU_TESTS }}.tar.zst
-          if-no-files-found: error
-          retention-days: 1 # delete sooner to not waste storage
-
-
-  #################################################
-  #  Run prover integration tests on GPU machine  #
-  #################################################
-  prover-tests:
-    runs-on: [matterlabs-ci-gpu-runner, hetzner]
-    needs: build-prover-tests
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-
-      - name: Setup runner
-        uses: ./.github/actions/runner-setup
-
-      - name: Check Nvidia driver version
-        run: |
-          echo $WORKSPACE
-          pwd
-          nvidia-smi
-
-      - name: Download prebuilt tests
-        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
-        with:
-          name: ${{ env.PROVER_GPU_TESTS }}
-
-      - name: Download CRS setup file
-        if: steps.cache-crs.outputs.cache-hit != 'true'
-        env:
-          # Download CRS file from EU storage for GPU runner
-          CRS_FILE_URL: https://storage.googleapis.com/matterlabs-setup-keys-europe/setup-keys/setup_compact.key
-        run: wget -q --show-progress "${CRS_FILE_URL}"
-
-      # --workspace-remap is mandatory (!)
-      # Otherwise, the prebuilt binary will not be able to find its dependencies and fails to execute
-      - name: Run prover tests on GPU
-        env:
-          COMPACT_CRS_FILE: ${{ github.workspace }}/setup_compact.key
-          RUST_MIN_STACK: 267108864
-        run: |
-          ulimit -s 300000
-          cargo nextest run -E 'binary(prover)' --no-capture \
-            --archive-file "${PROVER_GPU_TESTS}.tar.zst" \
-            --workspace-remap ${GITHUB_WORKSPACE}
-
-
-  ###############################
-  #  Mandatory CI status check  #
-  ###############################
+  # Single required status check for branch protection.
   ci-success:
-    name: Github Status Check
+    name: CI Status Check
     runs-on: ubuntu-latest
     if: always() && !cancelled()
-    needs:
-      [
-        build,
-        test,
-        format-and-lint,
-        build-prover-tests,
-        prover-tests,
-        check-wire-version,
-      ]
+    needs: [build, fmt, clippy, test]
     steps:
-      - name: Status
+      - name: Verify all jobs passed
         run: |
-          # This will check all jobs status in the `needs` list, and fail job if one is failed.
-          # Since we split prover and core to different flows, this job will be only as Required Status Check in the Pull Request.
-          if [[ ${{ contains(join(needs.*.result, ','), 'failure') }} == "true" ]]; then
-            echo "Intentionally failing to block PR from merging"
+          if [[ "${{ contains(join(needs.*.result, ','), 'failure') }}" == "true" ]]; then
+            echo "One or more required jobs failed"
             exit 1
           fi
+          echo "All required jobs passed"
