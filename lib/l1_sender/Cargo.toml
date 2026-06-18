@@ -38,7 +38,8 @@ futures.workspace = true
 ruint.workspace = true
 serde.workspace = true
 secrecy.workspace = true
-tokio.workspace = true
+# `time` is needed for the `tokio::time::timeout` send-phase bound in `run_l1_sender`.
+tokio = { workspace = true, features = ["time"] }
 tracing.workspace = true
 time = { workspace = true, features = ["parsing", "formatting"] }
 itertools.workspace = true
@@ -46,3 +47,19 @@ vise.workspace = true
 
 [dev-dependencies]
 serde_json.workspace = true
+# `zksync_os_types` only compiles with its `reth` feature on (it references
+# `reth_primitives_traits` unconditionally). In a `--workspace` build this is
+# enabled via feature unification; enable it here so `-p zksync_os_l1_sender`
+# tests build standalone too.
+zksync_os_types = { workspace = true, features = ["reth"] }
+# Needed to build a custom hanging `Transport` for the freeze-reproduction test.
+tower.workspace = true
+alloy = { workspace = true, default-features = false, features = ["json-rpc"] }
+tokio = { workspace = true, features = [
+    "macros",
+    "rt-multi-thread",
+    "time",
+    "sync",
+    # `test-util` enables the paused virtual clock used by the "red" timeout test.
+    "test-util",
+] }

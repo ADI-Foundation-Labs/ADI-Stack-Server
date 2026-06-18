@@ -6,6 +6,9 @@ mod metrics;
 pub mod pipeline_component;
 pub mod upgrade_gatekeeper;
 
+#[cfg(test)]
+mod freeze_repro_tests;
+
 use crate::batcher_model::{FriProof, SignedBatchEnvelope};
 use crate::commands::{L1SenderCommand, SendToL1};
 use crate::config::L1SenderConfig;
@@ -38,6 +41,15 @@ use zksync_os_pipeline::PeekableReceiver;
 /// lower gas price transactions. We picked 300 seconds conservatively as it should cover most
 /// scenarios with network congestion.
 const TRANSACTION_TIMEOUT: Duration = Duration::from_secs(300);
+
+/// Maximum time to wait for the *send* phase — building and submitting the L1
+/// transactions (everything between the "sending L1 transactions" and
+/// "sent to L1, waiting for inclusion" log lines) — to complete.
+///
+/// Without this bound, an unresponsive L1 RPC in the send path makes
+/// `run_l1_sender` hang forever: none of those RPC calls have a timeout, and
+/// `TRANSACTION_TIMEOUT` only covers the later inclusion wait.
+const SEND_TIMEOUT: Duration = Duration::from_secs(120);
 
 /// Future that resolves into a (fallible) transaction receipt.
 type TransactionReceiptFuture =
@@ -126,7 +138,10 @@ pub async fn run_l1_sender<Input: SendToL1>(
         // so that we send them downstream also in order.
         // This holds true because l1 transactions are included in the order of sender nonce.
         // Keep this in mind if changing sending logic (that is, if adding `buffer` we'd need to set nonce manually)
-        let pending_txs: Vec<(TransactionReceiptFuture, Input)> =
+        // Future that submits every command's L1 transaction (without waiting for
+        // inclusion). It is identical in the OLD and NEW variants below; only how we
+        // await it differs — see the toggle blocks after the stream.
+        let send_fut =
             futures::stream::iter(commands.drain(..))
                 .then(|mut cmd| async {
                     let mut tx_request = tx_request_with_gas_fields(
@@ -199,8 +214,24 @@ pub async fn run_l1_sender<Input: SendToL1>(
                 })
                 // We could buffer the stream here to enable sending multiple batches of transactions in parallel,
                 // but this is not necessary for now - we wait for them to be included in parallel
-                .try_collect::<Vec<_>>()
-                .await?;
+                .try_collect::<Vec<_>>();
+
+        // ===== OLD (buggy) variant — no timeout. A hung L1 RPC freezes the sender
+        //       here forever (between this point and "sent to L1, waiting for
+        //       inclusion"). To restore the original behavior, comment out the NEW
+        //       block below and uncomment this single line. =====
+        // let pending_txs: Vec<(TransactionReceiptFuture, Input)> = send_fut.await?;
+
+        // ===== NEW (minimal fix) — bound the send phase with `SEND_TIMEOUT`. A hung
+        //       L1 RPC now surfaces as an error, so the sender crashes and recovers on
+        //       restart instead of hanging indefinitely. Comment out this block and
+        //       uncomment the OLD line above to switch back. =====
+        let pending_txs: Vec<(TransactionReceiptFuture, Input)> =
+            tokio::time::timeout(SEND_TIMEOUT, send_fut)
+                .await
+                .context("timed out while sending L1 transactions to L1")??;
+        // ===== END send-phase variants =====
+
         tracing::info!(command_name, range, "sent to L1, waiting for inclusion");
         latency_tracker.enter_state(L1SenderState::WaitingL1Inclusion);
 
