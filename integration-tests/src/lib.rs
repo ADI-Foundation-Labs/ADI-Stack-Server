@@ -16,8 +16,8 @@ use tokio::task::JoinHandle;
 use zksync_os_object_store::{ObjectStoreConfig, ObjectStoreMode};
 use zksync_os_server::config::{
     BatchVerificationConfig, Config, FakeFriProversConfig, FakeSnarkProversConfig, GeneralConfig,
-    GenesisConfig, ProverApiConfig, ProverInputGeneratorConfig, RpcConfig, SequencerConfig,
-    StatusServerConfig,
+    GenesisConfig, PrivateApiConfig, ProverApiConfig, ProverInputGeneratorConfig, RpcConfig,
+    SequencerConfig, StatusServerConfig,
 };
 use zksync_os_state_full_diffs::FullDiffsState;
 
@@ -155,6 +155,8 @@ impl Tester {
         let replay_locked_port = LockedPort::acquire_unused().await?;
         let status_locked_port = LockedPort::acquire_unused().await?;
         let batch_verification_locked_port = LockedPort::acquire_unused().await?;
+        let private_api_locked_port = LockedPort::acquire_unused().await?;
+        let private_api_address = format!("127.0.0.1:{}", private_api_locked_port.port);
         let l2_rpc_address = format!("0.0.0.0:{}", l2_locked_port.port);
         let l2_rpc_ws_url = format!("ws://localhost:{}", l2_locked_port.port);
         let prover_api_address = format!("0.0.0.0:{}", prover_api_locked_port.port);
@@ -237,6 +239,9 @@ impl Tester {
                 ..Default::default()
             },
             rpc_config,
+            private_api_config: PrivateApiConfig {
+                address: private_api_address.parse().unwrap(),
+            },
             mempool_config: Default::default(),
             tx_validator_config: Default::default(),
             sequencer_config,
