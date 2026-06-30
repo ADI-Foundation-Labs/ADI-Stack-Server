@@ -5,6 +5,11 @@ use alloy::providers::{DynProvider, Provider};
 use alloy::rpc::types::{Filter, Log};
 use std::time::Duration;
 
+/// HOTFIX: number of latest L1 blocks to leave unprocessed.
+/// A reorg between fetching the head and querying logs can otherwise make the requested `to_block`
+/// exceed the new head, which providers reject with "block range extends beyond current head block".
+const CONFIRMATION_BLOCKS: u64 = 2;
+
 /// An abstract watcher for L1 events.
 /// Handles polling L1 for new blocks and extracting logs,
 /// while delegating the actual event processing to a user-provided processor.
@@ -52,7 +57,13 @@ impl L1Watcher {
     }
 
     async fn poll(&mut self) -> Result<(), L1WatcherError> {
-        let latest_block = self.provider.get_block_number().await?;
+        // HOTFIX: leave the most recent `CONFIRMATION_BLOCKS` unprocessed to avoid querying past the
+        // head after a reorg.
+        let latest_block = self
+            .provider
+            .get_block_number()
+            .await?
+            .saturating_sub(CONFIRMATION_BLOCKS);
 
         while self.next_l1_block <= latest_block {
             let from_block = self.next_l1_block;
