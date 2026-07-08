@@ -15,6 +15,7 @@ zksync_os_mini_merkle_tree.workspace = true
 zksync_os_observability.workspace = true
 zksync_os_merkle_tree.workspace = true
 zksync_os_pipeline.workspace = true
+zksync_os_rpc_private.workspace = true
 zksync_os_types.workspace = true
 zksync_os_batch_types.workspace = true
 

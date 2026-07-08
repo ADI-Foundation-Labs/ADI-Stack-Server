@@ -7,8 +7,9 @@ use alloy::primitives::Address;
 use alloy::providers::fillers::{FillProvider, TxFiller};
 use alloy::providers::{Provider, WalletProvider};
 use async_trait::async_trait;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, watch};
 use zksync_os_pipeline::{PeekableReceiver, PipelineComponent};
+use zksync_os_rpc_private::ConfigOverrides;
 
 /// Generic L1 Sender pipeline component
 /// Can be used for commit, prove, or execute operations
@@ -16,6 +17,7 @@ pub struct L1Sender<F: TxFiller<Ethereum>, P: Provider<Ethereum>, C> {
     pub provider: FillProvider<F, P>,
     pub config: L1SenderConfig<C>,
     pub to_address: Address,
+    pub config_overrides_receiver: watch::Receiver<ConfigOverrides>,
 }
 
 #[async_trait]
@@ -36,6 +38,14 @@ where
         input: PeekableReceiver<Self::Input>,
         output: mpsc::Sender<Self::Output>,
     ) -> anyhow::Result<()> {
-        run_l1_sender(input, output, self.to_address, self.provider, self.config).await
+        run_l1_sender(
+            input,
+            output,
+            self.to_address,
+            self.provider,
+            self.config,
+            self.config_overrides_receiver,
+        )
+        .await
     }
 }
