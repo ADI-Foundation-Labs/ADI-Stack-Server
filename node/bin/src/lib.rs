@@ -493,6 +493,13 @@ pub async fn run<State: ReadStateHistory + WriteState + StateInitializer + Clone
             base_fee: config.sequencer_config.base_fee_override.map(U256::from),
             pubdata_price: config.sequencer_config.pubdata_price_override.map(U256::from),
             native_price: config.sequencer_config.native_price_override.map(U256::from),
+            l1_sender_max_fee_per_gas_wei: Some(config.l1_sender_config.max_fee_per_gas.0),
+            l1_sender_max_priority_fee_per_gas_wei: Some(
+                config.l1_sender_config.max_priority_fee_per_gas.0,
+            ),
+            l1_sender_max_fee_per_blob_gas_wei: Some(
+                config.l1_sender_config.max_fee_per_blob_gas.0,
+            ),
         },
         config.general_config.rocks_db_path.join(CONFIG_OVERRIDES_FILE),
     )
@@ -532,7 +539,7 @@ pub async fn run<State: ReadStateHistory + WriteState + StateInitializer + Clone
         node_version,
         current_protocol_version.clone(),
         config.sequencer_config.fee_collector_address,
-        config_overrides_receiver,
+        config_overrides_receiver.clone(),
         pubdata_price_receiver,
         pending_block_context_sender,
         config.l1_sender_config.pubdata_mode,
@@ -598,6 +605,7 @@ pub async fn run<State: ReadStateHistory + WriteState + StateInitializer + Clone
             tx_acceptance_state_sender,
             batch_ranges_for_batcher,
             last_executed_batch_data,
+            config_overrides_receiver,
         )
         .await;
     } else {
@@ -649,6 +657,7 @@ async fn run_main_node_pipeline(
     tx_acceptance_state_sender: watch::Sender<TransactionAcceptanceState>,
     batch_ranges_for_batcher: tokio::sync::mpsc::Receiver<CommittedBatch>,
     last_executed_batch_data: StoredBatchData,
+    config_overrides_receiver: watch::Receiver<ConfigOverrides>,
 ) {
     let (fri_proving_step, fri_job_manager) = FriProvingPipelineStep::new(
         batch_storage.clone(),
@@ -765,6 +774,7 @@ async fn run_main_node_pipeline(
             provider: l1_provider.clone(),
             config: config.l1_sender_config.clone().into(),
             to_address: node_state_on_startup.l1_state.validator_timelock,
+            config_overrides_receiver: config_overrides_receiver.clone(),
         })
         .pipe(snark_proving_step)
         .pipe(GaplessL1ProofSender::new(
@@ -774,6 +784,7 @@ async fn run_main_node_pipeline(
             provider: l1_provider.clone(),
             config: config.l1_sender_config.clone().into(),
             to_address: node_state_on_startup.l1_state.validator_timelock,
+            config_overrides_receiver: config_overrides_receiver.clone(),
         })
         .pipe(
             PriorityTreePipelineStep::new(
@@ -789,6 +800,7 @@ async fn run_main_node_pipeline(
             provider: l1_provider,
             config: config.l1_sender_config.clone().into(),
             to_address: node_state_on_startup.l1_state.validator_timelock,
+            config_overrides_receiver,
         })
         .pipe(BatchSink::new(internal_config_manager))
         .spawn(tasks);

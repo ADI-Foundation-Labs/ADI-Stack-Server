@@ -8,6 +8,9 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 use tokio::sync::watch;
 
+#[cfg(test)]
+mod tests;
+
 /// Configuration overrides that can be set via private API.
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
@@ -18,6 +21,12 @@ pub struct ConfigOverrides {
     pub pubdata_price: Option<U256>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub native_price: Option<U256>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub l1_sender_max_fee_per_gas_wei: Option<u128>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub l1_sender_max_priority_fee_per_gas_wei: Option<u128>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub l1_sender_max_fee_per_blob_gas_wei: Option<u128>,
 }
 
 impl ConfigOverrides {
@@ -32,7 +41,10 @@ impl ConfigOverrides {
     /// Save config overrides to file.
     fn save_to_file(&self, path: &PathBuf) -> anyhow::Result<()> {
         let json = serde_json::to_string_pretty(self)?;
-        std::fs::write(path, json)?;
+        // Write atomically (tmp + rename) so a crash mid-write can't corrupt the file.
+        let tmp_path = path.with_extension("json.tmp");
+        std::fs::write(&tmp_path, json)?;
+        std::fs::rename(&tmp_path, path)?;
         Ok(())
     }
 
@@ -42,6 +54,15 @@ impl ConfigOverrides {
             base_fee: self.base_fee.or(fallback.base_fee),
             pubdata_price: self.pubdata_price.or(fallback.pubdata_price),
             native_price: self.native_price.or(fallback.native_price),
+            l1_sender_max_fee_per_gas_wei: self
+                .l1_sender_max_fee_per_gas_wei
+                .or(fallback.l1_sender_max_fee_per_gas_wei),
+            l1_sender_max_priority_fee_per_gas_wei: self
+                .l1_sender_max_priority_fee_per_gas_wei
+                .or(fallback.l1_sender_max_priority_fee_per_gas_wei),
+            l1_sender_max_fee_per_blob_gas_wei: self
+                .l1_sender_max_fee_per_blob_gas_wei
+                .or(fallback.l1_sender_max_fee_per_blob_gas_wei),
         }
     }
 
@@ -52,6 +73,13 @@ impl ConfigOverrides {
                 "base_fee" => self.base_fee = None,
                 "pubdata_price" => self.pubdata_price = None,
                 "native_price" => self.native_price = None,
+                "l1_sender_max_fee_per_gas_wei" => self.l1_sender_max_fee_per_gas_wei = None,
+                "l1_sender_max_priority_fee_per_gas_wei" => {
+                    self.l1_sender_max_priority_fee_per_gas_wei = None
+                }
+                "l1_sender_max_fee_per_blob_gas_wei" => {
+                    self.l1_sender_max_fee_per_blob_gas_wei = None
+                }
                 _ => tracing::warn!("Unknown field to remove: {}", field),
             }
         }
@@ -107,7 +135,11 @@ impl ConfigApiServer for ConfigNamespace {
         let current = self.receiver.borrow().clone();
         let updated = current.remove_fields(fields.clone());
         self.sender.send_replace(updated.clone());
-        tracing::info!(?fields, ?updated, "config overrides removed via private API");
+        tracing::info!(
+            ?fields,
+            ?updated,
+            "config overrides removed via private API"
+        );
         Ok(())
     }
 
@@ -131,7 +163,7 @@ pub async fn run_private_rpc_server(
 
     // Load from file if exists, merge with fallback
     let loaded = ConfigOverrides::load_from_file(&persistence_path)
-        .inspect_err(|e| tracing::debug!(?e, "Could not load config overrides from file"))
+        .inspect_err(|e| tracing::warn!(?e, "Could not load config overrides from file"))
         .ok();
 
     let initial = loaded

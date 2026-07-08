@@ -29,8 +29,10 @@ use secrecy::{ExposeSecret, SecretString};
 use std::str::FromStr;
 use std::time::Duration;
 use tokio::sync::mpsc::Sender;
+use tokio::sync::watch;
 use zksync_os_observability::{ComponentStateHandle, ComponentStateReporter};
 use zksync_os_pipeline::PeekableReceiver;
+use zksync_os_rpc_private::ConfigOverrides;
 
 /// Maximum time to wait for a transaction to be included on L1.
 ///
@@ -73,6 +75,7 @@ pub async fn run_l1_sender<Input: SendToL1>(
         impl Provider<Ethereum>,
     >,
     config: L1SenderConfig<Input>,
+    config_overrides_receiver: watch::Receiver<ConfigOverrides>,
 ) -> anyhow::Result<()> {
     let latency_tracker =
         ComponentStateReporter::global().handle_for(Input::NAME, L1SenderState::WaitingRecv);
@@ -129,11 +132,27 @@ pub async fn run_l1_sender<Input: SendToL1>(
         let pending_txs: Vec<(TransactionReceiptFuture, Input)> =
             futures::stream::iter(commands.drain(..))
                 .then(|mut cmd| async {
+                    // Fee params can be overridden at runtime via the private API;
+                    // fall back to the static config when no override is set.
+                    let (max_fee_per_gas, max_priority_fee_per_gas, max_fee_per_blob_gas) = {
+                        let overrides = config_overrides_receiver.borrow();
+                        (
+                            overrides
+                                .l1_sender_max_fee_per_gas_wei
+                                .unwrap_or(config.max_fee_per_gas_wei),
+                            overrides
+                                .l1_sender_max_priority_fee_per_gas_wei
+                                .unwrap_or(config.max_priority_fee_per_gas_wei),
+                            overrides
+                                .l1_sender_max_fee_per_blob_gas_wei
+                                .unwrap_or(config.max_fee_per_blob_gas_wei),
+                        )
+                    };
                     let mut tx_request = tx_request_with_gas_fields(
                         &provider,
                         operator_address,
-                        config.max_fee_per_gas_wei,
-                        config.max_priority_fee_per_gas_wei,
+                        max_fee_per_gas,
+                        max_priority_fee_per_gas,
                     )
                     .await?
                     .with_to(to_address)
@@ -141,7 +160,6 @@ pub async fn run_l1_sender<Input: SendToL1>(
 
                     if let Some(blob_sidecar) = cmd.blob_sidecar() {
                         let fee_per_blob_gas = provider.get_blob_base_fee().await?;
-                        let max_fee_per_blob_gas = config.max_fee_per_blob_gas_wei;
 
                         if fee_per_blob_gas > max_fee_per_blob_gas {
                             tracing::warn!(
