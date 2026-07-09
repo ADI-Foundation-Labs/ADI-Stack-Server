@@ -38,7 +38,7 @@ We aim to make it as easy as possible to contribute to the mission. This is stil
 and suggestions here too. Some resources to help:
 
 1. [In-repo docs aimed at developers](docs)
-2. [ZKsync Era docs!](https://docs.adi.foundation/)
+2. [ADI Stack docs](https://docs.adi.foundation/)
 3. Company links can be found in the [repositories' readme](README.md)
 
 ## Code of Conduct
