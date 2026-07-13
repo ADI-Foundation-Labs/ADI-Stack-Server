@@ -8,27 +8,27 @@ fn full_overrides() -> ConfigOverrides {
         base_fee: Some(U256::from(1)),
         pubdata_price: Some(U256::from(2)),
         native_price: Some(U256::from(3)),
-        l1_sender_max_fee_per_gas_wei: Some(20_000_000_000),
-        l1_sender_max_priority_fee_per_gas_wei: Some(10_000_000_000),
-        l1_sender_max_fee_per_blob_gas_wei: Some(5_000_000_000),
+        l1_sender_max_fee_per_gas_wei: Some(U256::from(20_000_000_000u64)),
+        l1_sender_max_priority_fee_per_gas_wei: Some(U256::from(10_000_000_000u64)),
+        l1_sender_max_fee_per_blob_gas_wei: Some(U256::from(5_000_000_000u64)),
     }
 }
 
 #[test]
 fn merge_prefers_self_over_fallback() {
     let this = ConfigOverrides {
-        l1_sender_max_fee_per_gas_wei: Some(42),
+        l1_sender_max_fee_per_gas_wei: Some(U256::from(42)),
         ..Default::default()
     };
     let merged = this.merge_with(full_overrides());
-    assert_eq!(merged.l1_sender_max_fee_per_gas_wei, Some(42));
+    assert_eq!(merged.l1_sender_max_fee_per_gas_wei, Some(U256::from(42)));
     assert_eq!(
         merged.l1_sender_max_priority_fee_per_gas_wei,
-        Some(10_000_000_000)
+        Some(U256::from(10_000_000_000u64))
     );
     assert_eq!(
         merged.l1_sender_max_fee_per_blob_gas_wei,
-        Some(5_000_000_000)
+        Some(U256::from(5_000_000_000u64))
     );
     assert_eq!(merged.base_fee, Some(U256::from(1)));
 }
@@ -77,11 +77,11 @@ fn save_and_load_round_trip() {
 #[test]
 fn none_fields_are_omitted_from_json() {
     let overrides = ConfigOverrides {
-        l1_sender_max_fee_per_gas_wei: Some(7),
+        l1_sender_max_fee_per_gas_wei: Some(U256::from(7)),
         ..Default::default()
     };
     let json = serde_json::to_string(&overrides).unwrap();
-    assert_eq!(json, r#"{"l1_sender_max_fee_per_gas_wei":7}"#);
+    assert_eq!(json, r#"{"l1_sender_max_fee_per_gas_wei":"0x7"}"#);
 }
 
 #[test]

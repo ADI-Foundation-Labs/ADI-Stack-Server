@@ -139,12 +139,15 @@ pub async fn run_l1_sender<Input: SendToL1>(
                         (
                             overrides
                                 .l1_sender_max_fee_per_gas_wei
+                                .map(|v| v.saturating_to::<u128>())
                                 .unwrap_or(config.max_fee_per_gas_wei),
                             overrides
                                 .l1_sender_max_priority_fee_per_gas_wei
+                                .map(|v| v.saturating_to::<u128>())
                                 .unwrap_or(config.max_priority_fee_per_gas_wei),
                             overrides
                                 .l1_sender_max_fee_per_blob_gas_wei
+                                .map(|v| v.saturating_to::<u128>())
                                 .unwrap_or(config.max_fee_per_blob_gas_wei),
                         )
                     };

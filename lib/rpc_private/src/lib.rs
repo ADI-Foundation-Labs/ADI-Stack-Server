@@ -22,11 +22,11 @@ pub struct ConfigOverrides {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub native_price: Option<U256>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub l1_sender_max_fee_per_gas_wei: Option<u128>,
+    pub l1_sender_max_fee_per_gas_wei: Option<U256>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub l1_sender_max_priority_fee_per_gas_wei: Option<u128>,
+    pub l1_sender_max_priority_fee_per_gas_wei: Option<U256>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub l1_sender_max_fee_per_blob_gas_wei: Option<u128>,
+    pub l1_sender_max_fee_per_blob_gas_wei: Option<U256>,
 }
 
 impl ConfigOverrides {
