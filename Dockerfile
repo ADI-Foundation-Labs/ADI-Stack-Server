@@ -32,10 +32,10 @@ RUN cargo build --release --bin zksync-os-server
 #################################
 FROM debian:stable-slim
 
-# ---- minimal runtime deps + tini ----
+# ---- minimal runtime deps + tini + heaptrack (profiling) ----
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-        libssl3 ca-certificates tini && \
+        libssl3 ca-certificates tini heaptrack && \
     rm -rf /var/lib/apt/lists/*
 
 ARG UID=10001
@@ -53,6 +53,6 @@ WORKDIR /app
 EXPOSE 3050 3124 3312 3053
 VOLUME ["/db"]
 
-ENTRYPOINT ["/usr/bin/tini", "--", "zksync-os-server"]
+ENTRYPOINT ["/usr/bin/tini", "--", "heaptrack", "--output", "/db/heaptrack", "zksync-os-server"]
 
 LABEL org.opencontainers.image.title="zksync-os-server"
