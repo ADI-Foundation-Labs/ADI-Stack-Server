@@ -10,12 +10,15 @@ use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::watch;
 use zksync_os_genesis::Genesis;
-use zksync_os_rocksdb::RocksDB;
+use zksync_os_rocksdb::{RocksDB, RocksDBOptions};
 use zksync_os_rocksdb::db::{NamedColumnFamily, WriteBatch};
 use zksync_os_storage_api::{
     ReadRepository, RepositoryBlock, RepositoryResult, StoredTxData, TxMeta,
 };
 use zksync_os_types::{ZkEnvelope, ZkReceiptEnvelope, ZkTransaction};
+
+/// Block cache for the repository DB (also bounds SST index/filter memory). Scanned widely by `eth_getLogs`.
+const BLOCK_CACHE_CAPACITY_BYTES: usize = 2 * 1024 * 1024 * 1024;
 
 #[derive(Clone, Copy, Debug)]
 pub enum RepositoryCF {
@@ -76,7 +79,11 @@ pub struct RepositoryDb {
 
 impl RepositoryDb {
     pub async fn new(db_path: &Path, genesis: &Genesis) -> Self {
-        let db = RocksDB::<RepositoryCF>::new(db_path).expect("Failed to open db");
+        let db = RocksDB::<RepositoryCF>::with_options(
+            db_path,
+            RocksDBOptions::read_optimized(BLOCK_CACHE_CAPACITY_BYTES),
+        )
+        .expect("Failed to open db");
         let latest_block_number = db
             .get_cf(RepositoryCF::Meta, RepositoryCF::block_number_key())
             .unwrap()

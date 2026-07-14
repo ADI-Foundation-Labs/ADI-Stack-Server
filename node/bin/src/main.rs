@@ -38,7 +38,6 @@ struct Cli {
 
 #[tokio::main]
 pub async fn main() {
-    println!("Global allocator: {:?}", GLOBAL_ALLOCATOR);
     let opt = Cli::parse();
 
     // =========== load configs ===========
