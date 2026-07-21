@@ -7,7 +7,7 @@ use axum::{
 };
 use base64::{Engine, engine::general_purpose};
 use http::StatusCode;
-use zksync_os_l1_sender::batcher_model::{FriProof, ProverInput};
+use zksync_os_batch_types::batcher_model::{FriProof, ProverInput};
 use zksync_os_types::ProvingVersion;
 
 use crate::prover_api::fri_job_manager::SubmitError;
@@ -159,6 +159,10 @@ pub(super) async fn submit_fri_proof(
         Err(SubmitError::DeserializationFailed(err)) => {
             Err((StatusCode::BAD_REQUEST, err.to_string()))
         }
+        Err(SubmitError::ShuttingDown) => Err((
+            StatusCode::SERVICE_UNAVAILABLE,
+            "server is shutting down".to_string(),
+        )),
         Err(SubmitError::Other(e)) => {
             tracing::error!("internal error: {e}");
             Err((StatusCode::INTERNAL_SERVER_ERROR, e))

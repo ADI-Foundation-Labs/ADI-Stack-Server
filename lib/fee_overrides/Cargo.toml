@@ -10,7 +10,7 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-zksync_os_interface.workspace = true
+zksync_os_storage_api.workspace = true
 
 alloy = { workspace = true, default-features = false }
 serde.workspace = true

@@ -1,10 +1,10 @@
-use crate::batcher_metrics::BatchExecutionStage;
-use crate::batcher_model::{FriProof, SignedBatchEnvelope, SnarkProof};
 use crate::commands::SendToL1;
 use alloy::primitives::{Address, B256, Bytes, U256, keccak256};
 use alloy::sol_types::SolCall;
 use std::collections::HashMap;
 use std::fmt::Display;
+use zksync_os_batch_types::batcher_model::{FriProof, SignedBatchEnvelope, SnarkProof};
+use zksync_os_batcher_metrics::BatchExecutionStage;
 use zksync_os_contract_interface::IExecutor;
 use zksync_os_contract_interface::IExecutor::{proofPayloadCall, proveBatchesSharedBridgeCall};
 use zksync_os_contract_interface::models::StoredBatchInfo;
@@ -21,19 +21,24 @@ pub struct ProofCommand {
 
 impl ProofCommand {
     pub fn new(batches: Vec<SignedBatchEnvelope<FriProof>>, proof: SnarkProof) -> Self {
+        assert!(
+            !batches.is_empty(),
+            "ProofCommand must contain at least one batch"
+        );
         Self { batches, proof }
     }
 }
 
 impl SendToL1 for ProofCommand {
-    const NAME: &'static str = "prove";
+    const COMPONENT_ID: zksync_os_pipeline::ComponentId =
+        zksync_os_pipeline::ComponentId::L1SenderProve;
     const SENT_STAGE: BatchExecutionStage = BatchExecutionStage::ProveL1TxSent;
     const MINED_STAGE: BatchExecutionStage = BatchExecutionStage::ProveL1TxMined;
     const PASSTHROUGH_STAGE: BatchExecutionStage = BatchExecutionStage::ProveL1Passthrough;
 
-    fn solidity_call(&self, _gateway: bool, _operator: &Address) -> Bytes {
+    fn solidity_call(&self, _operator: &Address) -> Bytes {
         proveBatchesSharedBridgeCall::new((
-            self.batches.first().unwrap().batch.batch_info.chain_address,
+            self.batches.first().unwrap().batch.chain_address,
             U256::from(self.batches.first().unwrap().batch_number()),
             U256::from(self.batches.last().unwrap().batch_number()),
             self.to_calldata_suffix().into(),
@@ -130,13 +135,7 @@ impl ProofCommand {
         let stored_batch_infos: Vec<StoredBatchInfo> = self
             .batches
             .iter()
-            .map(|batch| {
-                batch
-                    .batch
-                    .batch_info
-                    .clone()
-                    .into_stored(&batch.batch.protocol_version)
-            })
+            .map(|batch| batch.batch.batch_info.clone().into_stored())
             .collect();
         // todo: awful and temporary
         let verifier_version = match self.proof.proving_execution_version() {
@@ -145,6 +144,7 @@ impl ProofCommand {
             Some(4) => 4,
             Some(5) => 5,
             Some(6) => 6,
+            Some(7) => 0,
             Some(execution_version) => panic!(
                 "unsupported or old execution version: {execution_version}; there's no verifier defined for it"
             ),

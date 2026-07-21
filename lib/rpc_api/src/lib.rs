@@ -3,7 +3,9 @@ pub mod eth;
 pub mod filter;
 pub mod net;
 pub mod ots;
+#[cfg(feature = "server")]
 pub mod pubsub;
+pub mod txpool;
 pub mod types;
 pub mod unstable;
 pub mod web3;

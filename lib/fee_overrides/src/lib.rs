@@ -14,7 +14,7 @@
 //! [`ConfigOverrides::apply_to`].
 
 use alloy::primitives::U256;
-use zksync_os_interface::types::BlockContext;
+use zksync_os_storage_api::BlockContext;
 
 /// Runtime overrides for fee-related fields of a produced block.
 ///

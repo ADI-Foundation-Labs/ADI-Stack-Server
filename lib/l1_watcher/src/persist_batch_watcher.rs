@@ -1,24 +1,30 @@
 use crate::traits::ProcessRawEvents;
-use crate::watcher::{L1Watcher, L1WatcherError};
+use crate::watcher::{L1WatcherError, StartResolver};
 use crate::{L1WatcherConfig, util};
-use alloy::primitives::Address;
-use alloy::providers::{DynProvider, Provider};
-use alloy::rpc::types::{Log, Topic, ValueOrArray};
+use alloy::rpc::types::{Log, Topic};
 use alloy::sol_types::SolEvent;
+use anyhow::Context;
 use std::collections::HashMap;
-use zksync_os_batch_types::{BatchInfo, DiscoveredCommittedBatch};
+use zksync_os_batch_types::DiscoveredCommittedBatch;
 use zksync_os_contract_interface::IExecutor::{BlockExecution, ReportCommittedBatchRangeZKsyncOS};
 use zksync_os_contract_interface::ZkChain;
+use zksync_os_provider::NodeProvider;
 use zksync_os_storage_api::{PersistedBatch, WriteBatch};
 
-/// Persists executed batches via [`WriteBatch`].
-/// Note: batches are discovered by `commit_watcher.rs` from L1 as soon as they are committed.
-/// However, `commit_watcher.rs` only saves them **in memory** (via `committed_batch_provider.rs`).
-/// Only when batch is also executed on L1, this logic kicks in and batches are **persisted on disc**.
-/// Committed batches can be rolled back on L1, which is not the case for executed - so this separation
-/// ensures that we don't need to rollback any persistent node state on L1 commit rollback.
+/// Watches finalized commit and execute events together and persists only irreversibly executed
+/// batches.
+///
+/// This component keeps committed batches in memory until the matching `BlockExecution` event
+/// arrives in a finalized settlement-layer block, and only then writes a `PersistedBatch` through
+/// `WriteBatch`. That split avoids having to roll back persistent storage for batches that were
+/// committed or executed but later reverted on L1.
+///
+/// Depended on by:
+/// - `ExecutedBatchStorage`, which is the concrete persistent store typically passed into this
+///   watcher;
+/// - `RpcStorage` and RPC namespaces, which read persisted batch data to answer batch- and
+///   proof-related requests;
 pub struct L1PersistBatchWatcher<BatchStorage> {
-    zk_chain: ZkChain<DynProvider>,
     batch_storage: BatchStorage,
     committed_batches: HashMap<u64, DiscoveredCommittedBatch>,
     last_processed_commit_batch: u64,
@@ -26,69 +32,69 @@ pub struct L1PersistBatchWatcher<BatchStorage> {
 }
 
 impl<BatchStorage: WriteBatch> L1PersistBatchWatcher<BatchStorage> {
-    pub async fn create_watcher(
+    /// Builds a finalized-boundary [`L1Watcher`](crate::L1Watcher) tailing the L1 diamond proxy.
+    /// Block resolution happens lazily inside the resolver so the starting
+    /// `last_persisted_batch` is read only once the watcher actually starts.
+    pub fn create_watcher(
         config: L1WatcherConfig,
-        zk_chain: ZkChain<DynProvider>,
+        zk_chain: ZkChain<NodeProvider>,
         batch_storage: BatchStorage,
-        l1_chain_id: u64,
-    ) -> anyhow::Result<L1Watcher> {
-        let current_l1_block = zk_chain.provider().get_block_number().await?;
-        let last_persisted_batch = batch_storage.latest_batch();
+    ) -> StartResolver<(), Self> {
         tracing::info!(
-            current_l1_block,
-            last_persisted_batch,
             config.max_blocks_to_process,
             ?config.poll_interval,
-            zk_chain_address = ?zk_chain.address(),
             "initializing L1 persist batch watcher"
         );
-        let last_l1_block = util::find_l1_commit_block_by_batch_number(
-            zk_chain.clone(),
-            last_persisted_batch,
-            config.max_blocks_to_process,
-        )
-        .await?;
-        tracing::info!(last_l1_block, "resolved on L1");
 
-        let this = Self {
-            zk_chain: zk_chain.clone(),
-            batch_storage,
-            committed_batches: HashMap::new(),
-            last_processed_commit_batch: last_persisted_batch,
-            last_persisted_batch_on_start: last_persisted_batch,
+        let provider = zk_chain.provider().clone();
+        let address = (*zk_chain.address()).into();
+
+        let resolve_start = move |()| async move {
+            let last_persisted_batch = batch_storage.latest_batch();
+            tracing::info!(
+                last_persisted_batch,
+                "resolving L1 persist batch watcher start block"
+            );
+
+            // Start at `last_persisted_batch` so we re-validate it on resume; at genesis batch 0
+            // resolves to the deployment block, scanning the whole history.
+            let (start_block, _) =
+                util::find_l1_commit_block_by_batch_number(&zk_chain, last_persisted_batch)
+                    .await
+                    .with_context(|| {
+                        format!("failed to find L1 commit for batch #{last_persisted_batch}")
+                    })?;
+
+            let processor = Self {
+                batch_storage,
+                committed_batches: HashMap::new(),
+                last_processed_commit_batch: last_persisted_batch,
+                last_persisted_batch_on_start: last_persisted_batch,
+            };
+            Ok((start_block, processor))
         };
-        let l1_watcher = L1Watcher::new(
-            zk_chain.provider().clone(),
-            // We start from last L1 block as it may contain more committed batches apart from the last
-            // one.
-            last_l1_block,
-            config.max_blocks_to_process,
-            config.confirmations,
-            l1_chain_id,
-            config.poll_interval,
-            Box::new(this),
-        )
-        .await?;
 
-        Ok(l1_watcher)
+        StartResolver::new_finalized(config, provider, address, None, resolve_start)
     }
 
     async fn parse_committed_batch(
         &self,
+        provider: &NodeProvider,
         report: ReportCommittedBatchRangeZKsyncOS,
         log: Log,
     ) -> Result<DiscoveredCommittedBatch, L1WatcherError> {
         let tx_hash = log.transaction_hash.expect("indexed log without tx hash");
-        let committed_batch = util::fetch_commit_calldata(&self.zk_chain, tx_hash).await?;
+        let l1_block_number = log.block_number.expect("indexed log without block number");
+        let zk_chain = ZkChain::new(log.address(), provider.clone());
+        let batch_info = util::fetch_committed_batch_data(
+            &zk_chain,
+            tx_hash,
+            l1_block_number,
+            report.batchNumber,
+        )
+        .await?
+        .into_stored();
 
-        // todo: stop using this struct once fully migrated from S3
-        let last_executed_batch_info = BatchInfo {
-            commit_info: committed_batch.commit_info,
-            chain_address: Default::default(),
-            upgrade_tx_hash: committed_batch.upgrade_tx_hash,
-            blob_sidecar: None,
-        };
-        let batch_info = last_executed_batch_info.into_stored(&committed_batch.protocol_version);
         Ok(DiscoveredCommittedBatch {
             batch_info,
             block_range: report.firstBlockNumber..=report.lastBlockNumber,
@@ -97,6 +103,7 @@ impl<BatchStorage: WriteBatch> L1PersistBatchWatcher<BatchStorage> {
 
     async fn process_commit(
         &mut self,
+        provider: &NodeProvider,
         report: ReportCommittedBatchRangeZKsyncOS,
         log: Log,
     ) -> Result<(), L1WatcherError> {
@@ -113,7 +120,7 @@ impl<BatchStorage: WriteBatch> L1PersistBatchWatcher<BatchStorage> {
                 batch_number,
                 "discovered already processed batch, validating"
             );
-            let committed_batch = self.parse_committed_batch(report, log).await?;
+            let committed_batch = self.parse_committed_batch(provider, report, log).await?;
             if stored_batch.committed_batch != committed_batch {
                 tracing::error!(
                     ?stored_batch,
@@ -154,7 +161,7 @@ impl<BatchStorage: WriteBatch> L1PersistBatchWatcher<BatchStorage> {
                 );
             }
             tracing::debug!(batch_number, "discovered committed batch");
-            let committed_batch = self.parse_committed_batch(report, log).await?;
+            let committed_batch = self.parse_committed_batch(provider, report, log).await?;
 
             self.committed_batches.insert(batch_number, committed_batch);
             self.last_processed_commit_batch = batch_number;
@@ -175,29 +182,22 @@ impl<BatchStorage: WriteBatch> ProcessRawEvents for L1PersistBatchWatcher<BatchS
             .extend(BlockExecution::SIGNATURE_HASH)
     }
 
-    fn contract_addresses(&self) -> ValueOrArray<Address> {
-        (*self.zk_chain.address()).into()
-    }
-
     fn filter_events(&self, logs: Vec<Log>) -> Vec<Log> {
         logs
     }
 
-    async fn process_raw_event(&mut self, log: Log) -> Result<(), L1WatcherError> {
+    async fn process_raw_event(
+        &mut self,
+        provider: &NodeProvider,
+        log: Log,
+    ) -> Result<(), L1WatcherError> {
         let event_signature = log.topics()[0];
         match event_signature {
             s if s == ReportCommittedBatchRangeZKsyncOS::SIGNATURE_HASH => {
                 let report = ReportCommittedBatchRangeZKsyncOS::decode_log(&log.inner)?.data;
-                self.process_commit(report, log).await?;
+                self.process_commit(provider, report, log).await?;
             }
             s if s == BlockExecution::SIGNATURE_HASH => {
-                // This logic is not totally resistant to reorgs. If `executeBatches` is reverted + the
-                // batch itself is reverted then the storage will persist an incorrect batch. The
-                // situation should be extremely rare but still possible. Two options here:
-                // 1. Trim batches that are no longer executed from the storage on start-up.
-                // 2. Track **finalized** executions along with regular (latest) ones. They cannot
-                //    be reorged and hence would be safe to depend on here.
-
                 let execute = BlockExecution::decode_log(&log.inner)?.data;
                 let batch_number = execute.batchNumber.to::<u64>();
                 if batch_number > self.last_persisted_batch_on_start {

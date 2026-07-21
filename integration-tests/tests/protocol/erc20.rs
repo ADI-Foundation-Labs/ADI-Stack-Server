@@ -6,17 +6,17 @@ use alloy::providers::{PendingTransactionBuilder, Provider};
 use alloy::rpc::types::TransactionReceipt;
 use alloy::signers::local::PrivateKeySigner;
 use alloy::sol_types::SolValue;
+use zksync_os_alloy_ext::provider::ZksyncApi;
 use zksync_os_contract_interface::Bridgehub;
 use zksync_os_contract_interface::IMailbox::NewPriorityRequest;
 use zksync_os_integration_tests::assert_traits::ReceiptAssert;
 use zksync_os_integration_tests::contracts::TestERC20::TestERC20Instance;
 use zksync_os_integration_tests::contracts::{IL2AssetRouter, L1AssetRouter, TestERC20};
-use zksync_os_integration_tests::dyn_wallet_provider::EthDynProvider;
-use zksync_os_integration_tests::provider::ZksyncApi;
-use zksync_os_integration_tests::{CURRENT_TO_L1, NEXT_TO_GATEWAY, Tester, test_multisetup};
+use zksync_os_integration_tests::{CURRENT_TO_L1, NEXT_TO_L1, Tester, test_multisetup};
+use zksync_os_provider::NodeProvider;
 use zksync_os_types::{L2ToL1Log, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, ZkTxType};
 
-#[test_multisetup([CURRENT_TO_L1, NEXT_TO_GATEWAY])]
+#[test_multisetup([CURRENT_TO_L1, NEXT_TO_L1])]
 async fn erc20_deposit(tester: Tester) -> anyhow::Result<()> {
     let alice = tester.l1_wallet().default_signer().address();
 
@@ -58,7 +58,7 @@ async fn erc20_deposit(tester: Tester) -> anyhow::Result<()> {
     Ok(())
 }
 
-#[test_multisetup([CURRENT_TO_L1, NEXT_TO_GATEWAY])]
+#[test_multisetup([CURRENT_TO_L1, NEXT_TO_L1])]
 async fn erc20_transfer(tester: Tester) -> anyhow::Result<()> {
     // We use L2 wallet's default signer as Alice because it already has L2 ETH.
     let alice = tester.l2_wallet.default_signer().address();
@@ -102,7 +102,7 @@ async fn erc20_transfer(tester: Tester) -> anyhow::Result<()> {
     Ok(())
 }
 
-#[test_multisetup([CURRENT_TO_L1, NEXT_TO_GATEWAY])]
+#[test_multisetup([CURRENT_TO_L1, NEXT_TO_L1])]
 async fn erc20_withdrawal(tester: Tester) -> anyhow::Result<()> {
     // We use L2 wallet's default signer as Alice because it already has L2 ETH.
     let alice = tester.l2_wallet.default_signer().address();
@@ -154,7 +154,7 @@ async fn erc20_withdrawal(tester: Tester) -> anyhow::Result<()> {
 async fn deploy_l1_token_and_mint(
     tester: &Tester,
     mint_amount: U256,
-) -> anyhow::Result<TestERC20Instance<EthDynProvider>> {
+) -> anyhow::Result<TestERC20Instance<NodeProvider>> {
     let l1_erc20 = TestERC20::deploy(
         tester.l1_provider().clone(),
         U256::ZERO,
@@ -173,7 +173,7 @@ async fn deploy_l1_token_and_mint(
 
 async fn deposit_erc20(
     tester: &Tester,
-    l1_erc20: &TestERC20Instance<EthDynProvider>,
+    l1_erc20: &TestERC20Instance<NodeProvider>,
     to: Address,
     amount: U256,
 ) -> anyhow::Result<TransactionReceipt> {

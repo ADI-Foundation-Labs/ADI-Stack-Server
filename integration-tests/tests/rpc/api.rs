@@ -1,5 +1,5 @@
 use alloy::eips::Encodable2718;
-use alloy::network::{ReceiptResponse, TransactionBuilder, TxSigner};
+use alloy::network::{NetworkTransactionBuilder, ReceiptResponse, TxSigner};
 use alloy::primitives::{Address, B256, TxHash, U128, U256, address};
 use alloy::providers::Provider;
 use alloy::rpc::types::{Filter, Log, TransactionRequest};
@@ -7,16 +7,16 @@ use alloy::sol_types::SolEvent;
 use anyhow::Context as _;
 use regex::Regex;
 use std::time::Duration;
+use zksync_os_alloy_ext::provider::ZksyncApi;
 use zksync_os_contract_interface::IExecutor::BlockCommit;
 use zksync_os_contract_interface::l1_discovery::L1State;
 use zksync_os_integration_tests::assert_traits::ReceiptAssert;
 use zksync_os_integration_tests::contracts::Counter::CounterInstance;
 use zksync_os_integration_tests::contracts::{Counter, EventEmitter};
-use zksync_os_integration_tests::dyn_wallet_provider::EthDynProvider;
-use zksync_os_integration_tests::provider::ZksyncApi;
 use zksync_os_integration_tests::{
-    CURRENT_TO_L1, NEXT_TO_GATEWAY, Tester, TesterBuilder, test_multisetup,
+    CURRENT_TO_L1, NEXT_TO_L1, TestEnvironment, Tester, test_multisetup,
 };
+use zksync_os_provider::NodeProvider;
 use zksync_os_rpc_api::types::BatchStorageProof;
 use zksync_os_server::config::FeeConfig;
 
@@ -76,8 +76,10 @@ async fn get_code(tester: Tester) -> anyhow::Result<()> {
 }
 
 #[test_multisetup([CURRENT_TO_L1])]
-#[test_builder(|builder| builder.block_time(Duration::from_secs(5)))]
-async fn get_transaction_count(tester: Tester) -> anyhow::Result<()> {
+async fn get_transaction_count(env: TestEnvironment) -> anyhow::Result<()> {
+    let mut config = env.default_config().await?;
+    config.sequencer_config.block_time = Duration::from_secs(5);
+    let tester = env.launch(config).await?;
     // Test that the node takes pending mempool transactions into account for `eth_getTransactionCount`
     // We set block time to 5 seconds to make sure that transaction spends >5 seconds in the mempool.
     // This gives us time to check that the node returns the correct transaction count.
@@ -124,7 +126,7 @@ async fn get_client_version(tester: Tester) -> anyhow::Result<()> {
 }
 
 #[test_multisetup([CURRENT_TO_L1])]
-async fn get_gas_price_uses_configured_scale_factor(builder: TesterBuilder) -> anyhow::Result<()> {
+async fn get_gas_price_uses_configured_scale_factor(env: TestEnvironment) -> anyhow::Result<()> {
     let known_base_fee: u128 = 100_000_000;
     let fee_config = FeeConfig {
         native_price_usd: 3e-9,
@@ -134,11 +136,10 @@ async fn get_gas_price_uses_configured_scale_factor(builder: TesterBuilder) -> a
         native_price_override: Some(U128::from(1_000_000u64)),
         pubdata_price_cap: None,
     };
-    let tester = builder
-        .fee_config(fee_config)
-        .gas_price_scale_factor(2.0)
-        .build()
-        .await?;
+    let mut config = env.default_config().await?;
+    config.fee_config = fee_config.clone();
+    config.rpc_config.gas_price_scale_factor = 2.0;
+    let tester = env.launch(config).await?;
 
     let gas_price = tester.l2_provider.get_gas_price().await?;
     assert_eq!(gas_price, 2 * known_base_fee);
@@ -146,7 +147,7 @@ async fn get_gas_price_uses_configured_scale_factor(builder: TesterBuilder) -> a
     Ok(())
 }
 
-#[test_multisetup([CURRENT_TO_L1, NEXT_TO_GATEWAY])]
+#[test_multisetup([CURRENT_TO_L1, NEXT_TO_L1])]
 async fn send_raw_transaction_sync(tester: Tester) -> anyhow::Result<()> {
     // Test that the node supports `eth_sendRawTransactionSync`
     let alice = tester.l2_wallet.default_signer().address();
@@ -220,7 +221,7 @@ async fn send_raw_transaction_sync_timeout(tester: Tester) -> anyhow::Result<()>
 }
 
 #[test_multisetup([CURRENT_TO_L1])]
-async fn estimate_gas_with_high_prices(builder: TesterBuilder) -> anyhow::Result<()> {
+async fn estimate_gas_with_high_prices(env: TestEnvironment) -> anyhow::Result<()> {
     // Tests the estimations are accurate with high fee overrides.
     // Following config has high pubdata price, that makes base token transfer to take >21000 gas.
     let fee_config = FeeConfig {
@@ -231,11 +232,10 @@ async fn estimate_gas_with_high_prices(builder: TesterBuilder) -> anyhow::Result
         native_per_gas: 100, // doesn't matter
         pubdata_price_cap: None,
     };
-    let tester = builder
-        .fee_config(fee_config)
-        .estimate_gas_pubdata_price_factor(1.0)
-        .build()
-        .await?;
+    let mut config = env.default_config().await?;
+    config.fee_config = fee_config.clone();
+    config.rpc_config.estimate_gas_pubdata_price_factor = 1.0;
+    let tester = env.launch(config).await?;
 
     // Random address.
     let to = address!("0xa5d85D1D865F89a23A95d4F5F74850f289Dbc5f9");
@@ -281,7 +281,7 @@ async fn estimate_gas_without_balance(tester: Tester) -> anyhow::Result<()> {
 
 #[tracing::instrument(skip(provider))]
 async fn fetch_batch_commitment(
-    provider: &EthDynProvider,
+    provider: &NodeProvider,
     filter_id: U256,
     expected_batch_number: u64,
 ) -> B256 {
@@ -333,14 +333,9 @@ async fn get_storage_proof(tester: Tester) -> anyhow::Result<()> {
     tracing::info!(chain_id);
 
     // Get L1 state which contains diamond proxy address
-    let l1_state = L1State::fetch(
-        tester.l1_provider().clone().erased(),
-        tester.gateway_eth_provider(),
-        bridgehub_address,
-        chain_id,
-    )
-    .await?;
-    let diamond_proxy_address = l1_state.diamond_proxy_address_sl();
+    let l1_state =
+        L1State::fetch(tester.l1_provider().clone(), bridgehub_address, chain_id).await?;
+    let diamond_proxy_address = l1_state.diamond_proxy_address();
     tracing::info!(?diamond_proxy_address);
 
     // We can effectively use filters API to not rely on block ranges specified in `Filter` (without specifying the starting block,
