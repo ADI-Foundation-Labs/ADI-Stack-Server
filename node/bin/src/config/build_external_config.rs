@@ -2,10 +2,9 @@ use crate::config::{
     BackpressureConfig, BaseTokenPriceUpdaterConfig, BatchVerificationConfig, BatcherConfig,
     Config, ConsensusConfig, ExternalPriceApiClientConfig, FeeConfig, GasAdjusterConfig,
     GeneralConfig, GenesisConfig, InteropFeeUpdaterConfig, L1SenderConfig, L1WatcherConfig,
-    MempoolConfig, MempoolTxValidatorConfig, NetworkConfig, ObservabilityConfig, ProverApiConfig,
-    PrivateApiConfig, ProverInputGeneratorConfig, ProviderConfig, ReplayArchiveConfig, RpcConfig,
-    SequencerConfig,
-    StatusServerConfig,
+    MempoolConfig, MempoolTxValidatorConfig, NetworkConfig, ObservabilityConfig, PrivateApiConfig,
+    ProverApiConfig, ProverInputGeneratorConfig, ProviderConfig, ReplayArchiveConfig, RpcConfig,
+    SequencerConfig, StatusServerConfig,
 };
 use smart_config::{ConfigRepository, ConfigSources, Json, Yaml};
 use std::fs;

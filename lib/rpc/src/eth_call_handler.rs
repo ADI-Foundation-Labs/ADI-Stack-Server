@@ -18,6 +18,7 @@ use serde_json::Value as JsonValue;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::watch;
 use zk_os_api::helpers::get_nonce;
+use zksync_os_fee_overrides::ConfigOverrides;
 use zksync_os_interface::types::ExecutionOutput;
 use zksync_os_interface::{
     error::InvalidTransaction,
@@ -27,7 +28,6 @@ use zksync_os_storage_api::{
     BlockContext, BlockHashes, RepositoryError, StateError, ViewState,
     state_override_view::OverriddenStateView,
 };
-use zksync_os_fee_overrides::ConfigOverrides;
 use zksync_os_tx_validators::policy_client::{AccessType, PolicyClient, PolicySession};
 use zksync_os_types::ZksyncOsEncode;
 use zksync_os_types::{

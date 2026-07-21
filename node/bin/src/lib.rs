@@ -720,9 +720,18 @@ pub async fn run<State: ReadStateHistory + WriteState + StateInitializer + Clone
     let config_overrides_receiver = run_private_rpc_server(
         config.private_api_config.address,
         ConfigOverrides {
-            base_fee: config.fee_config.base_fee_override.map(|n| U256::from(n.to::<u128>())),
-            pubdata_price: config.fee_config.pubdata_price_override.map(|n| U256::from(n.to::<u128>())),
-            native_price: config.fee_config.native_price_override.map(|n| U256::from(n.to::<u128>())),
+            base_fee: config
+                .fee_config
+                .base_fee_override
+                .map(|n| U256::from(n.to::<u128>())),
+            pubdata_price: config
+                .fee_config
+                .pubdata_price_override
+                .map(|n| U256::from(n.to::<u128>())),
+            native_price: config
+                .fee_config
+                .native_price_override
+                .map(|n| U256::from(n.to::<u128>())),
             l1_sender_max_fee_per_gas_wei: Some(U256::from(
                 config.l1_sender_config.max_fee_per_gas.0,
             )),

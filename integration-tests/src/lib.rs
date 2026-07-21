@@ -462,8 +462,7 @@ impl Tester {
         config.general_config.rocks_db_path = tempdir.path().join("rocksdb");
         config.l1_provider_config.rpc_url = l1.address.clone();
         config.rpc_config.address = "0.0.0.0:0".to_string();
-        config.private_api_config.address =
-            SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0);
+        config.private_api_config.address = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0);
         config.prover_api_config.address = "0.0.0.0:0".to_string();
         config.prover_api_config.proof_storage.path = tempdir.path().join("proof_storage_path");
         config.status_server_config.address = "0.0.0.0:0".to_string();
