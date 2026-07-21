@@ -31,6 +31,7 @@ use tokio::sync::mpsc;
 use zksync_os_batch_types::batcher_model::{FriProof, SignedBatchEnvelope};
 use zksync_os_observability::{ComponentStateReporter, GenericComponentState, StateLabel};
 use zksync_os_pipeline::{PeekableReceiver, SendAndRecordExt};
+use zksync_os_fee_overrides::ConfigOverrides;
 use zksync_os_provider::EthWalletProvider;
 
 /// Component-specific state for the L1 sender.
@@ -148,7 +149,6 @@ where
         state_reporter: ComponentStateReporter,
     ) -> anyhow::Result<()> {
         let command_name = Input::COMPONENT_ID.as_str();
-        let fee_config = self.config.fee_config;
         let force_transaction_resubmission = self.config.force_transaction_resubmission;
 
         let mut cmd_buffer = Vec::with_capacity(self.config.command_limit);
@@ -250,6 +250,13 @@ where
             // whether a fee is high enough is decided when the tx is mined, not now — so
             // per-command reads would only add an RPC round-trip per tx without changing
             // what we submit.
+            // Fee caps can be overridden at runtime via the private API; fall back to the
+            // static config when no override is set. Re-read every cycle so changes apply
+            // without a restart.
+            let fee_config = fee_config_with_overrides(
+                self.config.fee_config,
+                &self.config_overrides_receiver.borrow(),
+            );
             let fee_params = self
                 .resolve_fee_params(fee_config, force_transaction_resubmission)
                 .await?;
@@ -1020,6 +1027,24 @@ fn apply_fee_caps(configured: FeeParams, estimated: Eip1559Estimation) -> FeePar
         max_priority_fee_per_gas,
         max_fee_per_blob_gas: configured.max_fee_per_blob_gas,
     }
+}
+
+/// Overlay runtime overrides on top of the static fee config. Override values are saturated
+/// down to u128 at the alloy tx boundary.
+fn fee_config_with_overrides(
+    mut fee_config: L1SenderFeeConfig,
+    overrides: &ConfigOverrides,
+) -> L1SenderFeeConfig {
+    if let Some(v) = overrides.l1_sender_max_fee_per_gas_wei {
+        fee_config.max_fee_per_gas_wei = v.saturating_to();
+    }
+    if let Some(v) = overrides.l1_sender_max_priority_fee_per_gas_wei {
+        fee_config.max_priority_fee_per_gas_wei = v.saturating_to();
+    }
+    if let Some(v) = overrides.l1_sender_max_fee_per_blob_gas_wei {
+        fee_config.max_fee_per_blob_gas_wei = v.saturating_to();
+    }
+    fee_config
 }
 
 impl L1SenderFeeConfig {

@@ -1,10 +1,12 @@
 //! Runtime fee overrides shared between the block producer and the JSON-RPC layer.
 //!
 //! `ConfigOverrides` carries operator-settable replacements for fee-related fields
-//! (`base_fee`, `pubdata_price`, `native_price`). The type is consumed by:
+//! (`base_fee`, `pubdata_price`, `native_price`) and for the L1 sender's gas fee caps
+//! (`l1_sender_max_*`). The type is consumed by:
 //!
 //! - `zksync_os_rpc_private` -- exposes it via the `config.setOverrides` private RPC.
 //! - `zksync_os_sequencer` -- applies it when producing a new block.
+//! - `zksync_os_l1_sender` -- applies the `l1_sender_max_*` caps when sending L1 txs.
 //! - `zksync_os_rpc` -- applies it when answering fee-exposing endpoints
 //!   (`eth_gasPrice`, `eth_feeHistory`, `eth_estimateGas`, `eth_call`, tracers) so
 //!   clients see the new values immediately, without waiting for the next block.
@@ -29,6 +31,16 @@ pub struct ConfigOverrides {
     pub pubdata_price: Option<U256>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub native_price: Option<U256>,
+    /// Max fee per gas for L1 sender transactions (in wei). Values are saturated down to
+    /// u128 at the alloy tx boundary.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub l1_sender_max_fee_per_gas_wei: Option<U256>,
+    /// Max priority fee per gas for L1 sender transactions (in wei).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub l1_sender_max_priority_fee_per_gas_wei: Option<U256>,
+    /// Max fee per blob gas for L1 sender transactions (in wei).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub l1_sender_max_fee_per_blob_gas_wei: Option<U256>,
 }
 
 /// The bootloader requires `basefee / native_price == NATIVE_PER_GAS`.
@@ -64,6 +76,15 @@ impl ConfigOverrides {
             base_fee: self.base_fee.or(fallback.base_fee),
             pubdata_price: self.pubdata_price.or(fallback.pubdata_price),
             native_price: self.native_price.or(fallback.native_price),
+            l1_sender_max_fee_per_gas_wei: self
+                .l1_sender_max_fee_per_gas_wei
+                .or(fallback.l1_sender_max_fee_per_gas_wei),
+            l1_sender_max_priority_fee_per_gas_wei: self
+                .l1_sender_max_priority_fee_per_gas_wei
+                .or(fallback.l1_sender_max_priority_fee_per_gas_wei),
+            l1_sender_max_fee_per_blob_gas_wei: self
+                .l1_sender_max_fee_per_blob_gas_wei
+                .or(fallback.l1_sender_max_fee_per_blob_gas_wei),
         }
     }
 
@@ -74,6 +95,13 @@ impl ConfigOverrides {
                 "base_fee" => self.base_fee = None,
                 "pubdata_price" => self.pubdata_price = None,
                 "native_price" => self.native_price = None,
+                "l1_sender_max_fee_per_gas_wei" => self.l1_sender_max_fee_per_gas_wei = None,
+                "l1_sender_max_priority_fee_per_gas_wei" => {
+                    self.l1_sender_max_priority_fee_per_gas_wei = None
+                }
+                "l1_sender_max_fee_per_blob_gas_wei" => {
+                    self.l1_sender_max_fee_per_blob_gas_wei = None
+                }
                 _ => tracing::warn!("Unknown field to remove: {}", field),
             }
         }

@@ -4,6 +4,7 @@ use alloy::primitives::Address;
 use async_trait::async_trait;
 use tokio::sync::{mpsc, watch};
 use zksync_os_batch_types::batcher_model::{FriProof, SignedBatchEnvelope};
+use zksync_os_fee_overrides::ConfigOverrides;
 use zksync_os_observability::ComponentStateReporter;
 use zksync_os_pipeline::{PeekableReceiver, PipelineComponent};
 use zksync_os_provider::NodeProvider;
@@ -18,6 +19,8 @@ pub struct L1Sender<C> {
     /// L1 block number at which `getTotalBatches*` was read on startup; passed through to
     /// `run_l1_sender` to keep the confirmed-nonce baseline consistent with the inbound queue.
     pub l1_block_number: u64,
+    /// Runtime overrides for the fee caps, settable via the private `config.setOverrides` API.
+    pub config_overrides_receiver: watch::Receiver<ConfigOverrides>,
 }
 
 #[async_trait]

@@ -723,6 +723,15 @@ pub async fn run<State: ReadStateHistory + WriteState + StateInitializer + Clone
             base_fee: config.fee_config.base_fee_override.map(|n| U256::from(n.to::<u128>())),
             pubdata_price: config.fee_config.pubdata_price_override.map(|n| U256::from(n.to::<u128>())),
             native_price: config.fee_config.native_price_override.map(|n| U256::from(n.to::<u128>())),
+            l1_sender_max_fee_per_gas_wei: Some(U256::from(
+                config.l1_sender_config.max_fee_per_gas.0,
+            )),
+            l1_sender_max_priority_fee_per_gas_wei: Some(U256::from(
+                config.l1_sender_config.max_priority_fee_per_gas.0,
+            )),
+            l1_sender_max_fee_per_blob_gas_wei: Some(U256::from(
+                config.l1_sender_config.max_fee_per_blob_gas.0,
+            )),
         },
         config
             .general_config
@@ -890,6 +899,7 @@ pub async fn run<State: ReadStateHistory + WriteState + StateInitializer + Clone
             effective_pubdata_mode.expect("effective_pubdata_mode is always Some on the Main Node"),
             replay_archiver,
             prebound_prover_api_listener,
+            config_overrides_receiver.clone(),
         )
         .await
     } else {
@@ -1127,6 +1137,7 @@ async fn run_main_node_pipeline(
     pubdata_mode: PubdataMode,
     replay_archiver: Option<impl ReplayArchiver>,
     prebound_prover_api_listener: Option<TcpListener>,
+    config_overrides_receiver: watch::Receiver<ConfigOverrides>,
 ) -> PipelineHandles {
     let priority_tree_db_path = config
         .general_config
@@ -1331,6 +1342,7 @@ async fn run_main_node_pipeline(
             to_address: node_state_on_startup.l1_state.validator_timelock,
             commit_submitted_tx: Some(commit_submitted_tx),
             l1_block_number: node_state_on_startup.l1_state.l1_block_number,
+            config_overrides_receiver: config_overrides_receiver.clone(),
         })
         .pipe(snark_proving_step)
         .pipe(GaplessL1ProofSender::new(
@@ -1342,6 +1354,7 @@ async fn run_main_node_pipeline(
             to_address: node_state_on_startup.l1_state.validator_timelock,
             commit_submitted_tx: None,
             l1_block_number: node_state_on_startup.l1_state.l1_block_number,
+            config_overrides_receiver: config_overrides_receiver.clone(),
         })
         .pipe(
             PriorityTreePipelineStep::new(
@@ -1358,6 +1371,7 @@ async fn run_main_node_pipeline(
             to_address: node_state_on_startup.l1_state.validator_timelock,
             commit_submitted_tx: None,
             l1_block_number: node_state_on_startup.l1_state.l1_block_number,
+            config_overrides_receiver,
         })
         .pipe(BatchSink::new(internal_config_manager));
 

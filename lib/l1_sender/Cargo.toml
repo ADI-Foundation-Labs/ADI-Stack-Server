@@ -10,6 +10,7 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
+zksync_os_fee_overrides.workspace = true
 zksync_os_alloy_ext.workspace = true
 zksync_os_provider.workspace = true
 zksync_os_contract_interface.workspace = true
