@@ -519,8 +519,13 @@ impl<RpcStorage: ReadRpcStorage> EthCallHandler<RpcStorage> {
             .or(request.max_fee_per_gas)
             .unwrap_or_default();
         if effective_gas_price > 0 {
+            // Divide by the transaction's fee cap, not the block base fee: validation charges
+            // `effective_price * gas_limit` with `effective_price <= fee_cap`, so a limit capped
+            // at `balance / fee_cap` always passes the balance check. Dividing by a base fee
+            // smaller than the fee cap would produce a limit the caller cannot afford, making
+            // estimation fail with `LackOfFundForMaxFee` for small-balance accounts.
             let gas_limit_from_balance =
-                max_gas_from_balance(&request, block_context.eip1559_basefee, storage_view)?;
+                max_gas_from_balance(&request, U256::from(effective_gas_price), storage_view)?;
             highest_gas_limit = highest_gas_limit.min(gas_limit_from_balance);
         }
         request.set_gas_limit(highest_gas_limit);
