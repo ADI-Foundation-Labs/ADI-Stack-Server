@@ -504,12 +504,11 @@ impl<RpcStorage: ReadRpcStorage> EthCallHandler<RpcStorage> {
         // Check funds of the sender (only useful to check if transaction gas price is more than 0).
         //
         // The caller allowance is check by doing `(account.balance - tx.value) / tx.gas_price`
-        if request
+        let fee_cap = request
             .gas_price
             .or(request.max_fee_per_gas)
-            .unwrap_or_default()
-            > 0
-        {
+            .unwrap_or_default();
+        if fee_cap > 0 {
             let balance = storage_view
                 .get_account(request.from.unwrap_or_default())
                 .as_ref()
@@ -527,11 +526,16 @@ impl<RpcStorage: ReadRpcStorage> EthCallHandler<RpcStorage> {
                         balance,
                     },
                 ))?;
-            // Cap the highest gas limit by max gas caller can afford with given gas price
+            // Cap the highest gas limit by max gas caller can afford with given gas price.
+            // Divide by the transaction's fee cap, not the block base fee: validation charges
+            // `effective_price * gas_limit` with `effective_price <= fee_cap`, so a limit capped
+            // at `balance / fee_cap` always passes the balance check. Dividing by a base fee
+            // smaller than the fee cap would produce a limit the caller cannot afford, making
+            // estimation fail with `LackOfFundForMaxFee` for small-balance accounts.
             highest_gas_limit = highest_gas_limit.min(
                 // Calculate the amount of gas the caller can afford with the specified gas price.
                 balance
-                    .checked_div(block_context.eip1559_basefee)
+                    .checked_div(U256::from(fee_cap))
                     // This will be 0 if gas price is 0. It is fine, because we check it before.
                     .unwrap_or_default()
                     .saturating_to(),
