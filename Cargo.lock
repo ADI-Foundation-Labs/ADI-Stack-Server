@@ -2554,213 +2554,213 @@ dependencies = [
 [[package]]
 name = "basic_bootloader"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.0.29-interface-v0.1.3#2f65982d788f651c8504c7805eab6b17813226c6"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.29-interface-v0.1.3-b#4082465ce8d480cc9d7ef0660a95ab4721e423f9"
 dependencies = [
  "arrayvec",
- "basic_system 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.0.29-interface-v0.1.3)",
- "crypto 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.0.29-interface-v0.1.3)",
- "cycle_marker 0.0.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.0.29-interface-v0.1.3)",
- "evm_interpreter 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.0.29-interface-v0.1.3)",
+ "basic_system 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.29-interface-v0.1.3-b)",
+ "crypto 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.29-interface-v0.1.3-b)",
+ "cycle_marker 0.0.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.29-interface-v0.1.3-b)",
+ "evm_interpreter 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.29-interface-v0.1.3-b)",
  "hex",
  "paste",
  "ruint",
  "strum_macros",
- "system_hooks 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.0.29-interface-v0.1.3)",
- "zk_ee 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.0.29-interface-v0.1.3)",
+ "system_hooks 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.29-interface-v0.1.3-b)",
+ "zk_ee 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.29-interface-v0.1.3-b)",
 ]
 
 [[package]]
 name = "basic_bootloader"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.1.2-interface-v0.1.3#bb085de0891157b2295ffbd1329ebf5cc2944c0e"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.1.2-interface-v0.1.3-b#aa64cf1ecf90ba0cc74b55d0097513c89dd3b6c5"
 dependencies = [
  "arrayvec",
- "basic_system 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.1.2-interface-v0.1.3)",
+ "basic_system 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.1.2-interface-v0.1.3-b)",
  "cfg-if",
- "crypto 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.1.2-interface-v0.1.3)",
- "cycle_marker 0.0.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.1.2-interface-v0.1.3)",
- "evm_interpreter 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.1.2-interface-v0.1.3)",
+ "crypto 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.1.2-interface-v0.1.3-b)",
+ "cycle_marker 0.0.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.1.2-interface-v0.1.3-b)",
+ "evm_interpreter 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.1.2-interface-v0.1.3-b)",
  "hex",
  "paste",
  "ruint",
  "serde",
  "strum_macros",
- "system_hooks 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.1.2-interface-v0.1.3)",
- "zk_ee 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.1.2-interface-v0.1.3)",
+ "system_hooks 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.1.2-interface-v0.1.3-b)",
+ "zk_ee 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.1.2-interface-v0.1.3-b)",
 ]
 
 [[package]]
 name = "basic_bootloader"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-interface-v0.1.3#9d82156e85c6430ba53d1a186c23828c1dff05fd"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-interface-v0.1.3-b#919ac93b56455ae2d60e5247643214cdef65b7fc"
 dependencies = [
  "arrayvec",
- "basic_system 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-interface-v0.1.3)",
+ "basic_system 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-interface-v0.1.3-b)",
  "cfg-if",
- "crypto 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-interface-v0.1.3)",
- "cycle_marker 0.0.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-interface-v0.1.3)",
- "evm_interpreter 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-interface-v0.1.3)",
+ "crypto 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-interface-v0.1.3-b)",
+ "cycle_marker 0.0.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-interface-v0.1.3-b)",
+ "evm_interpreter 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-interface-v0.1.3-b)",
  "paste",
  "ruint",
  "strum_macros",
- "system_hooks 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-interface-v0.1.3)",
- "zk_ee 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-interface-v0.1.3)",
+ "system_hooks 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-interface-v0.1.3-b)",
+ "zk_ee 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-interface-v0.1.3-b)",
 ]
 
 [[package]]
 name = "basic_bootloader"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-simulation-only-interface-v0.1.3#d5492542870c39b4c262f613d76ae9ddf5036900"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-simulation-only-interface-v0.1.3-b#6302740fee7bec8a1c22dc4ef846437e5a86418b"
 dependencies = [
  "arrayvec",
- "basic_system 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-simulation-only-interface-v0.1.3)",
+ "basic_system 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-simulation-only-interface-v0.1.3-b)",
  "cfg-if",
- "crypto 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-simulation-only-interface-v0.1.3)",
- "cycle_marker 0.0.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-simulation-only-interface-v0.1.3)",
- "evm_interpreter 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-simulation-only-interface-v0.1.3)",
+ "crypto 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-simulation-only-interface-v0.1.3-b)",
+ "cycle_marker 0.0.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-simulation-only-interface-v0.1.3-b)",
+ "evm_interpreter 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-simulation-only-interface-v0.1.3-b)",
  "paste",
  "ruint",
  "strum_macros",
- "system_hooks 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-simulation-only-interface-v0.1.3)",
- "zk_ee 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-simulation-only-interface-v0.1.3)",
+ "system_hooks 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-simulation-only-interface-v0.1.3-b)",
+ "zk_ee 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-simulation-only-interface-v0.1.3-b)",
 ]
 
 [[package]]
 name = "basic_bootloader"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3#b4193659af83b6c71419ddda3f57e0302c61eb8d"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b#126da9730867da57d87391097cfc1a95551e4080"
 dependencies = [
  "arrayvec",
- "basic_system 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
+ "basic_system 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
  "cfg-if",
- "crypto 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
- "cycle_marker 0.0.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
- "evm_interpreter 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
+ "crypto 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
+ "cycle_marker 0.0.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
+ "evm_interpreter 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
  "paste",
  "ruint",
  "serde-big-array",
  "strum_macros",
- "system_hooks 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
- "zk_ee 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
+ "system_hooks 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
+ "zk_ee 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
 ]
 
 [[package]]
 name = "basic_system"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.0.29-interface-v0.1.3#2f65982d788f651c8504c7805eab6b17813226c6"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.29-interface-v0.1.3-b#4082465ce8d480cc9d7ef0660a95ab4721e423f9"
 dependencies = [
  "arrayvec",
  "cfg-if",
  "const_for",
- "crypto 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.0.29-interface-v0.1.3)",
- "cycle_marker 0.0.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.0.29-interface-v0.1.3)",
+ "crypto 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.29-interface-v0.1.3-b)",
+ "cycle_marker 0.0.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.29-interface-v0.1.3-b)",
  "either",
- "evm_interpreter 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.0.29-interface-v0.1.3)",
- "modexp 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.0.29-interface-v0.1.3)",
+ "evm_interpreter 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.29-interface-v0.1.3-b)",
+ "modexp 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.29-interface-v0.1.3-b)",
  "paste",
  "rand 0.9.5",
  "ruint",
  "serde",
- "storage_models 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.0.29-interface-v0.1.3)",
+ "storage_models 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.29-interface-v0.1.3-b)",
  "strum_macros",
- "zk_ee 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.0.29-interface-v0.1.3)",
+ "zk_ee 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.29-interface-v0.1.3-b)",
 ]
 
 [[package]]
 name = "basic_system"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.1.2-interface-v0.1.3#bb085de0891157b2295ffbd1329ebf5cc2944c0e"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.1.2-interface-v0.1.3-b#aa64cf1ecf90ba0cc74b55d0097513c89dd3b6c5"
 dependencies = [
  "arrayvec",
  "cfg-if",
  "const-hex",
  "const_for",
- "crypto 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.1.2-interface-v0.1.3)",
- "cycle_marker 0.0.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.1.2-interface-v0.1.3)",
+ "crypto 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.1.2-interface-v0.1.3-b)",
+ "cycle_marker 0.0.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.1.2-interface-v0.1.3-b)",
  "either",
- "evm_interpreter 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.1.2-interface-v0.1.3)",
- "modexp 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.1.2-interface-v0.1.3)",
+ "evm_interpreter 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.1.2-interface-v0.1.3-b)",
+ "modexp 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.1.2-interface-v0.1.3-b)",
  "num-bigint",
  "num-traits",
  "paste",
  "rand 0.9.5",
  "ruint",
  "serde",
- "storage_models 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.1.2-interface-v0.1.3)",
+ "storage_models 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.1.2-interface-v0.1.3-b)",
  "strum_macros",
- "zk_ee 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.1.2-interface-v0.1.3)",
+ "zk_ee 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.1.2-interface-v0.1.3-b)",
 ]
 
 [[package]]
 name = "basic_system"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-interface-v0.1.3#9d82156e85c6430ba53d1a186c23828c1dff05fd"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-interface-v0.1.3-b#919ac93b56455ae2d60e5247643214cdef65b7fc"
 dependencies = [
  "arrayvec",
  "cfg-if",
  "const-hex",
  "const_for",
- "crypto 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-interface-v0.1.3)",
- "cycle_marker 0.0.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-interface-v0.1.3)",
+ "crypto 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-interface-v0.1.3-b)",
+ "cycle_marker 0.0.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-interface-v0.1.3-b)",
  "either",
- "evm_interpreter 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-interface-v0.1.3)",
- "modexp 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-interface-v0.1.3)",
+ "evm_interpreter 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-interface-v0.1.3-b)",
+ "modexp 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-interface-v0.1.3-b)",
  "num-bigint",
  "num-traits",
  "paste",
  "rand 0.9.5",
  "ruint",
  "serde",
- "storage_models 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-interface-v0.1.3)",
+ "storage_models 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-interface-v0.1.3-b)",
  "strum_macros",
  "zerocopy",
- "zk_ee 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-interface-v0.1.3)",
+ "zk_ee 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-interface-v0.1.3-b)",
 ]
 
 [[package]]
 name = "basic_system"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-simulation-only-interface-v0.1.3#d5492542870c39b4c262f613d76ae9ddf5036900"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-simulation-only-interface-v0.1.3-b#6302740fee7bec8a1c22dc4ef846437e5a86418b"
 dependencies = [
  "arrayvec",
  "cfg-if",
  "const-hex",
  "const_for",
- "crypto 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-simulation-only-interface-v0.1.3)",
- "cycle_marker 0.0.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-simulation-only-interface-v0.1.3)",
+ "crypto 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-simulation-only-interface-v0.1.3-b)",
+ "cycle_marker 0.0.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-simulation-only-interface-v0.1.3-b)",
  "either",
- "evm_interpreter 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-simulation-only-interface-v0.1.3)",
- "modexp 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-simulation-only-interface-v0.1.3)",
+ "evm_interpreter 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-simulation-only-interface-v0.1.3-b)",
+ "modexp 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-simulation-only-interface-v0.1.3-b)",
  "paste",
  "ruint",
- "storage_models 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-simulation-only-interface-v0.1.3)",
+ "storage_models 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-simulation-only-interface-v0.1.3-b)",
  "strum_macros",
  "zerocopy",
- "zk_ee 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-simulation-only-interface-v0.1.3)",
+ "zk_ee 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-simulation-only-interface-v0.1.3-b)",
 ]
 
 [[package]]
 name = "basic_system"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3#b4193659af83b6c71419ddda3f57e0302c61eb8d"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b#126da9730867da57d87391097cfc1a95551e4080"
 dependencies = [
  "arrayvec",
  "cc-traits",
  "const-hex",
- "crypto 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
- "cycle_marker 0.0.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
+ "crypto 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
+ "cycle_marker 0.0.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
  "either",
- "evm_interpreter 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
- "modexp 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
+ "evm_interpreter 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
+ "modexp 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
  "num-bigint",
  "num-traits",
  "paste",
  "rand 0.9.5",
  "ruint",
  "serde",
- "storage_models 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
+ "storage_models 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
  "strum_macros",
- "zk_ee 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
+ "zk_ee 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
 ]
 
 [[package]]
@@ -2772,12 +2772,12 @@ checksum = "d86b93f97252c47b41663388e6d155714a9d0c398b99f1005cbc5f978b29f445"
 [[package]]
 name = "bigint_with_control"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3#c23fd0085ee87872e25ff83f780d2d0ee102a166"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b#0e5ed18ff282e620b6da359be97ea8499052f66d"
 dependencies = [
- "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
  "serde",
  "serde_json",
- "verifier_generator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
+ "verifier_generator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
 ]
 
 [[package]]
@@ -2792,13 +2792,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "bigint_with_control"
+version = "0.1.0"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b#33a74735a5b1ef5669253fcd6a024811b08ab459"
+dependencies = [
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+ "serde",
+ "serde_json",
+ "verifier_generator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+]
+
+[[package]]
 name = "bigint_with_control_verifier"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.2#b93c285d292891f3c27a3cf0110be09cde30ac4f"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b#33a74735a5b1ef5669253fcd6a024811b08ab459"
 dependencies = [
- "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.2)",
+ "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
  "unroll",
- "verifier_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.2)",
+ "verifier_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
 ]
 
 [[package]]
@@ -2931,12 +2942,12 @@ dependencies = [
 [[package]]
 name = "blake2_with_compression"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3#c23fd0085ee87872e25ff83f780d2d0ee102a166"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b#0e5ed18ff282e620b6da359be97ea8499052f66d"
 dependencies = [
- "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
  "serde",
  "serde_json",
- "verifier_generator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
+ "verifier_generator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
 ]
 
 [[package]]
@@ -2951,19 +2962,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "blake2_with_compression"
+version = "0.1.0"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b#33a74735a5b1ef5669253fcd6a024811b08ab459"
+dependencies = [
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+ "serde",
+ "serde_json",
+ "verifier_generator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+]
+
+[[package]]
 name = "blake2_with_compression_verifier"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.2#b93c285d292891f3c27a3cf0110be09cde30ac4f"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b#33a74735a5b1ef5669253fcd6a024811b08ab459"
 dependencies = [
- "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.2)",
+ "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
  "unroll",
- "verifier_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.2)",
+ "verifier_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
 ]
 
 [[package]]
 name = "blake2s_u32"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3#c23fd0085ee87872e25ff83f780d2d0ee102a166"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b#0e5ed18ff282e620b6da359be97ea8499052f66d"
 dependencies = [
  "unroll",
 ]
@@ -2972,6 +2994,14 @@ dependencies = [
 name = "blake2s_u32"
 version = "0.1.0"
 source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.2#b93c285d292891f3c27a3cf0110be09cde30ac4f"
+dependencies = [
+ "unroll",
+]
+
+[[package]]
+name = "blake2s_u32"
+version = "0.1.0"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b#33a74735a5b1ef5669253fcd6a024811b08ab459"
 dependencies = [
  "unroll",
 ]
@@ -3317,79 +3347,79 @@ dependencies = [
 [[package]]
 name = "callable_oracles"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.0.29-interface-v0.1.3#2f65982d788f651c8504c7805eab6b17813226c6"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.29-interface-v0.1.3-b#4082465ce8d480cc9d7ef0660a95ab4721e423f9"
 dependencies = [
- "crypto 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.0.29-interface-v0.1.3)",
+ "crypto 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.29-interface-v0.1.3-b)",
  "num-bigint",
  "num-traits",
- "oracle_provider 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.0.29-interface-v0.1.3)",
- "risc_v_simulator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
+ "oracle_provider 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.29-interface-v0.1.3-b)",
+ "risc_v_simulator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
  "ruint",
- "zk_ee 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.0.29-interface-v0.1.3)",
+ "zk_ee 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.29-interface-v0.1.3-b)",
 ]
 
 [[package]]
 name = "callable_oracles"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.1.2-interface-v0.1.3#bb085de0891157b2295ffbd1329ebf5cc2944c0e"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.1.2-interface-v0.1.3-b#aa64cf1ecf90ba0cc74b55d0097513c89dd3b6c5"
 dependencies = [
- "basic_system 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.1.2-interface-v0.1.3)",
- "crypto 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.1.2-interface-v0.1.3)",
+ "basic_system 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.1.2-interface-v0.1.3-b)",
+ "crypto 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.1.2-interface-v0.1.3-b)",
  "num-bigint",
  "num-traits",
- "oracle_provider 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.1.2-interface-v0.1.3)",
- "risc_v_simulator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
+ "oracle_provider 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.1.2-interface-v0.1.3-b)",
+ "risc_v_simulator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
  "ruint",
- "zk_ee 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.1.2-interface-v0.1.3)",
+ "zk_ee 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.1.2-interface-v0.1.3-b)",
 ]
 
 [[package]]
 name = "callable_oracles"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-interface-v0.1.3#9d82156e85c6430ba53d1a186c23828c1dff05fd"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-interface-v0.1.3-b#919ac93b56455ae2d60e5247643214cdef65b7fc"
 dependencies = [
  "alloy-consensus 1.7.3",
- "basic_system 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-interface-v0.1.3)",
+ "basic_system 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-interface-v0.1.3-b)",
  "c-kzg",
- "crypto 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-interface-v0.1.3)",
+ "crypto 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-interface-v0.1.3-b)",
  "num-bigint",
  "num-traits",
- "oracle_provider 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-interface-v0.1.3)",
- "risc_v_simulator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
+ "oracle_provider 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-interface-v0.1.3-b)",
+ "risc_v_simulator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
  "ruint",
- "zk_ee 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-interface-v0.1.3)",
+ "zk_ee 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-interface-v0.1.3-b)",
 ]
 
 [[package]]
 name = "callable_oracles"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-simulation-only-interface-v0.1.3#d5492542870c39b4c262f613d76ae9ddf5036900"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-simulation-only-interface-v0.1.3-b#6302740fee7bec8a1c22dc4ef846437e5a86418b"
 dependencies = [
  "alloy-consensus 1.7.3",
- "basic_system 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-simulation-only-interface-v0.1.3)",
+ "basic_system 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-simulation-only-interface-v0.1.3-b)",
  "c-kzg",
- "crypto 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-simulation-only-interface-v0.1.3)",
+ "crypto 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-simulation-only-interface-v0.1.3-b)",
  "num-bigint",
  "num-traits",
- "oracle_provider 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-simulation-only-interface-v0.1.3)",
- "risc_v_simulator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
+ "oracle_provider 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-simulation-only-interface-v0.1.3-b)",
+ "risc_v_simulator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
  "ruint",
- "zk_ee 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-simulation-only-interface-v0.1.3)",
+ "zk_ee 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-simulation-only-interface-v0.1.3-b)",
 ]
 
 [[package]]
 name = "callable_oracles"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3#b4193659af83b6c71419ddda3f57e0302c61eb8d"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b#126da9730867da57d87391097cfc1a95551e4080"
 dependencies = [
- "basic_bootloader 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
- "basic_system 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
+ "basic_bootloader 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
+ "basic_system 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
  "c-kzg",
- "crypto 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
- "oracle_provider 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
+ "crypto 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
+ "oracle_provider 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
  "risc_v_simulator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.2)",
  "ruint",
- "zk_ee 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
+ "zk_ee 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
 ]
 
 [[package]]
@@ -3462,7 +3492,7 @@ dependencies = [
 [[package]]
 name = "cc-traits"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3#b4193659af83b6c71419ddda3f57e0302c61eb8d"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b#126da9730867da57d87391097cfc1a95551e4080"
 
 [[package]]
 name = "cesu8"
@@ -3581,11 +3611,11 @@ dependencies = [
 [[package]]
 name = "circuit_common"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3#c23fd0085ee87872e25ff83f780d2d0ee102a166"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b#0e5ed18ff282e620b6da359be97ea8499052f66d"
 dependencies = [
- "fft 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
- "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
- "worker 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
+ "fft 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
+ "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
+ "worker 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
 ]
 
 [[package]]
@@ -3596,6 +3626,16 @@ dependencies = [
  "fft 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.2)",
  "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.2)",
  "worker 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.2)",
+]
+
+[[package]]
+name = "circuit_common"
+version = "0.1.0"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b#33a74735a5b1ef5669253fcd6a024811b08ab459"
+dependencies = [
+ "fft 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+ "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+ "worker 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
 ]
 
 [[package]]
@@ -4070,7 +4110,7 @@ checksum = "460fbee9c2c2f33933d720630a6a0bac33ba7053db5344fac858d4b8952d77d5"
 [[package]]
 name = "crypto"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.0.29-interface-v0.1.3#2f65982d788f651c8504c7805eab6b17813226c6"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.29-interface-v0.1.3-b#4082465ce8d480cc9d7ef0660a95ab4721e423f9"
 dependencies = [
  "ark-bls12-381",
  "ark-bn254",
@@ -4097,7 +4137,7 @@ dependencies = [
 [[package]]
 name = "crypto"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.1.2-interface-v0.1.3#bb085de0891157b2295ffbd1329ebf5cc2944c0e"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.1.2-interface-v0.1.3-b#aa64cf1ecf90ba0cc74b55d0097513c89dd3b6c5"
 dependencies = [
  "ark-bls12-381",
  "ark-bn254",
@@ -4124,7 +4164,7 @@ dependencies = [
 [[package]]
 name = "crypto"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-interface-v0.1.3#9d82156e85c6430ba53d1a186c23828c1dff05fd"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-interface-v0.1.3-b#919ac93b56455ae2d60e5247643214cdef65b7fc"
 dependencies = [
  "ark-bls12-381",
  "ark-bn254",
@@ -4151,7 +4191,7 @@ dependencies = [
 [[package]]
 name = "crypto"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-simulation-only-interface-v0.1.3#d5492542870c39b4c262f613d76ae9ddf5036900"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-simulation-only-interface-v0.1.3-b#6302740fee7bec8a1c22dc4ef846437e5a86418b"
 dependencies = [
  "ark-bls12-381",
  "ark-bn254",
@@ -4178,7 +4218,7 @@ dependencies = [
 [[package]]
 name = "crypto"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3#b4193659af83b6c71419ddda3f57e0302c61eb8d"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b#126da9730867da57d87391097cfc1a95551e4080"
 dependencies = [
  "ark-bls12-381",
  "ark-bn254",
@@ -4237,16 +4277,16 @@ dependencies = [
 [[package]]
 name = "cs"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3#c23fd0085ee87872e25ff83f780d2d0ee102a166"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b#0e5ed18ff282e620b6da359be97ea8499052f66d"
 dependencies = [
  "arrayvec",
  "bincode 1.3.3",
- "blake2s_u32 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
+ "blake2s_u32 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
  "derivative",
  "divrem",
- "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
+ "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
  "itertools 0.14.0",
- "poseidon2 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
+ "poseidon2 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
  "proc-macro2",
  "quote",
  "rayon",
@@ -4272,6 +4312,31 @@ dependencies = [
  "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.2)",
  "itertools 0.14.0",
  "poseidon2 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.2)",
+ "proc-macro2",
+ "quote",
+ "rayon",
+ "seq-macro",
+ "serde",
+ "serde_json",
+ "smallvec",
+ "super-seq-macro",
+ "syn 2.0.117",
+ "type-map",
+]
+
+[[package]]
+name = "cs"
+version = "0.1.0"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b#33a74735a5b1ef5669253fcd6a024811b08ab459"
+dependencies = [
+ "arrayvec",
+ "bincode 1.3.3",
+ "blake2s_u32 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+ "derivative",
+ "divrem",
+ "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+ "itertools 0.14.0",
+ "poseidon2 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
  "proc-macro2",
  "quote",
  "rayon",
@@ -4342,27 +4407,27 @@ dependencies = [
 [[package]]
 name = "cycle_marker"
 version = "0.0.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.0.29-interface-v0.1.3#2f65982d788f651c8504c7805eab6b17813226c6"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.29-interface-v0.1.3-b#4082465ce8d480cc9d7ef0660a95ab4721e423f9"
 
 [[package]]
 name = "cycle_marker"
 version = "0.0.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.1.2-interface-v0.1.3#bb085de0891157b2295ffbd1329ebf5cc2944c0e"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.1.2-interface-v0.1.3-b#aa64cf1ecf90ba0cc74b55d0097513c89dd3b6c5"
 
 [[package]]
 name = "cycle_marker"
 version = "0.0.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-interface-v0.1.3#9d82156e85c6430ba53d1a186c23828c1dff05fd"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-interface-v0.1.3-b#919ac93b56455ae2d60e5247643214cdef65b7fc"
 
 [[package]]
 name = "cycle_marker"
 version = "0.0.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-simulation-only-interface-v0.1.3#d5492542870c39b4c262f613d76ae9ddf5036900"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-simulation-only-interface-v0.1.3-b#6302740fee7bec8a1c22dc4ef846437e5a86418b"
 
 [[package]]
 name = "cycle_marker"
 version = "0.0.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3#b4193659af83b6c71419ddda3f57e0302c61eb8d"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b#126da9730867da57d87391097cfc1a95551e4080"
 
 [[package]]
 name = "darling"
@@ -5024,92 +5089,92 @@ dependencies = [
 [[package]]
 name = "evm_interpreter"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.0.29-interface-v0.1.3#2f65982d788f651c8504c7805eab6b17813226c6"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.29-interface-v0.1.3-b#4082465ce8d480cc9d7ef0660a95ab4721e423f9"
 dependencies = [
  "arrayvec",
- "crypto 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.0.29-interface-v0.1.3)",
- "cycle_marker 0.0.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.0.29-interface-v0.1.3)",
+ "crypto 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.29-interface-v0.1.3-b)",
+ "cycle_marker 0.0.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.29-interface-v0.1.3-b)",
  "either",
  "paste",
  "ruint",
  "strum_macros",
- "zk_ee 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.0.29-interface-v0.1.3)",
+ "zk_ee 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.29-interface-v0.1.3-b)",
  "zksync_os_evm_errors",
 ]
 
 [[package]]
 name = "evm_interpreter"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.1.2-interface-v0.1.3#bb085de0891157b2295ffbd1329ebf5cc2944c0e"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.1.2-interface-v0.1.3-b#aa64cf1ecf90ba0cc74b55d0097513c89dd3b6c5"
 dependencies = [
  "arrayvec",
- "crypto 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.1.2-interface-v0.1.3)",
- "cycle_marker 0.0.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.1.2-interface-v0.1.3)",
+ "crypto 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.1.2-interface-v0.1.3-b)",
+ "cycle_marker 0.0.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.1.2-interface-v0.1.3-b)",
  "either",
  "paste",
  "ruint",
  "strum_macros",
- "zk_ee 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.1.2-interface-v0.1.3)",
+ "zk_ee 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.1.2-interface-v0.1.3-b)",
  "zksync_os_evm_errors",
 ]
 
 [[package]]
 name = "evm_interpreter"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-interface-v0.1.3#9d82156e85c6430ba53d1a186c23828c1dff05fd"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-interface-v0.1.3-b#919ac93b56455ae2d60e5247643214cdef65b7fc"
 dependencies = [
  "arrayvec",
- "crypto 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-interface-v0.1.3)",
- "cycle_marker 0.0.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-interface-v0.1.3)",
+ "crypto 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-interface-v0.1.3-b)",
+ "cycle_marker 0.0.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-interface-v0.1.3-b)",
  "either",
  "paste",
  "ruint",
  "strum_macros",
- "zk_ee 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-interface-v0.1.3)",
+ "zk_ee 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-interface-v0.1.3-b)",
  "zksync_os_evm_errors",
 ]
 
 [[package]]
 name = "evm_interpreter"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-simulation-only-interface-v0.1.3#d5492542870c39b4c262f613d76ae9ddf5036900"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-simulation-only-interface-v0.1.3-b#6302740fee7bec8a1c22dc4ef846437e5a86418b"
 dependencies = [
  "arrayvec",
- "crypto 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-simulation-only-interface-v0.1.3)",
- "cycle_marker 0.0.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-simulation-only-interface-v0.1.3)",
+ "crypto 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-simulation-only-interface-v0.1.3-b)",
+ "cycle_marker 0.0.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-simulation-only-interface-v0.1.3-b)",
  "either",
  "paste",
  "ruint",
  "strum_macros",
- "zk_ee 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-simulation-only-interface-v0.1.3)",
+ "zk_ee 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-simulation-only-interface-v0.1.3-b)",
  "zksync_os_evm_errors",
 ]
 
 [[package]]
 name = "evm_interpreter"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3#b4193659af83b6c71419ddda3f57e0302c61eb8d"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b#126da9730867da57d87391097cfc1a95551e4080"
 dependencies = [
  "arrayvec",
- "crypto 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
- "cycle_marker 0.0.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
+ "crypto 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
+ "cycle_marker 0.0.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
  "either",
  "paste",
  "ruint",
  "strum_macros",
- "zk_ee 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
+ "zk_ee 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
 ]
 
 [[package]]
 name = "execution_utils"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3#c23fd0085ee87872e25ff83f780d2d0ee102a166"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b#0e5ed18ff282e620b6da359be97ea8499052f66d"
 dependencies = [
- "risc_v_simulator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
+ "risc_v_simulator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
  "serde",
  "serde_json",
- "trace_and_split 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
- "verifier_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
+ "trace_and_split 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
+ "verifier_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
 ]
 
 [[package]]
@@ -5123,6 +5188,19 @@ dependencies = [
  "serde_json",
  "trace_and_split 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.2)",
  "verifier_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.2)",
+]
+
+[[package]]
+name = "execution_utils"
+version = "0.1.0"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b#33a74735a5b1ef5669253fcd6a024811b08ab459"
+dependencies = [
+ "clap",
+ "risc_v_simulator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+ "serde",
+ "serde_json",
+ "trace_and_split 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+ "verifier_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
 ]
 
 [[package]]
@@ -5188,15 +5266,15 @@ dependencies = [
 [[package]]
 name = "fft"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3#c23fd0085ee87872e25ff83f780d2d0ee102a166"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b#0e5ed18ff282e620b6da359be97ea8499052f66d"
 dependencies = [
- "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
+ "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
  "itertools 0.14.0",
  "rayon",
  "seq-macro",
- "trace_holder 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
+ "trace_holder 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
  "unroll",
- "worker 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
+ "worker 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
 ]
 
 [[package]]
@@ -5214,6 +5292,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "fft"
+version = "0.1.0"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b#33a74735a5b1ef5669253fcd6a024811b08ab459"
+dependencies = [
+ "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+ "itertools 0.14.0",
+ "rayon",
+ "seq-macro",
+ "trace_holder 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+ "unroll",
+ "worker 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+]
+
+[[package]]
 name = "fiat-crypto"
 version = "0.2.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5222,7 +5314,7 @@ checksum = "28dea519a9695b9977216879a3ebfddf92f1c08c05d984f8996aecd6ecdc811d"
 [[package]]
 name = "field"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3#c23fd0085ee87872e25ff83f780d2d0ee102a166"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b#0e5ed18ff282e620b6da359be97ea8499052f66d"
 dependencies = [
  "rand 0.9.5",
  "seq-macro",
@@ -5233,6 +5325,16 @@ dependencies = [
 name = "field"
 version = "0.1.0"
 source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.2#b93c285d292891f3c27a3cf0110be09cde30ac4f"
+dependencies = [
+ "rand 0.9.5",
+ "seq-macro",
+ "serde",
+]
+
+[[package]]
+name = "field"
+version = "0.1.0"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b#33a74735a5b1ef5669253fcd6a024811b08ab459"
 dependencies = [
  "rand 0.9.5",
  "seq-macro",
@@ -5253,13 +5355,13 @@ dependencies = [
 [[package]]
 name = "final_reduced_risc_v_machine"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3#c23fd0085ee87872e25ff83f780d2d0ee102a166"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b#0e5ed18ff282e620b6da359be97ea8499052f66d"
 dependencies = [
- "circuit_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
- "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
+ "circuit_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
  "serde",
  "serde_json",
- "verifier_generator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
+ "verifier_generator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
 ]
 
 [[package]]
@@ -5275,13 +5377,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "final_reduced_risc_v_machine"
+version = "0.1.0"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b#33a74735a5b1ef5669253fcd6a024811b08ab459"
+dependencies = [
+ "circuit_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+ "serde",
+ "serde_json",
+ "verifier_generator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+]
+
+[[package]]
 name = "final_reduced_risc_v_machine_verifier"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.2#b93c285d292891f3c27a3cf0110be09cde30ac4f"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b#33a74735a5b1ef5669253fcd6a024811b08ab459"
 dependencies = [
- "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.2)",
+ "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
  "unroll",
- "verifier_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.2)",
+ "verifier_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
 ]
 
 [[package]]
@@ -5459,125 +5573,125 @@ dependencies = [
 [[package]]
 name = "forward_system"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.0.29-interface-v0.1.3#2f65982d788f651c8504c7805eab6b17813226c6"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.29-interface-v0.1.3-b#4082465ce8d480cc9d7ef0660a95ab4721e423f9"
 dependencies = [
  "alloy",
  "arrayvec",
- "basic_bootloader 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.0.29-interface-v0.1.3)",
- "basic_system 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.0.29-interface-v0.1.3)",
+ "basic_bootloader 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.29-interface-v0.1.3-b)",
+ "basic_system 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.29-interface-v0.1.3-b)",
  "bincode 1.3.3",
- "callable_oracles 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.0.29-interface-v0.1.3)",
- "evm_interpreter 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.0.29-interface-v0.1.3)",
+ "callable_oracles 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.29-interface-v0.1.3-b)",
+ "evm_interpreter 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.29-interface-v0.1.3-b)",
  "hex",
- "oracle_provider 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.0.29-interface-v0.1.3)",
+ "oracle_provider 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.29-interface-v0.1.3-b)",
  "paste",
  "ruint",
  "serde",
  "strum_macros",
- "zk_ee 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.0.29-interface-v0.1.3)",
+ "zk_ee 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.29-interface-v0.1.3-b)",
  "zksync_os_evm_errors",
  "zksync_os_interface",
- "zksync_os_runner 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.0.29-interface-v0.1.3)",
+ "zksync_os_runner 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.29-interface-v0.1.3-b)",
 ]
 
 [[package]]
 name = "forward_system"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.1.2-interface-v0.1.3#bb085de0891157b2295ffbd1329ebf5cc2944c0e"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.1.2-interface-v0.1.3-b#aa64cf1ecf90ba0cc74b55d0097513c89dd3b6c5"
 dependencies = [
  "alloy",
  "arrayvec",
- "basic_bootloader 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.1.2-interface-v0.1.3)",
- "basic_system 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.1.2-interface-v0.1.3)",
+ "basic_bootloader 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.1.2-interface-v0.1.3-b)",
+ "basic_system 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.1.2-interface-v0.1.3-b)",
  "bincode 1.3.3",
- "callable_oracles 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.1.2-interface-v0.1.3)",
- "evm_interpreter 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.1.2-interface-v0.1.3)",
+ "callable_oracles 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.1.2-interface-v0.1.3-b)",
+ "evm_interpreter 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.1.2-interface-v0.1.3-b)",
  "hex",
- "oracle_provider 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.1.2-interface-v0.1.3)",
+ "oracle_provider 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.1.2-interface-v0.1.3-b)",
  "paste",
  "ruint",
  "serde",
  "strum_macros",
- "system_hooks 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.1.2-interface-v0.1.3)",
- "zk_ee 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.1.2-interface-v0.1.3)",
+ "system_hooks 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.1.2-interface-v0.1.3-b)",
+ "zk_ee 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.1.2-interface-v0.1.3-b)",
  "zksync_os_evm_errors",
  "zksync_os_interface",
- "zksync_os_runner 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.1.2-interface-v0.1.3)",
+ "zksync_os_runner 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.1.2-interface-v0.1.3-b)",
 ]
 
 [[package]]
 name = "forward_system"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-interface-v0.1.3#9d82156e85c6430ba53d1a186c23828c1dff05fd"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-interface-v0.1.3-b#919ac93b56455ae2d60e5247643214cdef65b7fc"
 dependencies = [
  "alloy",
  "arrayvec",
- "basic_bootloader 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-interface-v0.1.3)",
- "basic_system 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-interface-v0.1.3)",
+ "basic_bootloader 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-interface-v0.1.3-b)",
+ "basic_system 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-interface-v0.1.3-b)",
  "bincode 1.3.3",
- "callable_oracles 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-interface-v0.1.3)",
- "evm_interpreter 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-interface-v0.1.3)",
+ "callable_oracles 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-interface-v0.1.3-b)",
+ "evm_interpreter 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-interface-v0.1.3-b)",
  "hex",
- "oracle_provider 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-interface-v0.1.3)",
+ "oracle_provider 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-interface-v0.1.3-b)",
  "paste",
  "ruint",
  "serde",
  "strum_macros",
- "system_hooks 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-interface-v0.1.3)",
- "zk_ee 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-interface-v0.1.3)",
+ "system_hooks 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-interface-v0.1.3-b)",
+ "zk_ee 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-interface-v0.1.3-b)",
  "zksync_os_evm_errors",
  "zksync_os_interface",
- "zksync_os_runner 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-interface-v0.1.3)",
+ "zksync_os_runner 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-interface-v0.1.3-b)",
 ]
 
 [[package]]
 name = "forward_system"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-simulation-only-interface-v0.1.3#d5492542870c39b4c262f613d76ae9ddf5036900"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-simulation-only-interface-v0.1.3-b#6302740fee7bec8a1c22dc4ef846437e5a86418b"
 dependencies = [
  "alloy",
  "arrayvec",
- "basic_bootloader 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-simulation-only-interface-v0.1.3)",
- "basic_system 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-simulation-only-interface-v0.1.3)",
+ "basic_bootloader 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-simulation-only-interface-v0.1.3-b)",
+ "basic_system 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-simulation-only-interface-v0.1.3-b)",
  "bincode 1.3.3",
- "callable_oracles 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-simulation-only-interface-v0.1.3)",
- "evm_interpreter 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-simulation-only-interface-v0.1.3)",
+ "callable_oracles 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-simulation-only-interface-v0.1.3-b)",
+ "evm_interpreter 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-simulation-only-interface-v0.1.3-b)",
  "hex",
- "oracle_provider 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-simulation-only-interface-v0.1.3)",
+ "oracle_provider 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-simulation-only-interface-v0.1.3-b)",
  "paste",
  "ruint",
  "serde",
  "strum_macros",
- "system_hooks 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-simulation-only-interface-v0.1.3)",
- "zk_ee 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-simulation-only-interface-v0.1.3)",
+ "system_hooks 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-simulation-only-interface-v0.1.3-b)",
+ "zk_ee 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-simulation-only-interface-v0.1.3-b)",
  "zksync_os_evm_errors",
  "zksync_os_interface",
- "zksync_os_runner 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-simulation-only-interface-v0.1.3)",
+ "zksync_os_runner 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-simulation-only-interface-v0.1.3-b)",
 ]
 
 [[package]]
 name = "forward_system"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3#b4193659af83b6c71419ddda3f57e0302c61eb8d"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b#126da9730867da57d87391097cfc1a95551e4080"
 dependencies = [
  "alloy",
- "basic_bootloader 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
- "basic_system 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
+ "basic_bootloader 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
+ "basic_system 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
  "bincode 1.3.3",
- "callable_oracles 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
- "crypto 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
- "evm_interpreter 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
+ "callable_oracles 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
+ "crypto 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
+ "evm_interpreter 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
  "hex",
- "oracle_provider 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
+ "oracle_provider 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
  "paste",
  "ruint",
  "serde",
  "strum_macros",
- "system_hooks 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
- "zk_ee 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
+ "system_hooks 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
+ "zk_ee 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
  "zksync_os_evm_errors",
  "zksync_os_interface",
- "zksync_os_runner 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
+ "zksync_os_runner 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
 ]
 
 [[package]]
@@ -5598,7 +5712,7 @@ dependencies = [
 [[package]]
 name = "full_statement_verifier"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.2#b93c285d292891f3c27a3cf0110be09cde30ac4f"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b#33a74735a5b1ef5669253fcd6a024811b08ab459"
 dependencies = [
  "bigint_with_control_verifier",
  "blake2_with_compression_verifier",
@@ -5606,7 +5720,7 @@ dependencies = [
  "reduced_risc_v_log_23_machine_verifier",
  "reduced_risc_v_machine_verifier",
  "risc_v_cycles_verifier",
- "verifier_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.2)",
+ "verifier_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
 ]
 
 [[package]]
@@ -7818,13 +7932,13 @@ dependencies = [
 [[package]]
 name = "machine_without_signed_mul_div"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3#c23fd0085ee87872e25ff83f780d2d0ee102a166"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b#0e5ed18ff282e620b6da359be97ea8499052f66d"
 dependencies = [
- "circuit_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
- "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
+ "circuit_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
  "serde",
  "serde_json",
- "verifier_generator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
+ "verifier_generator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
 ]
 
 [[package]]
@@ -7837,6 +7951,18 @@ dependencies = [
  "serde",
  "serde_json",
  "verifier_generator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.2)",
+]
+
+[[package]]
+name = "machine_without_signed_mul_div"
+version = "0.1.0"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b#33a74735a5b1ef5669253fcd6a024811b08ab459"
+dependencies = [
+ "circuit_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+ "serde",
+ "serde_json",
+ "verifier_generator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
 ]
 
 [[package]]
@@ -7993,27 +8119,27 @@ dependencies = [
 [[package]]
 name = "modexp"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.0.29-interface-v0.1.3#2f65982d788f651c8504c7805eab6b17813226c6"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.29-interface-v0.1.3-b#4082465ce8d480cc9d7ef0660a95ab4721e423f9"
 
 [[package]]
 name = "modexp"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.1.2-interface-v0.1.3#bb085de0891157b2295ffbd1329ebf5cc2944c0e"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.1.2-interface-v0.1.3-b#aa64cf1ecf90ba0cc74b55d0097513c89dd3b6c5"
 
 [[package]]
 name = "modexp"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-interface-v0.1.3#9d82156e85c6430ba53d1a186c23828c1dff05fd"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-interface-v0.1.3-b#919ac93b56455ae2d60e5247643214cdef65b7fc"
 
 [[package]]
 name = "modexp"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-simulation-only-interface-v0.1.3#d5492542870c39b4c262f613d76ae9ddf5036900"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-simulation-only-interface-v0.1.3-b#6302740fee7bec8a1c22dc4ef846437e5a86418b"
 
 [[package]]
 name = "modexp"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3#b4193659af83b6c71419ddda3f57e0302c61eb8d"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b#126da9730867da57d87391097cfc1a95551e4080"
 
 [[package]]
 name = "modular-bitfield"
@@ -8155,12 +8281,17 @@ dependencies = [
 [[package]]
 name = "non_determinism_source"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3#c23fd0085ee87872e25ff83f780d2d0ee102a166"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b#0e5ed18ff282e620b6da359be97ea8499052f66d"
 
 [[package]]
 name = "non_determinism_source"
 version = "0.1.0"
 source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.2#b93c285d292891f3c27a3cf0110be09cde30ac4f"
+
+[[package]]
+name = "non_determinism_source"
+version = "0.1.0"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b#33a74735a5b1ef5669253fcd6a024811b08ab459"
 
 [[package]]
 name = "nonmax"
@@ -8656,46 +8787,46 @@ dependencies = [
 [[package]]
 name = "oracle_provider"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.0.29-interface-v0.1.3#2f65982d788f651c8504c7805eab6b17813226c6"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.29-interface-v0.1.3-b#4082465ce8d480cc9d7ef0660a95ab4721e423f9"
 dependencies = [
- "risc_v_simulator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
- "zk_ee 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.0.29-interface-v0.1.3)",
+ "risc_v_simulator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
+ "zk_ee 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.29-interface-v0.1.3-b)",
 ]
 
 [[package]]
 name = "oracle_provider"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.1.2-interface-v0.1.3#bb085de0891157b2295ffbd1329ebf5cc2944c0e"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.1.2-interface-v0.1.3-b#aa64cf1ecf90ba0cc74b55d0097513c89dd3b6c5"
 dependencies = [
- "risc_v_simulator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
- "zk_ee 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.1.2-interface-v0.1.3)",
+ "risc_v_simulator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
+ "zk_ee 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.1.2-interface-v0.1.3-b)",
 ]
 
 [[package]]
 name = "oracle_provider"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-interface-v0.1.3#9d82156e85c6430ba53d1a186c23828c1dff05fd"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-interface-v0.1.3-b#919ac93b56455ae2d60e5247643214cdef65b7fc"
 dependencies = [
- "risc_v_simulator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
- "zk_ee 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-interface-v0.1.3)",
+ "risc_v_simulator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
+ "zk_ee 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-interface-v0.1.3-b)",
 ]
 
 [[package]]
 name = "oracle_provider"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-simulation-only-interface-v0.1.3#d5492542870c39b4c262f613d76ae9ddf5036900"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-simulation-only-interface-v0.1.3-b#6302740fee7bec8a1c22dc4ef846437e5a86418b"
 dependencies = [
- "risc_v_simulator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
- "zk_ee 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-simulation-only-interface-v0.1.3)",
+ "risc_v_simulator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
+ "zk_ee 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-simulation-only-interface-v0.1.3-b)",
 ]
 
 [[package]]
 name = "oracle_provider"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3#b4193659af83b6c71419ddda3f57e0302c61eb8d"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b#126da9730867da57d87391097cfc1a95551e4080"
 dependencies = [
  "risc_v_simulator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.2)",
- "zk_ee 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
+ "zk_ee 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
 ]
 
 [[package]]
@@ -9064,10 +9195,10 @@ dependencies = [
 [[package]]
 name = "poseidon2"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3#c23fd0085ee87872e25ff83f780d2d0ee102a166"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b#0e5ed18ff282e620b6da359be97ea8499052f66d"
 dependencies = [
- "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
- "non_determinism_source 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
+ "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
+ "non_determinism_source 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
  "rand 0.9.5",
  "unroll",
 ]
@@ -9079,6 +9210,17 @@ source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.2#b93
 dependencies = [
  "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.2)",
  "non_determinism_source 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.2)",
+ "rand 0.9.5",
+ "unroll",
+]
+
+[[package]]
+name = "poseidon2"
+version = "0.1.0"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b#33a74735a5b1ef5669253fcd6a024811b08ab459"
+dependencies = [
+ "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+ "non_determinism_source 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
  "rand 0.9.5",
  "unroll",
 ]
@@ -9331,29 +9473,29 @@ dependencies = [
 [[package]]
 name = "prover"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3#c23fd0085ee87872e25ff83f780d2d0ee102a166"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b#0e5ed18ff282e620b6da359be97ea8499052f66d"
 dependencies = [
  "bit-set",
- "blake2s_u32 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
- "cs 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
- "fft 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
- "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
+ "blake2s_u32 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
+ "cs 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
+ "fft 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
+ "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
  "itertools 0.14.0",
  "lib-rv32-asm",
- "non_determinism_source 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
- "poseidon2 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
+ "non_determinism_source 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
+ "poseidon2 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
  "proc-macro2",
  "quote",
  "rayon",
- "risc_v_simulator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
+ "risc_v_simulator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
  "seq-macro",
  "serde",
  "serde_json",
  "syn 2.0.117",
- "trace_holder 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
- "transcript 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
+ "trace_holder 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
+ "transcript 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
  "unroll",
- "worker 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
+ "worker 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
 ]
 
 [[package]]
@@ -9385,18 +9527,46 @@ dependencies = [
 ]
 
 [[package]]
+name = "prover"
+version = "0.1.0"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b#33a74735a5b1ef5669253fcd6a024811b08ab459"
+dependencies = [
+ "bit-set",
+ "blake2s_u32 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+ "cs 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+ "fft 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+ "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+ "itertools 0.14.0",
+ "lib-rv32-asm",
+ "non_determinism_source 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+ "poseidon2 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+ "proc-macro2",
+ "quote",
+ "rayon",
+ "risc_v_simulator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+ "seq-macro",
+ "serde",
+ "serde_json",
+ "syn 2.0.117",
+ "trace_holder 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+ "transcript 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+ "unroll",
+ "worker 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+]
+
+[[package]]
 name = "prover_examples"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3#c23fd0085ee87872e25ff83f780d2d0ee102a166"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b#0e5ed18ff282e620b6da359be97ea8499052f66d"
 dependencies = [
  "bincode 1.3.3",
  "itertools 0.14.0",
- "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
- "risc_v_cycles 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
+ "risc_v_cycles 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
  "serde",
  "serde_json",
- "setups 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
- "trace_and_split 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
+ "setups 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
+ "trace_and_split 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
  "transpose",
 ]
 
@@ -9730,13 +9900,13 @@ dependencies = [
 [[package]]
 name = "reduced_risc_v_log_23_machine"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3#c23fd0085ee87872e25ff83f780d2d0ee102a166"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b#0e5ed18ff282e620b6da359be97ea8499052f66d"
 dependencies = [
- "circuit_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
- "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
+ "circuit_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
  "serde",
  "serde_json",
- "verifier_generator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
+ "verifier_generator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
 ]
 
 [[package]]
@@ -9752,25 +9922,37 @@ dependencies = [
 ]
 
 [[package]]
+name = "reduced_risc_v_log_23_machine"
+version = "0.1.0"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b#33a74735a5b1ef5669253fcd6a024811b08ab459"
+dependencies = [
+ "circuit_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+ "serde",
+ "serde_json",
+ "verifier_generator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+]
+
+[[package]]
 name = "reduced_risc_v_log_23_machine_verifier"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.2#b93c285d292891f3c27a3cf0110be09cde30ac4f"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b#33a74735a5b1ef5669253fcd6a024811b08ab459"
 dependencies = [
- "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.2)",
+ "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
  "unroll",
- "verifier_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.2)",
+ "verifier_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
 ]
 
 [[package]]
 name = "reduced_risc_v_machine"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3#c23fd0085ee87872e25ff83f780d2d0ee102a166"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b#0e5ed18ff282e620b6da359be97ea8499052f66d"
 dependencies = [
- "circuit_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
- "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
+ "circuit_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
  "serde",
  "serde_json",
- "verifier_generator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
+ "verifier_generator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
 ]
 
 [[package]]
@@ -9786,13 +9968,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "reduced_risc_v_machine"
+version = "0.1.0"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b#33a74735a5b1ef5669253fcd6a024811b08ab459"
+dependencies = [
+ "circuit_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+ "serde",
+ "serde_json",
+ "verifier_generator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+]
+
+[[package]]
 name = "reduced_risc_v_machine_verifier"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.2#b93c285d292891f3c27a3cf0110be09cde30ac4f"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b#33a74735a5b1ef5669253fcd6a024811b08ab459"
 dependencies = [
- "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.2)",
+ "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
  "unroll",
- "verifier_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.2)",
+ "verifier_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
 ]
 
 [[package]]
@@ -11684,13 +11878,13 @@ dependencies = [
 [[package]]
 name = "risc_v_cycles"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3#c23fd0085ee87872e25ff83f780d2d0ee102a166"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b#0e5ed18ff282e620b6da359be97ea8499052f66d"
 dependencies = [
- "circuit_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
- "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
+ "circuit_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
  "serde",
  "serde_json",
- "verifier_generator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
+ "verifier_generator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
 ]
 
 [[package]]
@@ -11706,28 +11900,40 @@ dependencies = [
 ]
 
 [[package]]
+name = "risc_v_cycles"
+version = "0.1.0"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b#33a74735a5b1ef5669253fcd6a024811b08ab459"
+dependencies = [
+ "circuit_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+ "serde",
+ "serde_json",
+ "verifier_generator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+]
+
+[[package]]
 name = "risc_v_cycles_verifier"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.2#b93c285d292891f3c27a3cf0110be09cde30ac4f"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b#33a74735a5b1ef5669253fcd6a024811b08ab459"
 dependencies = [
- "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.2)",
+ "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
  "unroll",
- "verifier_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.2)",
+ "verifier_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
 ]
 
 [[package]]
 name = "risc_v_simulator"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3#c23fd0085ee87872e25ff83f780d2d0ee102a166"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b#0e5ed18ff282e620b6da359be97ea8499052f66d"
 dependencies = [
  "addr2line 0.22.0",
- "blake2s_u32 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
- "cs 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
- "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
+ "blake2s_u32 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
+ "cs 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
+ "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
  "inferno",
  "memmap2",
- "object 0.37.3",
- "poseidon2 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
+ "object 0.35.0",
+ "poseidon2 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
  "rand 0.9.5",
  "ringbuffer",
  "ruint",
@@ -11747,6 +11953,25 @@ dependencies = [
  "memmap2",
  "object 0.37.3",
  "poseidon2 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.2)",
+ "rand 0.9.5",
+ "ringbuffer",
+ "ruint",
+ "serde",
+]
+
+[[package]]
+name = "risc_v_simulator"
+version = "0.1.0"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b#33a74735a5b1ef5669253fcd6a024811b08ab459"
+dependencies = [
+ "addr2line 0.22.0",
+ "blake2s_u32 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+ "cs 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+ "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+ "inferno",
+ "memmap2",
+ "object 0.37.3",
+ "poseidon2 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
  "rand 0.9.5",
  "ringbuffer",
  "ruint",
@@ -12728,22 +12953,22 @@ dependencies = [
 [[package]]
 name = "setups"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3#c23fd0085ee87872e25ff83f780d2d0ee102a166"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b#0e5ed18ff282e620b6da359be97ea8499052f66d"
 dependencies = [
- "bigint_with_control 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
- "blake2_with_compression 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
- "final_reduced_risc_v_machine 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
- "machine_without_signed_mul_div 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
+ "bigint_with_control 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
+ "blake2_with_compression 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
+ "final_reduced_risc_v_machine 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
+ "machine_without_signed_mul_div 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
  "proc-macro2",
- "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
  "quote",
- "reduced_risc_v_log_23_machine 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
- "reduced_risc_v_machine 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
- "risc_v_cycles 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
+ "reduced_risc_v_log_23_machine 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
+ "reduced_risc_v_machine 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
+ "risc_v_cycles 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
  "serde",
  "serde_json",
  "syn 2.0.117",
- "verifier_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
+ "verifier_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
 ]
 
 [[package]]
@@ -12765,6 +12990,27 @@ dependencies = [
  "serde_json",
  "syn 2.0.117",
  "verifier_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.2)",
+]
+
+[[package]]
+name = "setups"
+version = "0.1.0"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b#33a74735a5b1ef5669253fcd6a024811b08ab459"
+dependencies = [
+ "bigint_with_control 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+ "blake2_with_compression 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+ "final_reduced_risc_v_machine 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+ "machine_without_signed_mul_div 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+ "proc-macro2",
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+ "quote",
+ "reduced_risc_v_log_23_machine 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+ "reduced_risc_v_machine 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+ "risc_v_cycles 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+ "serde",
+ "serde_json",
+ "syn 2.0.117",
+ "verifier_common 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
 ]
 
 [[package]]
@@ -13092,45 +13338,45 @@ checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 [[package]]
 name = "storage_models"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.0.29-interface-v0.1.3#2f65982d788f651c8504c7805eab6b17813226c6"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.29-interface-v0.1.3-b#4082465ce8d480cc9d7ef0660a95ab4721e423f9"
 dependencies = [
- "crypto 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.0.29-interface-v0.1.3)",
- "zk_ee 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.0.29-interface-v0.1.3)",
+ "crypto 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.29-interface-v0.1.3-b)",
+ "zk_ee 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.29-interface-v0.1.3-b)",
 ]
 
 [[package]]
 name = "storage_models"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.1.2-interface-v0.1.3#bb085de0891157b2295ffbd1329ebf5cc2944c0e"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.1.2-interface-v0.1.3-b#aa64cf1ecf90ba0cc74b55d0097513c89dd3b6c5"
 dependencies = [
- "crypto 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.1.2-interface-v0.1.3)",
- "zk_ee 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.1.2-interface-v0.1.3)",
+ "crypto 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.1.2-interface-v0.1.3-b)",
+ "zk_ee 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.1.2-interface-v0.1.3-b)",
 ]
 
 [[package]]
 name = "storage_models"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-interface-v0.1.3#9d82156e85c6430ba53d1a186c23828c1dff05fd"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-interface-v0.1.3-b#919ac93b56455ae2d60e5247643214cdef65b7fc"
 dependencies = [
- "crypto 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-interface-v0.1.3)",
- "zk_ee 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-interface-v0.1.3)",
+ "crypto 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-interface-v0.1.3-b)",
+ "zk_ee 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-interface-v0.1.3-b)",
 ]
 
 [[package]]
 name = "storage_models"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-simulation-only-interface-v0.1.3#d5492542870c39b4c262f613d76ae9ddf5036900"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-simulation-only-interface-v0.1.3-b#6302740fee7bec8a1c22dc4ef846437e5a86418b"
 dependencies = [
- "crypto 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-simulation-only-interface-v0.1.3)",
- "zk_ee 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-simulation-only-interface-v0.1.3)",
+ "crypto 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-simulation-only-interface-v0.1.3-b)",
+ "zk_ee 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-simulation-only-interface-v0.1.3-b)",
 ]
 
 [[package]]
 name = "storage_models"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3#b4193659af83b6c71419ddda3f57e0302c61eb8d"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b#126da9730867da57d87391097cfc1a95551e4080"
 dependencies = [
- "zk_ee 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
+ "zk_ee 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
 ]
 
 [[package]]
@@ -13319,71 +13565,71 @@ dependencies = [
 [[package]]
 name = "system_hooks"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.0.29-interface-v0.1.3#2f65982d788f651c8504c7805eab6b17813226c6"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.29-interface-v0.1.3-b#4082465ce8d480cc9d7ef0660a95ab4721e423f9"
 dependencies = [
  "arrayvec",
- "cycle_marker 0.0.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.0.29-interface-v0.1.3)",
- "evm_interpreter 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.0.29-interface-v0.1.3)",
+ "cycle_marker 0.0.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.29-interface-v0.1.3-b)",
+ "evm_interpreter 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.29-interface-v0.1.3-b)",
  "paste",
  "ruint",
  "strum_macros",
- "zk_ee 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.0.29-interface-v0.1.3)",
+ "zk_ee 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.29-interface-v0.1.3-b)",
 ]
 
 [[package]]
 name = "system_hooks"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.1.2-interface-v0.1.3#bb085de0891157b2295ffbd1329ebf5cc2944c0e"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.1.2-interface-v0.1.3-b#aa64cf1ecf90ba0cc74b55d0097513c89dd3b6c5"
 dependencies = [
  "arrayvec",
- "cycle_marker 0.0.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.1.2-interface-v0.1.3)",
- "evm_interpreter 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.1.2-interface-v0.1.3)",
+ "cycle_marker 0.0.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.1.2-interface-v0.1.3-b)",
+ "evm_interpreter 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.1.2-interface-v0.1.3-b)",
  "paste",
  "ruint",
  "strum_macros",
- "zk_ee 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.1.2-interface-v0.1.3)",
+ "zk_ee 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.1.2-interface-v0.1.3-b)",
 ]
 
 [[package]]
 name = "system_hooks"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-interface-v0.1.3#9d82156e85c6430ba53d1a186c23828c1dff05fd"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-interface-v0.1.3-b#919ac93b56455ae2d60e5247643214cdef65b7fc"
 dependencies = [
  "arrayvec",
- "cycle_marker 0.0.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-interface-v0.1.3)",
- "evm_interpreter 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-interface-v0.1.3)",
+ "cycle_marker 0.0.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-interface-v0.1.3-b)",
+ "evm_interpreter 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-interface-v0.1.3-b)",
  "paste",
  "ruint",
  "strum_macros",
- "zk_ee 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-interface-v0.1.3)",
+ "zk_ee 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-interface-v0.1.3-b)",
 ]
 
 [[package]]
 name = "system_hooks"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-simulation-only-interface-v0.1.3#d5492542870c39b4c262f613d76ae9ddf5036900"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-simulation-only-interface-v0.1.3-b#6302740fee7bec8a1c22dc4ef846437e5a86418b"
 dependencies = [
  "arrayvec",
- "cycle_marker 0.0.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-simulation-only-interface-v0.1.3)",
- "evm_interpreter 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-simulation-only-interface-v0.1.3)",
+ "cycle_marker 0.0.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-simulation-only-interface-v0.1.3-b)",
+ "evm_interpreter 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-simulation-only-interface-v0.1.3-b)",
  "paste",
  "ruint",
  "strum_macros",
- "zk_ee 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-simulation-only-interface-v0.1.3)",
+ "zk_ee 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-simulation-only-interface-v0.1.3-b)",
 ]
 
 [[package]]
 name = "system_hooks"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3#b4193659af83b6c71419ddda3f57e0302c61eb8d"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b#126da9730867da57d87391097cfc1a95551e4080"
 dependencies = [
  "arrayvec",
- "cycle_marker 0.0.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
- "evm_interpreter 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
+ "cycle_marker 0.0.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
+ "evm_interpreter 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
  "paste",
  "ruint",
  "strum_macros",
- "zk_ee 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
+ "zk_ee 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
 ]
 
 [[package]]
@@ -13929,13 +14175,13 @@ checksum = "8df9b6e13f2d32c91b9bd719c00d1958837bc7dec474d94952798cc8e69eeec3"
 [[package]]
 name = "trace_and_split"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3#c23fd0085ee87872e25ff83f780d2d0ee102a166"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b#0e5ed18ff282e620b6da359be97ea8499052f66d"
 dependencies = [
- "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
  "serde",
  "serde_json",
- "setups 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
- "worker 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
+ "setups 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
+ "worker 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
 ]
 
 [[package]]
@@ -13951,12 +14197,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "trace_and_split"
+version = "0.1.0"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b#33a74735a5b1ef5669253fcd6a024811b08ab459"
+dependencies = [
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+ "serde",
+ "serde_json",
+ "setups 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+ "worker 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+]
+
+[[package]]
 name = "trace_holder"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3#c23fd0085ee87872e25ff83f780d2d0ee102a166"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b#0e5ed18ff282e620b6da359be97ea8499052f66d"
 dependencies = [
- "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
- "worker 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
+ "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
+ "worker 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
 ]
 
 [[package]]
@@ -13966,6 +14224,15 @@ source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.2#b93
 dependencies = [
  "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.2)",
  "worker 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.2)",
+]
+
+[[package]]
+name = "trace_holder"
+version = "0.1.0"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b#33a74735a5b1ef5669253fcd6a024811b08ab459"
+dependencies = [
+ "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+ "worker 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
 ]
 
 [[package]]
@@ -14162,11 +14429,11 @@ dependencies = [
 [[package]]
 name = "transcript"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3#c23fd0085ee87872e25ff83f780d2d0ee102a166"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b#0e5ed18ff282e620b6da359be97ea8499052f66d"
 dependencies = [
- "blake2s_u32 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
+ "blake2s_u32 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
  "unroll",
- "worker 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
+ "worker 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
 ]
 
 [[package]]
@@ -14177,6 +14444,16 @@ dependencies = [
  "blake2s_u32 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.2)",
  "unroll",
  "worker 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.2)",
+]
+
+[[package]]
+name = "transcript"
+version = "0.1.0"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b#33a74735a5b1ef5669253fcd6a024811b08ab459"
+dependencies = [
+ "blake2s_u32 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+ "unroll",
+ "worker 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
 ]
 
 [[package]]
@@ -14598,16 +14875,16 @@ checksum = "accd4ea62f7bb7a82fe23066fb0957d48ef677f6eeb8215f372f52e48bb32426"
 [[package]]
 name = "verifier_common"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3#c23fd0085ee87872e25ff83f780d2d0ee102a166"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b#0e5ed18ff282e620b6da359be97ea8499052f66d"
 dependencies = [
- "blake2s_u32 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
- "cs 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
- "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
- "non_determinism_source 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
- "poseidon2 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
- "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
+ "blake2s_u32 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
+ "cs 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
+ "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
+ "non_determinism_source 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
+ "poseidon2 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
  "serde",
- "transcript 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
+ "transcript 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
  "unroll",
 ]
 
@@ -14628,13 +14905,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "verifier_common"
+version = "0.1.0"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b#33a74735a5b1ef5669253fcd6a024811b08ab459"
+dependencies = [
+ "blake2s_u32 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+ "cs 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+ "field 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+ "non_determinism_source 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+ "poseidon2 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+ "serde",
+ "transcript 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
+ "unroll",
+]
+
+[[package]]
 name = "verifier_generator"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3#c23fd0085ee87872e25ff83f780d2d0ee102a166"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b#0e5ed18ff282e620b6da359be97ea8499052f66d"
 dependencies = [
  "proc-macro-error2",
  "proc-macro2",
- "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
  "quote",
  "serde",
  "serde_json",
@@ -14649,6 +14942,20 @@ dependencies = [
  "proc-macro-error2",
  "proc-macro2",
  "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.2)",
+ "quote",
+ "serde",
+ "serde_json",
+ "syn 2.0.117",
+]
+
+[[package]]
+name = "verifier_generator"
+version = "0.1.0"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b#33a74735a5b1ef5669253fcd6a024811b08ab459"
+dependencies = [
+ "proc-macro-error2",
+ "proc-macro2",
+ "prover 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
  "quote",
  "serde",
  "serde_json",
@@ -15639,7 +15946,7 @@ dependencies = [
 [[package]]
 name = "worker"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3#c23fd0085ee87872e25ff83f780d2d0ee102a166"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b#0e5ed18ff282e620b6da359be97ea8499052f66d"
 dependencies = [
  "num_cpus",
  "rayon",
@@ -15649,6 +15956,15 @@ dependencies = [
 name = "worker"
 version = "0.1.0"
 source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.2#b93c285d292891f3c27a3cf0110be09cde30ac4f"
+dependencies = [
+ "num_cpus",
+ "rayon",
+]
+
+[[package]]
+name = "worker"
+version = "0.1.0"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b#33a74735a5b1ef5669253fcd6a024811b08ab459"
 dependencies = [
  "num_cpus",
  "rayon",
@@ -15849,13 +16165,13 @@ dependencies = [
 [[package]]
 name = "zk_ee"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.0.29-interface-v0.1.3#2f65982d788f651c8504c7805eab6b17813226c6"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.29-interface-v0.1.3-b#4082465ce8d480cc9d7ef0660a95ab4721e423f9"
 dependencies = [
  "arrayvec",
  "bitflags 2.11.0",
  "cfg-if",
- "crypto 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.0.29-interface-v0.1.3)",
- "cycle_marker 0.0.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.0.29-interface-v0.1.3)",
+ "crypto 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.29-interface-v0.1.3-b)",
+ "cycle_marker 0.0.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.29-interface-v0.1.3-b)",
  "paste",
  "ruint",
  "serde",
@@ -15866,13 +16182,13 @@ dependencies = [
 [[package]]
 name = "zk_ee"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.1.2-interface-v0.1.3#bb085de0891157b2295ffbd1329ebf5cc2944c0e"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.1.2-interface-v0.1.3-b#aa64cf1ecf90ba0cc74b55d0097513c89dd3b6c5"
 dependencies = [
  "arrayvec",
  "bitflags 2.11.0",
  "cfg-if",
- "crypto 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.1.2-interface-v0.1.3)",
- "cycle_marker 0.0.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.1.2-interface-v0.1.3)",
+ "crypto 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.1.2-interface-v0.1.3-b)",
+ "cycle_marker 0.0.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.1.2-interface-v0.1.3-b)",
  "paste",
  "ruint",
  "serde",
@@ -15883,13 +16199,13 @@ dependencies = [
 [[package]]
 name = "zk_ee"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-interface-v0.1.3#9d82156e85c6430ba53d1a186c23828c1dff05fd"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-interface-v0.1.3-b#919ac93b56455ae2d60e5247643214cdef65b7fc"
 dependencies = [
  "arrayvec",
  "bitflags 2.11.0",
  "cfg-if",
- "crypto 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-interface-v0.1.3)",
- "cycle_marker 0.0.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-interface-v0.1.3)",
+ "crypto 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-interface-v0.1.3-b)",
+ "cycle_marker 0.0.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-interface-v0.1.3-b)",
  "paste",
  "ruint",
  "serde",
@@ -15900,13 +16216,13 @@ dependencies = [
 [[package]]
 name = "zk_ee"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-simulation-only-interface-v0.1.3#d5492542870c39b4c262f613d76ae9ddf5036900"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-simulation-only-interface-v0.1.3-b#6302740fee7bec8a1c22dc4ef846437e5a86418b"
 dependencies = [
  "arrayvec",
  "bitflags 2.11.0",
  "cfg-if",
- "crypto 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-simulation-only-interface-v0.1.3)",
- "cycle_marker 0.0.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-simulation-only-interface-v0.1.3)",
+ "crypto 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-simulation-only-interface-v0.1.3-b)",
+ "cycle_marker 0.0.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-simulation-only-interface-v0.1.3-b)",
  "paste",
  "ruint",
  "strum_macros",
@@ -15916,13 +16232,13 @@ dependencies = [
 [[package]]
 name = "zk_ee"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3#b4193659af83b6c71419ddda3f57e0302c61eb8d"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b#126da9730867da57d87391097cfc1a95551e4080"
 dependencies = [
  "arrayvec",
  "bitflags 2.11.0",
  "cfg-if",
- "crypto 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
- "cycle_marker 0.0.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
+ "crypto 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
+ "cycle_marker 0.0.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
  "paste",
  "ruint",
  "serde",
@@ -15932,7 +16248,7 @@ dependencies = [
 [[package]]
 name = "zksync-os-revm"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os-revm?tag=v0.1.0#b8ecfb814326afd527a43c84abc96e007a28df05"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS-REVM?tag=v0.1.0-b#954af326009def90b1c0032c20ffc7cfa23ac99f"
 dependencies = [
  "auto_impl",
  "revm 38.0.0",
@@ -15955,20 +16271,20 @@ dependencies = [
 [[package]]
 name = "zksync_os_api"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3#b4193659af83b6c71419ddda3f57e0302c61eb8d"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b#126da9730867da57d87391097cfc1a95551e4080"
 dependencies = [
  "alloy",
  "alloy-sol-types",
- "basic_bootloader 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
- "basic_system 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
- "crypto 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
- "evm_interpreter 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
- "forward_system 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
- "oracle_provider 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
+ "basic_bootloader 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
+ "basic_system 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
+ "crypto 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
+ "evm_interpreter 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
+ "forward_system 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
+ "oracle_provider 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
  "ruint",
- "zk_ee 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
+ "zk_ee 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
  "zksync_os_interface",
- "zksync_os_runner 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
+ "zksync_os_runner 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
 ]
 
 [[package]]
@@ -16171,7 +16487,7 @@ dependencies = [
  "alloy",
  "anyhow",
  "async-trait",
- "basic_system 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
+ "basic_system 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
  "blake2",
  "serde",
  "serde_json",
@@ -16193,7 +16509,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "backon",
- "basic_system 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
+ "basic_system 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
  "blake2",
  "flate2",
  "futures",
@@ -16297,7 +16613,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "backon",
- "basic_system 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
+ "basic_system 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
  "blake2",
  "futures",
  "rangemap",
@@ -16409,11 +16725,11 @@ dependencies = [
  "alloy",
  "anyhow",
  "cargo_metadata",
- "forward_system 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.0.29-interface-v0.1.3)",
- "forward_system 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.1.2-interface-v0.1.3)",
- "forward_system 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-interface-v0.1.3)",
- "forward_system 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-simulation-only-interface-v0.1.3)",
- "forward_system 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
+ "forward_system 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.29-interface-v0.1.3-b)",
+ "forward_system 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.1.2-interface-v0.1.3-b)",
+ "forward_system 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-interface-v0.1.3-b)",
+ "forward_system 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-simulation-only-interface-v0.1.3-b)",
+ "forward_system 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
  "reqwest 0.12.28",
  "tempfile",
  "test-casing",
@@ -16642,8 +16958,8 @@ dependencies = [
  "alloy",
  "anyhow",
  "async-trait",
- "basic_system 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
- "forward_system 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
+ "basic_system 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
+ "forward_system 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
  "futures",
  "revm 38.0.0",
  "ruint",
@@ -16656,7 +16972,7 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
- "zk_ee 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
+ "zk_ee 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
  "zksync-os-revm",
  "zksync_os_api",
  "zksync_os_genesis",
@@ -16691,13 +17007,13 @@ dependencies = [
  "alloy",
  "anyhow",
  "async-trait",
- "basic_system 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
+ "basic_system 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
  "blake2",
  "boa_engine",
  "boa_gc",
  "dashmap 6.2.1",
  "derive_more 2.1.1",
- "evm_interpreter 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
+ "evm_interpreter 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
  "futures",
  "governor",
  "hyper",
@@ -16717,7 +17033,7 @@ dependencies = [
  "tower-http",
  "tracing",
  "vise",
- "zk_ee 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
+ "zk_ee 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
  "zksync_os_api",
  "zksync_os_batch_types",
  "zksync_os_contract_interface",
@@ -16774,53 +17090,53 @@ dependencies = [
 [[package]]
 name = "zksync_os_runner"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.0.29-interface-v0.1.3#2f65982d788f651c8504c7805eab6b17813226c6"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.29-interface-v0.1.3-b#4082465ce8d480cc9d7ef0660a95ab4721e423f9"
 dependencies = [
- "cycle_marker 0.0.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.0.29-interface-v0.1.3)",
- "execution_utils 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
- "prover_examples 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
- "risc_v_simulator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
+ "cycle_marker 0.0.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.0.29-interface-v0.1.3-b)",
+ "execution_utils 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
+ "prover_examples 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
+ "risc_v_simulator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
 ]
 
 [[package]]
 name = "zksync_os_runner"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.1.2-interface-v0.1.3#bb085de0891157b2295ffbd1329ebf5cc2944c0e"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.1.2-interface-v0.1.3-b#aa64cf1ecf90ba0cc74b55d0097513c89dd3b6c5"
 dependencies = [
- "cycle_marker 0.0.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.1.2-interface-v0.1.3)",
- "execution_utils 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
- "prover_examples 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
- "risc_v_simulator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
+ "cycle_marker 0.0.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.1.2-interface-v0.1.3-b)",
+ "execution_utils 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
+ "prover_examples 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
+ "risc_v_simulator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
 ]
 
 [[package]]
 name = "zksync_os_runner"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-interface-v0.1.3#9d82156e85c6430ba53d1a186c23828c1dff05fd"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-interface-v0.1.3-b#919ac93b56455ae2d60e5247643214cdef65b7fc"
 dependencies = [
- "cycle_marker 0.0.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-interface-v0.1.3)",
- "execution_utils 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
- "prover_examples 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
- "risc_v_simulator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
+ "cycle_marker 0.0.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-interface-v0.1.3-b)",
+ "execution_utils 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
+ "prover_examples 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
+ "risc_v_simulator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
 ]
 
 [[package]]
 name = "zksync_os_runner"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-simulation-only-interface-v0.1.3#d5492542870c39b4c262f613d76ae9ddf5036900"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-simulation-only-interface-v0.1.3-b#6302740fee7bec8a1c22dc4ef846437e5a86418b"
 dependencies = [
- "cycle_marker 0.0.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-simulation-only-interface-v0.1.3)",
- "execution_utils 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
- "prover_examples 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
- "risc_v_simulator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=v0.4.3)",
+ "cycle_marker 0.0.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-simulation-only-interface-v0.1.3-b)",
+ "execution_utils 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
+ "prover_examples 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
+ "risc_v_simulator 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System?tag=v0.4.3-b)",
 ]
 
 [[package]]
 name = "zksync_os_runner"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3#b4193659af83b6c71419ddda3f57e0302c61eb8d"
+source = "git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b#126da9730867da57d87391097cfc1a95551e4080"
 dependencies = [
- "cycle_marker 0.0.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
+ "cycle_marker 0.0.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
  "execution_utils 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.2)",
  "prover_examples 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.2)",
  "risc_v_simulator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.2)",
@@ -16833,8 +17149,8 @@ dependencies = [
  "alloy",
  "anyhow",
  "async-trait",
- "basic_system 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
- "forward_system 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
+ "basic_system 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
+ "forward_system 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
  "futures",
  "num",
  "ruint",
@@ -16845,7 +17161,7 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
- "zk_ee 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
+ "zk_ee 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
  "zksync_os_base_token_adjuster",
  "zksync_os_fee_overrides",
  "zksync_os_genesis",
@@ -16870,15 +17186,15 @@ dependencies = [
  "axum",
  "backon",
  "base64 0.22.1",
- "basic_system 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-interface-v0.1.3)",
- "basic_system 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
+ "basic_system 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-interface-v0.1.3-b)",
+ "basic_system 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
  "bincode 2.0.1",
  "blake2",
  "clap",
- "execution_utils 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.5.2)",
+ "execution_utils 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-Airbender-System.git?tag=v0.5.2-b)",
  "flate2",
- "forward_system 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-interface-v0.1.3)",
- "forward_system 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
+ "forward_system 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-interface-v0.1.3-b)",
+ "forward_system 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
  "full_statement_verifier",
  "futures",
  "http 1.3.1",
@@ -16904,8 +17220,8 @@ dependencies = [
  "tracing",
  "url",
  "vise",
- "zk_ee 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.2.10-interface-v0.1.3)",
- "zk_ee 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
+ "zk_ee 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.2.10-interface-v0.1.3-b)",
+ "zk_ee 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
  "zksync_os_backpressure",
  "zksync_os_base_token_adjuster",
  "zksync_os_batch_types",
@@ -16955,12 +17271,12 @@ dependencies = [
  "alloy",
  "anyhow",
  "dashmap 6.2.1",
- "forward_system 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
+ "forward_system 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
  "ruint",
  "tokio",
  "tracing",
  "vise",
- "zk_ee 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
+ "zk_ee 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
  "zksync_os_genesis",
  "zksync_os_interface",
  "zksync_os_rocksdb",
@@ -16973,12 +17289,12 @@ version = "0.20.12"
 dependencies = [
  "alloy",
  "anyhow",
- "forward_system 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
+ "forward_system 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
  "ruint",
  "tempfile",
  "tracing",
  "vise",
- "zk_ee 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
+ "zk_ee 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
  "zksync_os_genesis",
  "zksync_os_interface",
  "zksync_os_rocksdb",
@@ -17031,7 +17347,7 @@ dependencies = [
  "alloy-rlp",
  "anyhow",
  "auto_impl",
- "basic_system 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
+ "basic_system 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
  "futures",
  "pin-project",
  "roaring",
@@ -17041,7 +17357,7 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tracing",
- "zk_ee 0.1.0 (git+https://github.com/matter-labs/zksync-os?tag=v0.3.1-interface-v0.1.3)",
+ "zk_ee 0.1.0 (git+https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS?tag=v0.3.1-interface-v0.1.3-b)",
  "zksync_os_api",
  "zksync_os_batch_types",
  "zksync_os_interface",

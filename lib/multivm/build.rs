@@ -15,8 +15,8 @@ fn parse_git_tag(package_id: &PackageId) -> anyhow::Result<String> {
 
 fn proving_version_from_tag(tag: &str) -> Option<String> {
     match tag {
-        "v0.2.10-interface-v0.1.3" => Some(String::from("V6")),
-        "v0.3.1-interface-v0.1.3" => Some(String::from("V7")),
+        "v0.2.10-interface-v0.1.3-b" => Some(String::from("V6")),
+        "v0.3.1-interface-v0.1.3-b" => Some(String::from("V7")),
         _ => None,
     }
 }
@@ -118,7 +118,7 @@ fn main() {
             // We need to use original V6 binaries from zksync-os v0.2.5.
             // Should be removed as soon as we can get rig of proving V6.
             let tag = if proving_version == "V6" {
-                "v0.2.5".to_owned()
+                "v0.2.5-b".to_owned()
             } else {
                 tag
             };
@@ -131,7 +131,7 @@ fn main() {
                 "singleblock_batch_logging_enabled",
             ] {
                 let url = format!(
-                    "https://github.com/matter-labs/zksync-os/releases/download/{tag}/{variant}.bin"
+                    "https://github.com/ADI-Foundation-Labs/ADI-Stack-zkOS/releases/download/{tag}/{variant}.bin"
                 );
                 let path = format!("{dir}/{variant}.bin");
                 if std::fs::exists(&path).expect("failed to check file existence") {
