@@ -1309,11 +1309,13 @@ pub struct MempoolTxValidatorConfig {
     #[config(default_t = 128 * 1024 * 1024)]
     pub max_input_bytes: usize,
 
-    /// Maximum transaction fee cap in wei (default: 30 ETH).
+    /// Maximum transaction fee cap (default: 30 ETH).
     /// Transactions with fees exceeding this will be rejected by the mempool.
     /// Set to 0 to disable the cap.
-    #[config(default_t = DEFAULT_TX_FEE_CAP)]
-    pub tx_fee_cap: u128,
+    /// Declared as EtherAmount because smart-config serializes params to JSON for
+    /// config metrics, and a raw u128 above u64::MAX panics there.
+    #[config(default_t = EtherAmount(DEFAULT_TX_FEE_CAP))]
+    pub tx_fee_cap: EtherAmount,
 }
 
 /// Only used on the Main Node.
@@ -2095,7 +2097,7 @@ impl From<MempoolTxValidatorConfig> for zksync_os_mempool::TxValidatorConfig {
     fn from(c: MempoolTxValidatorConfig) -> Self {
         Self {
             max_input_bytes: c.max_input_bytes,
-            tx_fee_cap: c.tx_fee_cap,
+            tx_fee_cap: c.tx_fee_cap.0,
         }
     }
 }
