@@ -349,6 +349,21 @@ impl Default for RocksDBOptions {
     }
 }
 
+impl RocksDBOptions {
+    /// Options for read-heavy DBs (repository, state, preimages).
+    /// The defaults (`max_open_files = -1`, index/filter outside the cache) let RocksDB pin every
+    /// SST file's index and bloom filter in RAM forever, growing unbounded with DB size.
+    /// This caps open files and moves index/filter into the sized block cache to bound it.
+    pub fn read_optimized(block_cache_capacity: usize) -> Self {
+        Self {
+            block_cache_capacity: Some(block_cache_capacity),
+            include_indices_and_filters_in_block_cache: true,
+            max_open_files: NonZeroU32::new(4096),
+            ..Default::default()
+        }
+    }
+}
+
 /// Thin wrapper around a RocksDB instance.
 ///
 /// The wrapper is cheaply cloneable; internally, it wraps a DB instance in an [`Arc`].

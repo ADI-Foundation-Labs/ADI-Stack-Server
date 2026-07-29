@@ -4,8 +4,11 @@ use std::path::Path;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use zksync_os_interface::types::StorageWrite;
-use zksync_os_rocksdb::RocksDB;
 use zksync_os_rocksdb::db::NamedColumnFamily;
+use zksync_os_rocksdb::{RocksDB, RocksDBOptions};
+
+/// Block cache for the state DB (also bounds SST index/filter memory). Largest, hottest DB.
+const BLOCK_CACHE_CAPACITY_BYTES: usize = 2 * 1024 * 1024 * 1024;
 
 #[derive(Clone, Copy, Debug)]
 pub enum StorageCF {
@@ -44,7 +47,10 @@ pub struct FullDiffsStorage {
 // entry for our key: the latest write at or before the requested block.
 impl FullDiffsStorage {
     pub fn new(path: &Path) -> anyhow::Result<Self> {
-        let rocks = RocksDB::<StorageCF>::new(path)?;
+        let rocks = RocksDB::<StorageCF>::with_options(
+            path,
+            RocksDBOptions::read_optimized(BLOCK_CACHE_CAPACITY_BYTES),
+        )?;
         let latest_block = rocks
             .get_cf(StorageCF::Meta, StorageCF::latest_block_key())
             .ok()
