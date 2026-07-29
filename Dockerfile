@@ -21,11 +21,15 @@ ENV LD_LIBRARY_PATH=${LIBCLANG_PATH}:${LD_LIBRARY_PATH}
 
 COPY --from=planner /app/recipe.json recipe.json
 # Build dependencies (this is the caching Docker layer)
-RUN cargo chef cook --bin zksync-os-server --release --recipe-path recipe.json
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    cargo chef cook --bin zksync-os-server --release --features jemalloc-prof --recipe-path recipe.json
 
 # Build application
 COPY . .
-RUN cargo build --release --bin zksync-os-server
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    cargo build --release --features jemalloc-prof --bin zksync-os-server
 
 #################################
 # -------- Runtime -------------#
