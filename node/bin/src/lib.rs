@@ -1099,6 +1099,7 @@ async fn run_main_node_pipeline(
                 snark_job_manager.clone(),
                 proof_storage.clone(),
                 config.prover_api_config.address.clone(),
+                config.prover_api_config.auth.clone(),
                 shutdown,
             )
         });
