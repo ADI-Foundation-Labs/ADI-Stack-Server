@@ -53,6 +53,7 @@ use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::sync::watch;
 use zksync_os_base_token_adjuster::BaseTokenPriceUpdater;
+use zksync_os_batch_types::ExternalDaProvider;
 use zksync_os_batch_verification::{
     BatchVerificationConfig as BatchVerificationPolicyConfig, BatchVerificationPipelineStep,
     BatchVerificationResponder, effective_verification_policy,
@@ -238,24 +239,41 @@ pub async fn run<State: ReadStateHistory + WriteState + StateInitializer + Clone
             .l1_sender_config
             .pubdata_mode
             .expect("l1_sender_pubdata_mode must be set on the Main Node");
-        match (pubdata_mode, l1_state.da_input_mode) {
-            (
-                PubdataMode::Calldata | PubdataMode::Blobs | PubdataMode::RelayedL2Calldata,
-                BatchDaInputMode::Validium,
-            )
-            | (PubdataMode::Validium, BatchDaInputMode::Rollup) => {
+        if pubdata_mode.uses_external_da() {
+            if !config.external_da_config.enabled {
                 panic!(
-                    "Pubdata mode doesn't correspond to pricing mode from the l1. \
-                    L1 mode: {:?}, configured pubdata mode: {:?}",
-                    l1_state.da_input_mode, pubdata_mode
+                    "external_da.enabled must be true for external DA pubdata mode {:?}",
+                    pubdata_mode
                 );
             }
-            _ => {}
-        };
-        if let (PubdataMode::Blobs | PubdataMode::Calldata, true) = (
-            pubdata_mode,
-            config.general_config.gateway_rpc_url.is_some(),
-        ) {
+            // Validate provider is parseable at startup for early error detection.
+            ExternalDaProvider::parse(&config.external_da_config.provider).unwrap_or_else(|_| {
+                panic!(
+                    "unsupported external DA provider `{}` for pubdata_mode {:?}",
+                    config.external_da_config.provider, pubdata_mode
+                )
+            });
+        } else if config.external_da_config.enabled {
+            tracing::warn!(
+                "external_da.enabled=true but pubdata_mode {:?} does not use external DA; external_da config will be ignored",
+                pubdata_mode
+            );
+        }
+        let expects_validium_pricing = pubdata_mode == PubdataMode::Validium;
+        let l1_reports_validium_pricing =
+            matches!(l1_state.da_input_mode, BatchDaInputMode::Validium);
+        if expects_validium_pricing != l1_reports_validium_pricing {
+            panic!(
+                "Pubdata mode doesn't correspond to pricing mode from the l1. \
+                L1 mode: {:?}, configured pubdata mode: {:?}",
+                l1_state.da_input_mode, pubdata_mode
+            );
+        }
+
+        let disallowed_on_gateway =
+            matches!(pubdata_mode, PubdataMode::Blobs | PubdataMode::Calldata)
+                || pubdata_mode.uses_external_da();
+        if disallowed_on_gateway && config.general_config.gateway_rpc_url.is_some() {
             panic!(
                 "Pubdata mode {:?} cannot be used when settling on Gateway",
                 pubdata_mode
@@ -1019,6 +1037,12 @@ async fn run_main_node_pipeline(
     let (applied_block_number_sender, applied_block_number_receiver) =
         watch::channel(starting_block - 1);
 
+    let external_da_client = crate::batcher::external_da::build_external_da_client(
+        &config.external_da_config,
+        pubdata_mode,
+    )
+    .expect("failed to initialize external DA client");
+
     let pipeline = Pipeline::new(runtime.clone())
         .pipe(ConsensusNodeCommandSource {
             block_replay_storage: block_replay_storage.clone(),
@@ -1144,6 +1168,7 @@ async fn run_main_node_pipeline(
             chain_address_sl: node_state_on_startup.l1_state.diamond_proxy_address_sl(),
             pubdata_limit_bytes: config.sequencer_config.block_pubdata_limit_bytes,
             batcher_config: config.batcher_config.clone(),
+            external_da_client,
             pubdata_mode,
             sidecar_sender,
             committed_batch_provider: committed_batch_provider.clone(),

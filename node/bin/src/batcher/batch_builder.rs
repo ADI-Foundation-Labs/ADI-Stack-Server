@@ -1,5 +1,5 @@
 use alloy::primitives::Address;
-use zksync_os_batch_types::BatchInfo;
+use zksync_os_batch_types::{BatchInfo, ExternalDaData};
 use zksync_os_contract_interface::models::{L2Log, StoredBatchInfo};
 use zksync_os_interface::types::BlockOutput;
 use zksync_os_l1_sender::batcher_metrics::BatchExecutionStage;
@@ -25,6 +25,7 @@ pub(crate) fn seal_batch<ReadState: ReadStateHistory>(
     pubdata_mode: PubdataMode,
     sl_chain_id: u64,
     read_state: &ReadState,
+    external_da_data: Option<ExternalDaData>,
 ) -> anyhow::Result<BatchForSigning<ProverInput>> {
     let block_number_from = blocks.first().unwrap().1.block_context.block_number;
     let block_number_to = blocks.last().unwrap().1.block_context.block_number;
@@ -52,7 +53,8 @@ pub(crate) fn seal_batch<ReadState: ReadStateHistory>(
         sl_chain_id,
         multichain_root,
         &protocol_version,
-    );
+        external_da_data,
+    )?;
 
     let mut logs = Vec::new();
     let mut messages = Vec::new();

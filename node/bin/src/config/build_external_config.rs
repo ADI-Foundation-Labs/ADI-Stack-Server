@@ -1,5 +1,5 @@
 use crate::config::{
-    BaseTokenPriceUpdaterConfig, BatchVerificationConfig, BatcherConfig, Config,
+    BaseTokenPriceUpdaterConfig, BatchVerificationConfig, BatcherConfig, Config, ExternalDaConfig,
     ExternalPriceApiClientConfig, FeeConfig, GasAdjusterConfig, GeneralConfig, GenesisConfig,
     InteropFeeUpdaterConfig, L1SenderConfig, L1WatcherConfig, MempoolConfig,
     MempoolTxValidatorConfig, NetworkConfig, ObservabilityConfig, PrivateApiConfig,
@@ -83,6 +83,12 @@ pub async fn build_external_config(repo: ConfigRepository<'_>) -> Config {
         .parse()
         .expect("Failed to parse L1 watcher config");
 
+    let external_da_config = repo
+        .single::<ExternalDaConfig>()
+        .expect("Failed to load external DA config")
+        .parse()
+        .expect("Failed to parse external DA config");
+
     let prover_input_generator_config = repo
         .single::<ProverInputGeneratorConfig>()
         .expect("Failed to load ProverInputGenerator config")
@@ -155,6 +161,7 @@ pub async fn build_external_config(repo: ConfigRepository<'_>) -> Config {
         l1_sender_config,
         l1_watcher_config,
         batcher_config,
+        external_da_config,
         prover_input_generator_config,
         prover_api_config,
         status_server_config,

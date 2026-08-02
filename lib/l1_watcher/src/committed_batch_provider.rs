@@ -39,6 +39,7 @@ impl CommittedBatchProvider {
             inner.insert(DiscoveredCommittedBatch {
                 batch_info,
                 block_range: 0..=0,
+                commit_info: None,
             });
         }
         // todo: this can take a while and should ideally happen in the background

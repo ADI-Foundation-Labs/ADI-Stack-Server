@@ -471,6 +471,7 @@ impl Tester {
             l1_sender_config: default_config.l1_sender_config,
             l1_watcher_config: default_config.l1_watcher_config,
             batcher_config: default_config.batcher_config,
+            external_da_config: default_config.external_da_config,
             prover_input_generator_config: ProverInputGeneratorConfig {
                 logging_enabled: enable_prover,
                 enable_input_generation: enable_prover_input_generation,

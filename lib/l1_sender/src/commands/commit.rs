@@ -5,10 +5,14 @@ use alloy::consensus::BlobTransactionSidecar;
 use alloy::primitives::{Address, Bytes, U256};
 use alloy::sol_types::SolCall;
 use std::fmt::Display;
-use zksync_os_batch_types::BatchSignatureSet;
+use zksync_os_batch_types::{
+    BatchSignatureSet, ExternalDaError, validate_external_da_commitment_for_mode,
+};
 use zksync_os_contract_interface::calldata::encode_commit_batch_data;
 use zksync_os_contract_interface::l1_discovery::BatchVerificationSL;
+use zksync_os_contract_interface::models::DACommitmentScheme;
 use zksync_os_contract_interface::{IExecutor, IMultisigCommitter};
+use zksync_os_types::PubdataMode;
 
 #[derive(Debug)]
 pub struct CommitCommand {
@@ -22,6 +26,19 @@ pub enum BatchVerificationError {
     BatchNotSigned,
     #[error("Not enough signatures, we have {} but need {}", .0, .1)]
     NotEnoughSignatures(u64, u64),
+    #[error(
+        "pubdata mode and DA commitment scheme mismatch: expected {expected:?}, got {actual:?}"
+    )]
+    DaCommitmentSchemeMismatch {
+        expected: DACommitmentScheme,
+        actual: DACommitmentScheme,
+    },
+    #[error("blob sidecar is required for blobs pubdata mode")]
+    MissingBlobSidecar,
+    #[error("blob sidecar is not allowed for pubdata mode {0:?}")]
+    UnexpectedBlobSidecar(PubdataMode),
+    #[error("invalid external DA payload: {0}")]
+    InvalidExternalDaPayload(#[from] ExternalDaError),
 }
 
 impl CommitCommand {
@@ -32,6 +49,7 @@ impl CommitCommand {
         l1_config: &BatchVerificationSL,
         input: SignedBatchEnvelope<FriProof>,
     ) -> Result<Self, BatchVerificationError> {
+        Self::validate_batch_da_invariants(&input)?;
         match (l1_config, input.signature_data.clone()) {
             (BatchVerificationSL::Disabled, _) => Ok(Self {
                 input,
@@ -71,6 +89,41 @@ impl CommitCommand {
 
     pub(crate) fn input(&self) -> &SignedBatchEnvelope<FriProof> {
         &self.input
+    }
+
+    fn validate_batch_da_invariants(
+        input: &SignedBatchEnvelope<FriProof>,
+    ) -> Result<(), BatchVerificationError> {
+        let batch = &input.batch;
+        let expected_scheme = batch.pubdata_mode.da_commitment_scheme();
+        let actual_scheme = batch.batch_info.commit_info.l2_da_commitment_scheme;
+        if actual_scheme != expected_scheme {
+            return Err(BatchVerificationError::DaCommitmentSchemeMismatch {
+                expected: expected_scheme,
+                actual: actual_scheme,
+            });
+        }
+
+        match batch.pubdata_mode {
+            PubdataMode::Blobs => {
+                if batch.batch_info.blob_sidecar.is_none() {
+                    return Err(BatchVerificationError::MissingBlobSidecar);
+                }
+            }
+            mode => {
+                if batch.batch_info.blob_sidecar.is_some() {
+                    return Err(BatchVerificationError::UnexpectedBlobSidecar(mode));
+                }
+            }
+        }
+
+        validate_external_da_commitment_for_mode(
+            batch.pubdata_mode,
+            batch.batch_info.commit_info.da_commitment,
+            &batch.batch_info.commit_info.operator_da_input,
+        )?;
+
+        Ok(())
     }
 }
 
