@@ -12,7 +12,7 @@ use std::sync::atomic::Ordering;
 use std::time::Duration;
 use zksync_os_interface::traits::{PreimageSource, ReadStorage};
 use zksync_os_interface::types::StorageWrite;
-use zksync_os_rocksdb::RocksDB;
+use zksync_os_rocksdb::{RocksDB, RocksDBOptions};
 // Re-export commonly used types
 use crate::persistent_preimages::{PersistentPreimages, PreimagesCF};
 use crate::storage_map_view::StorageMapView;
@@ -23,6 +23,10 @@ use zksync_os_storage_api::{ReadStateHistory, StateError, ViewState, WriteState}
 
 const STATE_STORAGE_DB_NAME: &str = "state";
 const PREIMAGES_STORAGE_DB_NAME: &str = "preimages";
+
+/// Block caches for the state and preimages DBs (also bound SST index/filter memory).
+const STATE_BLOCK_CACHE_CAPACITY_BYTES: usize = 2 * 1024 * 1024 * 1024;
+const PREIMAGES_BLOCK_CACHE_CAPACITY_BYTES: usize = 1024 * 1024 * 1024;
 
 const COMPACTING_DURATION: Duration = Duration::from_millis(100);
 
@@ -44,15 +48,20 @@ impl StateHandle {
         blocks_to_retain_in_memory: usize,
         genesis: &Genesis,
     ) -> Self {
-        let state_db = RocksDB::<StorageMapCF>::new(&rocks_db_path.join(STATE_STORAGE_DB_NAME))
-            .expect("Failed to open State DB");
+        let state_db = RocksDB::<StorageMapCF>::with_options(
+            &rocks_db_path.join(STATE_STORAGE_DB_NAME),
+            RocksDBOptions::read_optimized(STATE_BLOCK_CACHE_CAPACITY_BYTES),
+        )
+        .expect("Failed to open State DB");
         let persistent_storage_map = PersistentStorageMap::new(state_db, genesis).await;
 
         let storage_map = StorageMap::new(persistent_storage_map, blocks_to_retain_in_memory);
 
-        let preimages_db =
-            RocksDB::<PreimagesCF>::new(&rocks_db_path.join(PREIMAGES_STORAGE_DB_NAME))
-                .expect("Failed to open Preimages DB");
+        let preimages_db = RocksDB::<PreimagesCF>::with_options(
+            &rocks_db_path.join(PREIMAGES_STORAGE_DB_NAME),
+            RocksDBOptions::read_optimized(PREIMAGES_BLOCK_CACHE_CAPACITY_BYTES),
+        )
+        .expect("Failed to open Preimages DB");
 
         let persistent_preimages = PersistentPreimages::new(preimages_db).await;
 

@@ -21,6 +21,7 @@ jemalloc = [
     "zksync_os_rpc/jemalloc",
     "tikv-jemallocator/stats",
 ]
+jemalloc-prof = ["jemalloc", "tikv-jemallocator/profiling"]
 
 [dependencies]
 zksync_os_provider.workspace = true
