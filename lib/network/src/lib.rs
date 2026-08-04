@@ -1,14 +1,20 @@
 pub mod config;
 pub(crate) mod metrics;
 pub mod protocol;
+pub mod raft;
 pub mod service;
 pub mod session;
+pub mod twofa;
 pub mod version;
 mod wire;
 
 // todo: temporary re-export while we have record overrides, otherwise `wire` module should be
 //       entirely internal
-pub use service::{PeerVerifyBatch, PeerVerifyBatchResult};
+pub use service::{NetworkPorts, PeerVerifyBatch, PeerVerifyBatchResult};
+pub use twofa::{
+    ExternalNode2faConfig, MainNode2faConfig, ZKS_2FA_PROTOCOL, Zks2faMessage,
+    Zks2faProtocolHandler,
+};
 pub use wire::replays::RecordOverride;
 pub use wire::verification::{VerifyBatch, VerifyBatchOutcome, VerifyBatchResult};
 
@@ -16,3 +22,5 @@ pub use wire::verification::{VerifyBatch, VerifyBatchOutcome, VerifyBatchResult}
 pub use reth_network::config::SecretKey;
 pub use reth_network::config::rng_secret_key;
 pub use reth_network_peers::NodeRecord;
+pub use reth_network_peers::PeerId;
+pub use reth_network_peers::TrustedPeer;

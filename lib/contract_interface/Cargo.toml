@@ -10,9 +10,12 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
+zksync_os_provider.workspace = true
+
 alloy = { workspace = true, default-features = false, features = ["contract", "providers"] }
 anyhow.workspace = true
 backon.workspace = true
+futures.workspace = true
 serde.workspace = true
 tracing.workspace = true
 vise.workspace = true

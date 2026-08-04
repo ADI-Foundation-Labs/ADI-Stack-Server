@@ -1,10 +1,9 @@
 use crate::metrics::{METRICS, OperationResult, OperationResultLabels};
-use alloy::network::{Ethereum, EthereumWallet, TransactionBuilder};
+use alloy::network::{Ethereum, TransactionBuilder};
 use alloy::primitives::Address;
 use alloy::primitives::utils::format_ether;
+use alloy::providers::Provider;
 use alloy::providers::ext::DebugApi;
-use alloy::providers::fillers::{FillProvider, TxFiller};
-use alloy::providers::{DynProvider, Provider, WalletProvider};
 use alloy::rpc::types::TransactionReceipt;
 use alloy::rpc::types::trace::geth::{CallConfig, GethDebugTracingOptions};
 use anyhow::Context;
@@ -15,7 +14,8 @@ use std::time::{Duration, Instant};
 use tokio::sync::watch;
 use zksync_os_contract_interface::{
     IChainAdminOwnable::{self, IChainAdminOwnableInstance},
-    IERC20, ZkChain,
+    IERC20,
+    l1_discovery::L1State,
 };
 use zksync_os_external_price_api::cmc_api::CmcPriceApiClient;
 use zksync_os_external_price_api::coingecko_api::CoinGeckoPriceAPIClient;
@@ -24,6 +24,7 @@ use zksync_os_external_price_api::{
     APIToken, ExternalPriceApiClientConfig, PriceApiClient, ZK_L1_ADDRESS,
 };
 use zksync_os_operator_signer::SignerConfig;
+use zksync_os_provider::{EthWalletProvider, NodeProvider};
 use zksync_os_types::{TokenApiRatio, TokenPricesForFees};
 
 mod metrics;
@@ -41,12 +42,10 @@ pub struct BaseTokenPriceUpdaterConfig {
     pub base_token_addr_override: Option<Address>,
     /// Override for decimals of the base token.
     pub base_token_decimals_override: Option<u8>,
-    /// Override for address of the gateway base token address used to calculate ETH<->GatewayBaseToken ratio on gateway using chains.
-    pub gateway_base_token_addr_override: Option<Address>,
     /// Signer configuration to update base token price on L1.
     /// Must be consistent with the key set on the chain admin contract.
     /// It's not used for chains with ETH as base token and it's expected to be set for all other chains.
-    /// Supports both local private keys and GCP KMS keys.
+    /// Supports local private keys, GCP KMS keys, and Azure Key Vault keys.
     pub token_multiplier_setter_signer: Option<SignerConfig>,
     /// Max fee per gas we are willing to spend (in wei).
     pub max_fee_per_gas_wei: u128,
@@ -75,23 +74,55 @@ impl BaseTokenPriceUpdaterConfig {
 }
 
 #[derive(Debug)]
-pub struct BaseTokenPriceUpdater<
-    F: TxFiller<Ethereum> + WalletProvider<Wallet = EthereumWallet>,
-    P: Provider<Ethereum> + Clone,
-> {
+pub struct BaseTokenPriceUpdater {
     base_token: APIToken,
     sl_token: APIToken,
     price_api_client: Box<dyn PriceApiClient>,
     config: BaseTokenPriceUpdaterConfig,
     last_l1_ratio: Ratio<BigUint>,
-    chain_admin_contract: IChainAdminOwnableInstance<FillProvider<F, P>, Ethereum>,
+    chain_admin_contract: IChainAdminOwnableInstance<NodeProvider, Ethereum>,
     token_multiplier_setter_address: Option<Address>,
     zk_chain_address: Address,
     token_price_sender: watch::Sender<Option<TokenPricesForFees>>,
 }
 
-async fn register_operator<P: Provider + WalletProvider<Wallet = EthereumWallet>>(
-    provider: &mut P,
+/// Cloneable handle to the base token price maintained by [`BaseTokenPriceUpdater`].
+#[derive(Debug, Clone)]
+pub struct BaseTokenPriceHandle {
+    receiver: watch::Receiver<Option<TokenPricesForFees>>,
+}
+
+impl BaseTokenPriceHandle {
+    /// Creates a handle that is not backed by a running updater; its value stays `None`.
+    ///
+    /// Used by nodes that don't run a [`BaseTokenPriceUpdater`] (e.g. external nodes) but still
+    /// need to hand a handle to fee-related components.
+    pub fn pending() -> Self {
+        let (_sender, receiver) = watch::channel(None);
+        Self { receiver }
+    }
+
+    /// Latest token prices for fees, or `None` until the first successful fetch (or fallback).
+    pub fn current(&self) -> Option<TokenPricesForFees> {
+        self.receiver.borrow().clone()
+    }
+
+    /// Waits until token prices have been published, returning the latest value.
+    ///
+    /// Returns an error only if the price channel is closed without ever publishing a value.
+    pub async fn wait_for_prices(&mut self) -> Result<TokenPricesForFees, watch::error::RecvError> {
+        let prices = self
+            .receiver
+            .wait_for(|prices| prices.is_some())
+            .await?
+            .clone()
+            .expect("`wait_for` predicate guarantees the value is `Some`");
+        Ok(prices)
+    }
+}
+
+async fn register_operator(
+    provider: &mut NodeProvider,
     signer_config: SignerConfig,
 ) -> anyhow::Result<Address> {
     let address = signer_config
@@ -111,17 +142,15 @@ async fn register_operator<P: Provider + WalletProvider<Wallet = EthereumWallet>
     Ok(address)
 }
 
-impl<F: TxFiller<Ethereum> + WalletProvider<Wallet = EthereumWallet>, P: Provider<Ethereum> + Clone>
-    BaseTokenPriceUpdater<F, P>
-{
+impl BaseTokenPriceUpdater {
     pub async fn new(
-        zk_chain_l1: ZkChain<DynProvider>,
-        zk_chain_gateway: Option<ZkChain<DynProvider>>,
-        mut l1_provider: FillProvider<F, P>,
+        l1_state: &L1State,
         base_token_adjuster_config: BaseTokenPriceUpdaterConfig,
         external_price_api_client_config: ExternalPriceApiClientConfig,
-        token_price_sender: watch::Sender<Option<TokenPricesForFees>>,
-    ) -> anyhow::Result<Self> {
+    ) -> anyhow::Result<(Self, BaseTokenPriceHandle)> {
+        let zk_chain_l1 = l1_state.diamond_proxy_l1.clone();
+        let mut l1_provider = l1_state.diamond_proxy_l1.provider().clone();
+
         let base_token_address = zk_chain_l1.get_base_token_address().await?;
 
         let token_multiplier_setter_address = if let Some(signer_config) =
@@ -149,18 +178,8 @@ impl<F: TxFiller<Ethereum> + WalletProvider<Wallet = EthereumWallet>, P: Provide
             );
         }
 
-        let sl_token = if let Some(zk_chain_gateway) = zk_chain_gateway {
-            let gateway_base_token_address = zk_chain_gateway.get_base_token_address().await?;
-            Self::resolve_api_token(
-                gateway_base_token_address,
-                base_token_adjuster_config.gateway_base_token_addr_override,
-                Some(18), // We expect gateway base token to be ETH or ZK, both have `18` decimals
-                &l1_provider,
-            )
-            .await?
-        } else {
-            APIToken::ETH
-        };
+        // The settlement layer is always L1, whose base token is ETH.
+        let sl_token = APIToken::ETH;
 
         let price_api_client = match external_price_api_client_config {
             ExternalPriceApiClientConfig::Forced { forced } => {
@@ -214,7 +233,11 @@ impl<F: TxFiller<Ethereum> + WalletProvider<Wallet = EthereumWallet>, P: Provide
             "initialized base token price updater",
         );
 
-        Ok(Self {
+        let (token_price_sender, token_price_receiver) = watch::channel(None);
+        let handle = BaseTokenPriceHandle {
+            receiver: token_price_receiver,
+        };
+        let updater = Self {
             base_token,
             sl_token,
             price_api_client,
@@ -224,14 +247,15 @@ impl<F: TxFiller<Ethereum> + WalletProvider<Wallet = EthereumWallet>, P: Provide
             token_multiplier_setter_address,
             zk_chain_address: *zk_chain_l1.address(),
             token_price_sender,
-        })
+        };
+        Ok((updater, handle))
     }
 
     async fn resolve_api_token(
         token_address: Address,
         token_address_override: Option<Address>,
         decimals_override: Option<u8>,
-        l1_provider: &FillProvider<F, P>,
+        l1_provider: &NodeProvider,
     ) -> anyhow::Result<APIToken> {
         let token_address = token_address_override.unwrap_or(token_address);
         match token_address {
@@ -459,6 +483,9 @@ impl<F: TxFiller<Ethereum> + WalletProvider<Wallet = EthereumWallet>, P: Provide
             // We are being optimistic with our transaction inclusion here. But, even if
             // reorg happens and transaction will not be included it's ok, it can be sent
             // on the next iteration if still needed.
+            // NOTE: alloy's implementation of watcher is unstable if required confirmations are > 1
+            // as there is possible race condition. If you want to increase amount of confirmations - check
+            // implementation of `wait_for_confirmed_receipt` in l1_sender/src/lib.rs for reference
             .with_required_confirmations(1)
             // Ensure we don't wait indefinitely and crash if the transaction is not
             // included on L1 in a reasonable time.
@@ -488,7 +515,7 @@ impl<F: TxFiller<Ethereum> + WalletProvider<Wallet = EthereumWallet>, P: Provide
 }
 
 async fn validate_tx_receipt(
-    provider: &impl Provider,
+    provider: &NodeProvider,
     receipt: TransactionReceipt,
 ) -> anyhow::Result<()> {
     if receipt.status() {

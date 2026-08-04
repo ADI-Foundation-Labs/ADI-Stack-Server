@@ -1,8 +1,10 @@
+use crate::TxForwarder;
 use crate::config::RpcConfig;
 use crate::eth_call_handler::EthCallHandler;
+use crate::metrics::{TX_SUBMISSION, TxRejectionReason};
 use crate::result::{ToRpcResult, internal_rpc_err, unimplemented_rpc_err};
 use crate::rpc_storage::{ReadRpcStorage, RpcStorageError};
-use crate::tx_handler::TxHandler;
+use crate::tx_handler::{EthSendRawTransactionSyncError, TxHandler};
 use alloy::consensus::TrieAccount;
 use alloy::consensus::transaction::Recovered;
 use alloy::dyn_abi::TypedData;
@@ -11,12 +13,11 @@ use alloy::eips::{BlockId, BlockNumberOrTag, Encodable2718};
 use alloy::network::BlockResponse;
 use alloy::network::primitives::BlockTransactions;
 use alloy::primitives::{Address, B256, Bytes, TxHash, U64, U256};
-use alloy::providers::DynProvider;
 use alloy::rpc::types::simulate::{SimulatePayload, SimulatedBlock};
 use alloy::rpc::types::state::StateOverride;
 use alloy::rpc::types::{
     AccountInfo, BlockOverrides, Bundle, EIP1186AccountProofResponse, EthCallResponse, FeeHistory,
-    Index, Log, StateContext, SyncStatus, TransactionRequest,
+    FillTransaction, Index, Log, StateContext, SyncStatus, TransactionRequest,
 };
 use alloy::serde::JsonStorageKey;
 use async_trait::async_trait;
@@ -24,7 +25,7 @@ use jsonrpsee::core::RpcResult;
 use ruint::aliases::B160;
 use tokio::sync::watch;
 use zk_ee::common_structs::derive_flat_storage_key;
-use zk_os_api::helpers::{get_balance, get_code};
+use zk_os_api::helpers::get_code;
 use zksync_os_fee_overrides::ConfigOverrides;
 use zksync_os_interface::traits::ReadStorage;
 use zksync_os_mempool::subpools::l2::L2Subpool;
@@ -32,8 +33,9 @@ use zksync_os_rpc_api::eth::EthApiServer;
 use zksync_os_rpc_api::types::{
     L2FeeHistory, RpcBlockConvert, ZkApiBlock, ZkApiTransaction, ZkHeader, ZkTransactionReceipt,
 };
-use zksync_os_storage_api::{RepositoryError, StateError, TxMeta, ViewState};
-use zksync_os_types::{L2Envelope, TransactionAcceptanceState, ZkReceiptEnvelope};
+use zksync_os_storage_api::{BlockContext, RepositoryError, StateError, TxMeta, ViewState};
+use zksync_os_tx_validators::policy_client::PolicyClient;
+use zksync_os_types::{L2Envelope, TransactionAcceptanceState, ZkEnvelope, ZkReceiptEnvelope};
 
 pub struct EthNamespace<RpcStorage, Mempool> {
     config: RpcConfig,
@@ -60,15 +62,20 @@ impl<RpcStorage: ReadRpcStorage, Mempool: L2Subpool> EthNamespace<RpcStorage, Me
         eth_call_handler: EthCallHandler<RpcStorage>,
         chain_id: u64,
         acceptance_state: watch::Receiver<TransactionAcceptanceState>,
-        tx_forwarder: Option<DynProvider>,
+        tx_forwarder: Option<TxForwarder>,
         config_overrides: watch::Receiver<ConfigOverrides>,
+        policy_client: Option<PolicyClient>,
+        last_constructed_block_context: watch::Receiver<Option<BlockContext>>,
     ) -> Self {
         let tx_handler = TxHandler::new(
             config.clone(),
             storage.clone(),
+            chain_id,
             mempool.clone(),
             acceptance_state,
             tx_forwarder,
+            policy_client,
+            last_constructed_block_context,
         );
 
         Self {
@@ -233,6 +240,21 @@ impl<RpcStorage: ReadRpcStorage, Mempool: L2Subpool> EthNamespace<RpcStorage, Me
         sender: Address,
         nonce: U64,
     ) -> EthResult<Option<ZkApiTransaction>> {
+        // Check the mempool first so that pending transactions (not yet included in a block)
+        // are visible. This is essential for callers like the operator's in-flight tx recovery
+        // path that use this method to inspect transactions that are not yet mined.
+        if let Some(pool_tx) = self
+            .mempool
+            .get_transaction_by_sender_and_nonce(sender, nonce.saturating_to())
+        {
+            let envelope = L2Envelope::from(pool_tx.transaction.transaction.inner().clone());
+            return Ok(Some(build_api_tx(
+                Recovered::new_unchecked(envelope, pool_tx.transaction.transaction.signer()).into(),
+                None,
+            )));
+        }
+
+        // Fall back to the DB for transactions that are already mined.
         let Some(tx_hash) = self
             .storage
             .repository()
@@ -261,13 +283,7 @@ impl<RpcStorage: ReadRpcStorage, Mempool: L2Subpool> EthNamespace<RpcStorage, Me
         let Some(block_number) = self.storage.resolve_block_number(block_id)? else {
             return Err(EthError::BlockNotFound(block_id));
         };
-        Ok(self
-            .storage
-            .state_view_at(block_number)?
-            .get_account(address)
-            .as_ref()
-            .map(get_balance)
-            .unwrap_or(U256::ZERO))
+        Ok(self.storage.state_view_at(block_number)?.balance(address))
     }
 
     fn storage_at_impl(
@@ -300,7 +316,7 @@ impl<RpcStorage: ReadRpcStorage, Mempool: L2Subpool> EthNamespace<RpcStorage, Me
         let on_chain_account_nonce = self
             .storage
             .state_at_block_id_or_latest(block_id)?
-            .account_nonce(address)
+            .nonce(address)
             .unwrap_or(0);
 
         if block_id == Some(BlockId::pending())
@@ -517,7 +533,7 @@ mod tests {
 impl<RpcStorage: ReadRpcStorage, Mempool: L2Subpool> EthApiServer
     for EthNamespace<RpcStorage, Mempool>
 {
-    async fn protocol_version(&self) -> RpcResult<String> {
+    fn protocol_version(&self) -> RpcResult<String> {
         Ok("zksync_os/0.0.1".to_string())
     }
 
@@ -527,7 +543,7 @@ impl<RpcStorage: ReadRpcStorage, Mempool: L2Subpool> EthApiServer
         Ok(SyncStatus::None)
     }
 
-    async fn author(&self) -> RpcResult<Address> {
+    fn author(&self) -> RpcResult<Address> {
         // Author aka coinbase aka etherbase is the account where mining profits are credited to.
         // As ZKsync OS is not PoW we do not implement this method.
         Err(unimplemented_rpc_err())
@@ -543,16 +559,16 @@ impl<RpcStorage: ReadRpcStorage, Mempool: L2Subpool> EthApiServer
         self.block_number_impl().to_rpc_result()
     }
 
-    async fn chain_id(&self) -> RpcResult<Option<U64>> {
+    fn chain_id(&self) -> RpcResult<Option<U64>> {
         Ok(Some(U64::from(self.chain_id)))
     }
 
-    async fn block_by_hash(&self, hash: B256, full: bool) -> RpcResult<Option<ZkApiBlock>> {
+    fn block_by_hash(&self, hash: B256, full: bool) -> RpcResult<Option<ZkApiBlock>> {
         self.block_by_id_impl(Some(hash.into()), full)
             .to_rpc_result()
     }
 
-    async fn block_by_number(
+    fn block_by_number(
         &self,
         number: BlockNumberOrTag,
         full: bool,
@@ -561,12 +577,12 @@ impl<RpcStorage: ReadRpcStorage, Mempool: L2Subpool> EthApiServer
             .to_rpc_result()
     }
 
-    async fn block_transaction_count_by_hash(&self, hash: B256) -> RpcResult<Option<U256>> {
+    fn block_transaction_count_by_hash(&self, hash: B256) -> RpcResult<Option<U256>> {
         self.block_transaction_count_by_id_impl(hash.into())
             .to_rpc_result()
     }
 
-    async fn block_transaction_count_by_number(
+    fn block_transaction_count_by_number(
         &self,
         number: BlockNumberOrTag,
     ) -> RpcResult<Option<U256>> {
@@ -574,27 +590,21 @@ impl<RpcStorage: ReadRpcStorage, Mempool: L2Subpool> EthApiServer
             .to_rpc_result()
     }
 
-    async fn block_uncles_count_by_hash(&self, hash: B256) -> RpcResult<Option<U256>> {
+    fn block_uncles_count_by_hash(&self, hash: B256) -> RpcResult<Option<U256>> {
         self.block_uncles_count_by_id_impl(hash.into())
             .to_rpc_result()
     }
 
-    async fn block_uncles_count_by_number(
-        &self,
-        number: BlockNumberOrTag,
-    ) -> RpcResult<Option<U256>> {
+    fn block_uncles_count_by_number(&self, number: BlockNumberOrTag) -> RpcResult<Option<U256>> {
         self.block_uncles_count_by_id_impl(number.into())
             .to_rpc_result()
     }
 
-    async fn block_receipts(
-        &self,
-        block_id: BlockId,
-    ) -> RpcResult<Option<Vec<ZkTransactionReceipt>>> {
+    fn block_receipts(&self, block_id: BlockId) -> RpcResult<Option<Vec<ZkTransactionReceipt>>> {
         self.block_receipts_impl(block_id).to_rpc_result()
     }
 
-    async fn uncle_by_block_hash_and_index(
+    fn uncle_by_block_hash_and_index(
         &self,
         _hash: B256,
         _index: Index,
@@ -603,7 +613,7 @@ impl<RpcStorage: ReadRpcStorage, Mempool: L2Subpool> EthApiServer
         Ok(None)
     }
 
-    async fn uncle_by_block_number_and_index(
+    fn uncle_by_block_number_and_index(
         &self,
         _number: BlockNumberOrTag,
         _index: Index,
@@ -612,15 +622,15 @@ impl<RpcStorage: ReadRpcStorage, Mempool: L2Subpool> EthApiServer
         Ok(None)
     }
 
-    async fn raw_transaction_by_hash(&self, hash: B256) -> RpcResult<Option<Bytes>> {
+    fn raw_transaction_by_hash(&self, hash: B256) -> RpcResult<Option<Bytes>> {
         self.raw_transaction_by_hash_impl(hash).to_rpc_result()
     }
 
-    async fn transaction_by_hash(&self, hash: B256) -> RpcResult<Option<ZkApiTransaction>> {
+    fn transaction_by_hash(&self, hash: B256) -> RpcResult<Option<ZkApiTransaction>> {
         self.transaction_by_hash_impl(hash).to_rpc_result()
     }
 
-    async fn raw_transaction_by_block_hash_and_index(
+    fn raw_transaction_by_block_hash_and_index(
         &self,
         hash: B256,
         index: Index,
@@ -629,7 +639,7 @@ impl<RpcStorage: ReadRpcStorage, Mempool: L2Subpool> EthApiServer
             .to_rpc_result()
     }
 
-    async fn transaction_by_block_hash_and_index(
+    fn transaction_by_block_hash_and_index(
         &self,
         hash: B256,
         index: Index,
@@ -638,7 +648,7 @@ impl<RpcStorage: ReadRpcStorage, Mempool: L2Subpool> EthApiServer
             .to_rpc_result()
     }
 
-    async fn raw_transaction_by_block_number_and_index(
+    fn raw_transaction_by_block_number_and_index(
         &self,
         number: BlockNumberOrTag,
         index: Index,
@@ -647,7 +657,7 @@ impl<RpcStorage: ReadRpcStorage, Mempool: L2Subpool> EthApiServer
             .to_rpc_result()
     }
 
-    async fn transaction_by_block_number_and_index(
+    fn transaction_by_block_number_and_index(
         &self,
         number: BlockNumberOrTag,
         index: Index,
@@ -656,7 +666,7 @@ impl<RpcStorage: ReadRpcStorage, Mempool: L2Subpool> EthApiServer
             .to_rpc_result()
     }
 
-    async fn transaction_by_sender_and_nonce(
+    fn transaction_by_sender_and_nonce(
         &self,
         address: Address,
         nonce: U64,
@@ -665,15 +675,15 @@ impl<RpcStorage: ReadRpcStorage, Mempool: L2Subpool> EthApiServer
             .to_rpc_result()
     }
 
-    async fn transaction_receipt(&self, hash: B256) -> RpcResult<Option<ZkTransactionReceipt>> {
+    fn transaction_receipt(&self, hash: B256) -> RpcResult<Option<ZkTransactionReceipt>> {
         self.transaction_receipt_impl(hash).to_rpc_result()
     }
 
-    async fn balance(&self, address: Address, block_id: Option<BlockId>) -> RpcResult<U256> {
+    fn balance(&self, address: Address, block_id: Option<BlockId>) -> RpcResult<U256> {
         self.balance_impl(address, block_id).to_rpc_result()
     }
 
-    async fn storage_at(
+    fn storage_at(
         &self,
         address: Address,
         key: JsonStorageKey,
@@ -682,46 +692,40 @@ impl<RpcStorage: ReadRpcStorage, Mempool: L2Subpool> EthApiServer
         self.storage_at_impl(address, key, block_id).to_rpc_result()
     }
 
-    async fn transaction_count(
-        &self,
-        address: Address,
-        block_id: Option<BlockId>,
-    ) -> RpcResult<U256> {
+    fn transaction_count(&self, address: Address, block_id: Option<BlockId>) -> RpcResult<U256> {
         self.transaction_count_impl(address, block_id)
             .to_rpc_result()
     }
 
-    async fn get_code(&self, address: Address, block_id: Option<BlockId>) -> RpcResult<Bytes> {
+    fn get_code(&self, address: Address, block_id: Option<BlockId>) -> RpcResult<Bytes> {
         self.get_code_impl(address, block_id).to_rpc_result()
     }
 
-    async fn header_by_number(
-        &self,
-        block_number: BlockNumberOrTag,
-    ) -> RpcResult<Option<ZkHeader>> {
+    fn header_by_number(&self, block_number: BlockNumberOrTag) -> RpcResult<Option<ZkHeader>> {
         Ok(self
             .block_by_id_impl(Some(block_number.into()), false)
             .to_rpc_result()?
             .map(|block| block.header))
     }
 
-    async fn header_by_hash(&self, hash: B256) -> RpcResult<Option<ZkHeader>> {
+    fn header_by_hash(&self, hash: B256) -> RpcResult<Option<ZkHeader>> {
         Ok(self
             .block_by_id_impl(Some(hash.into()), false)
             .to_rpc_result()?
             .map(|block| block.header))
     }
 
-    async fn simulate_v1(
+    fn simulate_v1(
         &self,
-        _opts: SimulatePayload,
-        _block_number: Option<BlockId>,
-    ) -> RpcResult<Vec<SimulatedBlock>> {
-        // todo(#51): implement
-        Err(unimplemented_rpc_err())
+        opts: SimulatePayload,
+        block_number: Option<BlockId>,
+    ) -> RpcResult<Vec<SimulatedBlock<ZkApiBlock>>> {
+        self.eth_call_handler
+            .simulate_v1_impl(opts, block_number)
+            .to_rpc_result()
     }
 
-    async fn call(
+    fn call(
         &self,
         request: TransactionRequest,
         block_number: Option<BlockId>,
@@ -733,7 +737,30 @@ impl<RpcStorage: ReadRpcStorage, Mempool: L2Subpool> EthApiServer
             .to_rpc_result()
     }
 
-    async fn call_many(
+    fn fill_transaction(
+        &self,
+        request: TransactionRequest,
+    ) -> RpcResult<FillTransaction<ZkEnvelope>> {
+        let pending_nonce = if request.nonce.is_none() {
+            self.transaction_count_impl(request.from.unwrap_or_default(), Some(BlockId::pending()))
+                .to_rpc_result()?
+                .saturating_to()
+        } else {
+            0
+        };
+
+        let fill_gas_price = if request.gas_price.is_none() && request.max_fee_per_gas.is_none() {
+            self.gas_price_impl().to_rpc_result()?
+        } else {
+            U256::ZERO
+        };
+
+        self.eth_call_handler
+            .fill_transaction_impl(request, pending_nonce, fill_gas_price)
+            .to_rpc_result()
+    }
+
+    fn call_many(
         &self,
         _bundles: Vec<Bundle>,
         _state_context: Option<StateContext>,
@@ -743,7 +770,7 @@ impl<RpcStorage: ReadRpcStorage, Mempool: L2Subpool> EthApiServer
         Err(unimplemented_rpc_err())
     }
 
-    async fn create_access_list(
+    fn create_access_list(
         &self,
         _request: TransactionRequest,
         _block_number: Option<BlockId>,
@@ -753,7 +780,7 @@ impl<RpcStorage: ReadRpcStorage, Mempool: L2Subpool> EthApiServer
         Err(unimplemented_rpc_err())
     }
 
-    async fn estimate_gas(
+    fn estimate_gas(
         &self,
         request: TransactionRequest,
         block_number: Option<BlockId>,
@@ -764,29 +791,25 @@ impl<RpcStorage: ReadRpcStorage, Mempool: L2Subpool> EthApiServer
             .to_rpc_result()
     }
 
-    async fn gas_price(&self) -> RpcResult<U256> {
+    fn gas_price(&self) -> RpcResult<U256> {
         self.gas_price_impl().to_rpc_result()
     }
 
-    async fn get_account(
-        &self,
-        _address: Address,
-        _block: BlockId,
-    ) -> RpcResult<Option<TrieAccount>> {
+    fn get_account(&self, _address: Address, _block: BlockId) -> RpcResult<Option<TrieAccount>> {
         // todo(#36): implement
         Err(unimplemented_rpc_err())
     }
 
-    async fn max_priority_fee_per_gas(&self) -> RpcResult<U256> {
+    fn max_priority_fee_per_gas(&self) -> RpcResult<U256> {
         Ok(U256::from(0))
     }
 
-    async fn blob_base_fee(&self) -> RpcResult<U256> {
+    fn blob_base_fee(&self) -> RpcResult<U256> {
         // todo(EIP-4844)
         Err(unimplemented_rpc_err())
     }
 
-    async fn fee_history(
+    fn fee_history(
         &self,
         block_count: U64,
         newest_block: BlockNumberOrTag,
@@ -796,7 +819,7 @@ impl<RpcStorage: ReadRpcStorage, Mempool: L2Subpool> EthApiServer
             .to_rpc_result()
     }
 
-    async fn send_transaction(&self, _request: TransactionRequest) -> RpcResult<B256> {
+    fn send_transaction(&self, _request: TransactionRequest) -> RpcResult<B256> {
         Err(internal_rpc_err("node has no signer accounts"))
     }
 
@@ -804,6 +827,9 @@ impl<RpcStorage: ReadRpcStorage, Mempool: L2Subpool> EthApiServer
         self.tx_handler
             .send_raw_transaction_impl(bytes)
             .await
+            .inspect_err(|err| {
+                TX_SUBMISSION.rejections[&TxRejectionReason::from(err)].inc();
+            })
             .to_rpc_result()
     }
 
@@ -815,22 +841,31 @@ impl<RpcStorage: ReadRpcStorage, Mempool: L2Subpool> EthApiServer
         self.tx_handler
             .send_raw_transaction_sync_impl(bytes, max_wait_ms)
             .await
+            .inspect_err(|err| match err {
+                EthSendRawTransactionSyncError::Regular(inner) => {
+                    TX_SUBMISSION.rejections[&TxRejectionReason::from(inner)].inc();
+                }
+                EthSendRawTransactionSyncError::RejectedDuringExecution(_) => {
+                    TX_SUBMISSION.rejections[&TxRejectionReason::RejectedDuringExecution].inc();
+                }
+                EthSendRawTransactionSyncError::Timeout(_) => {}
+            })
             .to_rpc_result()
     }
 
-    async fn sign(&self, _address: Address, _message: Bytes) -> RpcResult<Bytes> {
+    fn sign(&self, _address: Address, _message: Bytes) -> RpcResult<Bytes> {
         Err(internal_rpc_err("node has no signer accounts"))
     }
 
-    async fn sign_transaction(&self, _transaction: TransactionRequest) -> RpcResult<Bytes> {
+    fn sign_transaction(&self, _transaction: TransactionRequest) -> RpcResult<Bytes> {
         Err(internal_rpc_err("node has no signer accounts"))
     }
 
-    async fn sign_typed_data(&self, _address: Address, _data: TypedData) -> RpcResult<Bytes> {
+    fn sign_typed_data(&self, _address: Address, _data: TypedData) -> RpcResult<Bytes> {
         Err(internal_rpc_err("node has no signer accounts"))
     }
 
-    async fn get_proof(
+    fn get_proof(
         &self,
         _address: Address,
         _keys: Vec<JsonStorageKey>,
@@ -841,7 +876,7 @@ impl<RpcStorage: ReadRpcStorage, Mempool: L2Subpool> EthApiServer
         ))
     }
 
-    async fn get_account_info(&self, _address: Address, _block: BlockId) -> RpcResult<AccountInfo> {
+    fn get_account_info(&self, _address: Address, _block: BlockId) -> RpcResult<AccountInfo> {
         // todo(#36): implement
         Err(unimplemented_rpc_err())
     }
@@ -933,6 +968,7 @@ pub fn build_api_tx(tx: zksync_os_types::ZkTransaction, meta: Option<&TxMeta>) -
         inner: tx.inner,
         block_hash: meta.map(|meta| meta.block_hash),
         block_number: meta.map(|meta| meta.block_number),
+        block_timestamp: meta.map(|meta| meta.block_timestamp),
         transaction_index: meta.map(|meta| meta.tx_index_in_block),
         effective_gas_price: meta.map(|meta| meta.effective_gas_price),
     }

@@ -1,7 +1,8 @@
 pub use self::cli::ConfigArgs;
+pub(crate) use self::metrics::report_static_config_metrics;
 use self::util::{SecretKeyDeserializer, SignerConfigDeserializer};
 use crate::{command_source::RebuildOptions, default_protocol_version::DEFAULT_ROCKS_DB_PATH};
-use alloy::primitives::{Address, Bytes, U128};
+use alloy::primitives::{Address, B256, BlockHash, Bytes, U128};
 use num::{BigInt, BigUint, rational::Ratio};
 use reth_net_nat::net_if::resolve_net_if_ip;
 use reth_network_peers::TrustedPeer;
@@ -10,26 +11,35 @@ use smart_config::metadata::{SizeUnit, TimeUnit};
 use smart_config::value::SecretString;
 use smart_config::{
     ByteSize, ConfigRepository, ConfigSchema, ConfigSources, DescribeConfig, DeserializeConfig,
-    EtherAmount, ParseErrors, Serde, de::Delimited, metadata::EtherUnit,
+    ErrorWithOrigin, EtherAmount, ParseErrors, Serde,
+    de::{Delimited, Entries},
+    metadata::EtherUnit,
 };
 use std::collections::{HashMap, HashSet};
-use std::net::{IpAddr, Ipv4Addr};
+use std::net::{IpAddr, Ipv4Addr, SocketAddrV4};
+use std::num::{NonZeroU32, NonZeroU64};
 use std::{path::PathBuf, time::Duration};
 use zksync_os_batch_verification;
 use zksync_os_config_validation_macros::ConfigValidate;
 use zksync_os_l1_sender::commands::commit::CommitCommand;
 use zksync_os_l1_sender::commands::execute::ExecuteCommand;
 use zksync_os_l1_sender::commands::prove::ProofCommand;
+use zksync_os_l1_sender::config::{
+    DEFAULT_NONCE_ERROR_MAX_ATTEMPTS, DEFAULT_NONCE_ERROR_RETRY_BACKOFF,
+    DEFAULT_REQUIRED_CONFIRMATIONS_L1,
+};
 use zksync_os_mempool::{DEFAULT_TX_FEE_CAP, SubPoolLimit};
-use zksync_os_network::{NodeRecord, SecretKey};
+use zksync_os_network::{NodeRecord, PeerId, SecretKey};
 use zksync_os_observability::LogFormat;
 use zksync_os_observability::opentelemetry::OpenTelemetryLevel;
 use zksync_os_operator_signer::SignerConfig;
+use zksync_os_raft::RaftConsensusConfig;
 use zksync_os_tx_validators::deployment_filter;
 use zksync_os_types::{NodeRole, PubdataMode};
 
 mod build_external_config;
 mod cli;
+mod metrics;
 mod util;
 
 pub use build_external_config::{build_external_config, load_config_file_sources};
@@ -46,11 +56,13 @@ pub use build_external_config::{build_external_config, load_config_file_sources}
 ///    files are used. In Docker, the `local-chains/` directory is not copied into the image,
 ///    so no files are auto-loaded and config must be provided entirely via environment variables.
 /// 3. **Environment variables** — always override everything.
-#[derive(Debug, ConfigValidate)]
+#[derive(Clone, Debug, ConfigValidate)]
 #[config_validate(root)]
 pub struct Config {
     pub general_config: GeneralConfig,
+    pub l1_provider_config: ProviderConfig,
     pub network_config: NetworkConfig,
+    pub consensus_config: ConsensusConfig,
     pub genesis_config: GenesisConfig,
     pub rpc_config: RpcConfig,
     pub private_api_config: PrivateApiConfig,
@@ -67,6 +79,7 @@ pub struct Config {
     pub observability_config: ObservabilityConfig,
     pub gas_adjuster_config: GasAdjusterConfig,
     pub batch_verification_config: BatchVerificationConfig,
+    pub replay_archive_config: ReplayArchiveConfig,
     pub base_token_price_updater_config: BaseTokenPriceUpdaterConfig,
     pub interop_fee_updater_config: InteropFeeUpdaterConfig,
     /// Only required on the Main Node, where the base token price updater runs.
@@ -74,6 +87,7 @@ pub struct Config {
     #[config_validate(required_if = NodeRole::MainNode, skip_nested)]
     pub external_price_api_client_config: Option<ExternalPriceApiClientConfig>,
     pub fee_config: FeeConfig,
+    pub backpressure_config: BackpressureConfig,
 }
 
 #[async_trait::async_trait(?Send)]
@@ -180,8 +194,14 @@ impl Config {
             .insert(&GeneralConfig::DESCRIPTION, "general")
             .expect("Failed to insert general config");
         schema
+            .insert(&ProviderConfig::DESCRIPTION, "l1_provider")
+            .expect("Failed to insert L1 provider config");
+        schema
             .insert(&NetworkConfig::DESCRIPTION, "network")
             .expect("Failed to insert network config");
+        schema
+            .insert(&ConsensusConfig::DESCRIPTION, "consensus")
+            .expect("Failed to insert consensus config");
         schema
             .insert(&GenesisConfig::DESCRIPTION, "genesis")
             .expect("Failed to insert genesis config");
@@ -231,6 +251,9 @@ impl Config {
             .insert(&BatchVerificationConfig::DESCRIPTION, "batch_verification")
             .expect("Failed to insert batch verification config");
         schema
+            .insert(&ReplayArchiveConfig::DESCRIPTION, "replay_archive")
+            .expect("Failed to insert replay archive config");
+        schema
             .insert(
                 &BaseTokenPriceUpdaterConfig::DESCRIPTION,
                 "base_token_price_updater",
@@ -248,6 +271,9 @@ impl Config {
         schema
             .insert(&FeeConfig::DESCRIPTION, "fee")
             .expect("Failed to insert fee config");
+        schema
+            .insert(&BackpressureConfig::DESCRIPTION, "backpressure")
+            .expect("Failed to insert backpressure config");
         schema
     }
 
@@ -368,19 +394,6 @@ pub struct GeneralConfig {
     #[config(default_t = NodeRole::MainNode, with = Serde![str])]
     pub node_role: NodeRole,
 
-    /// L1's JSON RPC API.
-    #[config(default_t = "http://localhost:8545".into())]
-    pub l1_rpc_url: String,
-
-    /// Gateway's JSON RPC API.
-    /// Must be present if the chain is currently settling to Gateway.
-    pub gateway_rpc_url: Option<String>,
-
-    /// Gateway chain ID. Used by the migration watcher to construct `SetSLChainId` system
-    /// transactions when a `MigrateToGateway` event fires. Defaults to 506 (ZKsync Gateway).
-    #[config(default_t = 506)]
-    pub gateway_chain_id: u64,
-
     /// Min number of blocks to replay on restart
     /// Depending on L1/persistence state, we may need to replay more blocks than this number
     /// In some cases, we need to replay the whole blockchain (e.g. switching state backends) -
@@ -445,6 +458,38 @@ pub struct GeneralConfig {
     pub ephemeral_state: Option<PathBuf>,
 }
 
+/// Config for the L1 provider
+#[derive(Clone, Debug, DescribeConfig, DeserializeConfig, ConfigValidate)]
+#[config(derive(Default))]
+pub struct ProviderConfig {
+    /// JSON RPC API URL.
+    #[config(default_t = "http://localhost:8545".into())]
+    pub rpc_url: String,
+
+    /// Poll interval used by the alloy provider when waiting for transaction receipts.
+    /// Alloy's default is 7 seconds for HTTP transports, using the same criteria here.
+    #[config(default_t = 7 * TimeUnit::Seconds)]
+    pub rpc_poll_interval: Duration,
+
+    /// Maximum number of retry attempts, excluding the initial attempt.
+    #[config(default_t = 5)]
+    pub max_retries: u32,
+
+    /// Backoff used between retry attempts.
+    #[config(default_t = Duration::from_millis(1000))]
+    pub retry_backoff: Duration,
+}
+
+impl ProviderConfig {
+    pub fn new(rpc_url: impl Into<String>, rpc_poll_interval: Duration) -> Self {
+        Self {
+            rpc_url: rpc_url.into(),
+            rpc_poll_interval,
+            ..Self::default()
+        }
+    }
+}
+
 #[derive(Clone, Debug, DescribeConfig, DeserializeConfig, ConfigValidate)]
 #[config(derive(Default))]
 pub struct NetworkConfig {
@@ -474,11 +519,17 @@ pub struct NetworkConfig {
     #[config(default_t = None)]
     pub interface: Option<String>,
     /// Port to use for Node Discovery Protocol v5 (discv5) and RLPx Transport Protocol (rlpx).
+    /// Set to 0 to let startup pick a concrete TCP+UDP port before initializing networking.
     #[config(default_t = 3060)]
     pub port: u16,
     /// All boot nodes to start network discovery with. Expected format is
-    /// `enode://<node ID>@<IP or hostname>:<port>` delimited by commas (`,`). For example:
+    /// `enode://<node ID>@<IP address>:<port>` or `enode://<node ID>@<DNS name>:<port>`
+    /// delimited by commas (`,`). DNS names are resolved by the networking stack. For example:
     /// `enode://dbd18888f17bad7df7fa958b57f4993f47312ba5364508fd0d9027e62ea17a037ca6985d6b0969c4341f1d4f8763a802785961989d07b1fb5373ced9d43969f6@127.0.0.1:3060`
+    ///
+    /// Boot nodes are also treated as trusted peers: always kept connected and admitted to the zks
+    /// subprotocol regardless of the active-connection cap. On an external node, listing the main
+    /// node here keeps replay sync from getting stranded on non-serving peers.
     #[config(
         default,
         with = Delimited::repeat(Serde![str], ",")
@@ -500,6 +551,97 @@ impl NetworkConfig {
                 "failed to resolve network interface '{interface}': resolved to unsupported IPv6 address {ip}"
             ),
         }
+    }
+
+    pub fn derived_peer_id(&self) -> anyhow::Result<PeerId> {
+        let secret_key = self.secret_key.as_ref().ok_or_else(|| {
+            anyhow::anyhow!("`network.secret_key` is required for running p2p networking stack")
+        })?;
+        Ok(NodeRecord::from_secret_key(
+            // PeerId depends only on pubkey(secret_key); socket address is in fact irrelevant here.
+            SocketAddrV4::new(self.address, self.port).into(),
+            secret_key,
+        )
+        .id)
+    }
+}
+
+#[derive(Clone, Debug, DescribeConfig, DeserializeConfig, ConfigValidate)]
+#[config(derive(Default))]
+pub struct ConsensusConfig {
+    /// Whether OpenRaft-based consensus should be enabled.
+    /// WARNING: This is an experimental feature and will change in the future.
+    #[config(default_t = false)]
+    #[config_validate(custom(
+        |root: &Config, value: &bool| !*value || root.general_config.node_role.is_main(),
+        "requires `general.node_role=main`"
+    ))]
+    #[config_validate(custom(
+        |root: &Config, value: &bool| !*value || root.network_config.enabled,
+        "requires `network.enabled=true`"
+    ))]
+    #[config_validate(custom(
+        |root: &Config, value: &bool| !*value || root.network_config.secret_key.is_some(),
+        "requires `network.secret_key`"
+    ))]
+    pub enabled: bool,
+    /// Delete persisted OpenRaft state before startup.
+    ///
+    /// This is intended for intentionally switching a node away from previously persisted
+    /// consensus history. Without clearing this state, starting with consensus disabled is
+    /// rejected because later re-enabling consensus could result in an invalid state.
+    #[config(default_t = false)]
+    pub force_clear_raft_history: bool,
+    /// List of consensus participant peer IDs.
+    /// Must include the own ID (derived from `NetworkConfig#secret_key`).
+    #[config(default, with = Serde![*])]
+    #[config_validate(custom(
+        |root: &Config, value: &Vec<PeerId>| !root.consensus_config.enabled || !value.is_empty(),
+        "must not be empty when `consensus.enabled=true`"
+    ))]
+    pub peer_ids: Vec<PeerId>,
+    /// TEMPORARY WORKAROUND - forward txs via RPC until network-based propagation is added.
+    /// Entries use `<peer_id>@<host>:<rpc_port>`; every peer must have a record.
+    #[config(default, with = Serde![*])]
+    pub tx_forwarding_rpc_urls: Vec<String>,
+    /// WARNING: Assumes all configured consensus nodes are already caught up to the same
+    /// canonical L2 state. Bootstrap does not catch up stale nodes before admitting them
+    /// to the cluster.
+    /// Attempt to initialize cluster membership on startup.
+    /// Safe to enable on every consensus node; only one initializer will win.
+    #[config(default_t = false)]
+    pub bootstrap: bool,
+    /// Raft election timeout lower bound.
+    #[config(default_t = Duration::from_millis(2000))]
+    pub election_timeout_min: Duration,
+    /// Raft election timeout upper bound.
+    #[config(default_t = Duration::from_millis(5000))]
+    pub election_timeout_max: Duration,
+    /// Raft heartbeat interval.
+    #[config(default_t = Duration::from_millis(1000))]
+    pub heartbeat_interval: Duration,
+}
+
+impl ConsensusConfig {
+    pub fn into_raft_consensus_config(
+        self,
+        network_config: &NetworkConfig,
+        storage_path: PathBuf,
+    ) -> anyhow::Result<RaftConsensusConfig> {
+        let node_id = network_config.derived_peer_id()?;
+        anyhow::ensure!(
+            self.peer_ids.contains(&node_id),
+            "`consensus.peer_ids` must include local peer id derived from `network.secret_key`: {node_id}"
+        );
+        Ok(RaftConsensusConfig {
+            node_id,
+            peer_ids: self.peer_ids,
+            bootstrap: self.bootstrap,
+            election_timeout_min: self.election_timeout_min,
+            election_timeout_max: self.election_timeout_max,
+            heartbeat_interval: self.heartbeat_interval,
+            storage_path,
+        })
     }
 }
 
@@ -542,21 +684,160 @@ pub struct StatusServerConfig {
     pub address: String,
 }
 
+/// Parameters shared by the `block_rebuild` and `danger_block_rebuild_with_l1_revert` modes:
+/// the starting boundary, the idempotency guard, which blocks to empty, and whether to reset
+/// block timestamps.
 #[derive(Clone, Debug, DescribeConfig, DeserializeConfig)]
-pub struct RebuildBlocksConfig {
-    /// Number of the block to start rebuilding from.
-    /// All blocks starting from this number will be replayed - but unlike normal replay,
-    /// we'll not assert that the result will match the original ReplayRecord (block).
-    /// That is, a block may close earlier (with less transactions),
-    /// have different hash, have some transactions rejected etc
-    pub from_block: u64,
-    /// List of blocks to empty (i.e., remove all transactions from).
+pub struct RebuildBounds {
+    /// First block to rebuild from. All blocks from this number onward are rebuilt.
+    /// Depending on further settings and state, they may or may not change.
+    ///
+    /// For `danger_block_rebuild_with_l1_revert` this must fall within a committed-only batch
+    /// (not an executed one). It may be the first block of that batch or any block inside it.
+    pub from_block_number: u64,
+    /// Expected hash of block `from_block_number` before the rebuild.
+    ///
+    /// The rebuild/revert operation is skipped when the current hash does not match — prevents double-runs
+    /// on pod restarts after the operation already ran.
+    #[config(with = Serde![str])]
+    pub from_block_hash: BlockHash,
+    /// Blocks to empty (remove all transactions from) during the rebuild.
     #[config(default, with = Delimited::new(","))]
     pub blocks_to_empty: Vec<u64>,
-    /// Whether to reset timestamps of rebuilt blocks to the current time.
-    /// If false, original timestamps are kept. If true then current time is used.
+    /// If true, rebuilt blocks receive fresh timestamps instead of the originals.
+    /// If false, original timestamps are kept.
+    /// Note: when original timestamps are kept - and no block transactions are excluded, the rebuild
+    /// process may not amend any blocks - having essentially no effect on chain.
     #[config(default_t = false)]
     pub reset_timestamps: bool,
+}
+
+/// Startup block/batch revert configuration.
+///
+/// The `mode` field selects one of three operations:
+///
+/// - `block_rebuild` — replay local blocks from `from_block_number` without touching L1. In this
+///   mode, L1-committed blocks cannot be rebuilt.
+/// - `danger_block_rebuild_with_l1_revert` — revert committed L1 batches (batch auto-derived
+///   from `from_block_number`), then rebuild local blocks from the same boundary.
+/// - `l1_revert` — revert committed L1 batches only; local blocks are kept as-is.
+///
+/// # Examples
+///
+/// ## REVM divergence in uncommitted blocks → `block_rebuild`
+///
+/// Replay and rebuild local blocks from the divergence point without touching L1.
+/// `blocks_to_empty` drops the transactions of a bad block, `reset_timestamps` resets the timestamp
+/// for blocks:
+///
+/// ```yaml
+/// sequencer:
+///   rebuild:
+///     mode: block_rebuild
+///     from_block_number: 10
+///     from_block_hash: '<block hash>'
+///     reset_timestamps: true
+///     blocks_to_empty:
+///       - 10
+/// ```
+///
+/// ## Unprovable batch already committed to L1 → `danger_block_rebuild_with_l1_revert`
+///
+/// A bad block landed in a batch that was already committed to L1 but not yet executed. Revert
+/// the committed batch on L1 — auto-derived from `from_block_number` — and rebuild local blocks from
+/// the same boundary:
+///
+/// ```yaml
+/// sequencer:
+///   rebuild:
+///     mode: danger_block_rebuild_with_l1_revert
+///     from_block_number: 40
+///     from_block_hash: '<block hash>'
+///     reset_timestamps: true
+///     l1_reverter_sk: '<signer PK / GKMS resource>'
+/// ```
+///
+/// ## Undo an L1 commit while keeping local blocks → `l1_revert`
+///
+/// The committed batches on L1 need to be rolled back, but the locally-produced blocks are
+/// correct and should be kept (they will be re-committed afterwards):
+///
+/// ```yaml
+/// sequencer:
+///   rebuild:
+///     mode: l1_revert
+///     from_batch_number: 15
+///     from_batch_commit_tx_hash: '<batch commit tx hash>'
+///     l1_reverter_sk: '<signer PK / GKMS resource>'
+/// ```
+#[derive(Clone, Debug, DescribeConfig, DeserializeConfig)]
+#[config(tag = "mode", rename_all = "snake_case")]
+pub enum RebuildConfig {
+    /// Replay and rebuild local blocks from `from_block_number` without any L1 interaction.
+    BlockRebuild {
+        #[config(flatten)]
+        bounds: RebuildBounds,
+    },
+    /// Same as `BlockRebuild`, but also reverts L1 batch commits of `from_block_number` and subsequent
+    /// blocks. Panics if `from_block_number` is not committed yet - use `BlockRebuild` instead.
+    ///
+    /// The batch to revert is auto-derived from `from_block_number`: the committed-only batch that
+    /// contains `from_block_number` is reverted on L1 (along with all higher committed batches).
+    /// `from_block_number` may be the first block of that batch or any block inside it.
+    /// The `from_block_hash` guard covers both the L1 revert and the local rebuild — if the hash
+    /// no longer matches (operation already ran), both are skipped on the next startup.
+    DangerBlockRebuildWithL1Revert {
+        #[config(flatten)]
+        bounds: RebuildBounds,
+        /// Signer for `revertBatchesSharedBridge` transactions.
+        #[config(secret, with = SignerConfigDeserializer)]
+        l1_reverter_sk: SignerConfig,
+    },
+    /// Revert committed L1 batches only; local blocks are kept as-is.
+    ///
+    /// Use this when you want to undo L1 commits while keeping the locally-produced blocks.
+    L1Revert {
+        /// First batch to revert. All committed batches >= this number are reverted.
+        from_batch_number: NonZeroU64,
+        /// Hash of the L1 transaction that committed batch `from_batch_number`. Not to be confused
+        /// with L1 batch header hash.
+        ///
+        /// Used as an idempotency guard: the revert is skipped unless the transaction currently
+        /// committing `from_batch_number` on L1 matches this hash.
+        #[config(with = Serde![str])]
+        from_batch_commit_tx_hash: B256,
+        /// Signer for `revertBatchesSharedBridge` transactions.
+        #[config(secret, with = SignerConfigDeserializer)]
+        l1_reverter_sk: SignerConfig,
+    },
+}
+
+impl RebuildConfig {
+    /// Returns the block `bounds` for the modes that rebuild local blocks (carrying the
+    /// `from_block_hash` idempotency guard), `None` for `L1Revert` which has no local block bounds.
+    pub fn bounds(&self) -> Option<&RebuildBounds> {
+        match self {
+            Self::BlockRebuild { bounds } | Self::DangerBlockRebuildWithL1Revert { bounds, .. } => {
+                Some(bounds)
+            }
+            Self::L1Revert { .. } => None,
+        }
+    }
+
+    /// Returns `RebuildOptions` if this config triggers a local block rebuild, `None` for
+    /// `L1Revert` which only acts on L1 without replaying local blocks.
+    pub fn rebuild_options(&self) -> Option<RebuildOptions> {
+        match self {
+            Self::BlockRebuild { bounds } | Self::DangerBlockRebuildWithL1Revert { bounds, .. } => {
+                Some(RebuildOptions {
+                    from_block_number: bounds.from_block_number,
+                    blocks_to_empty: bounds.blocks_to_empty.iter().copied().collect(),
+                    reset_timestamps: bounds.reset_timestamps,
+                })
+            }
+            Self::L1Revert { .. } => None,
+        }
+    }
 }
 
 #[derive(Clone, Debug, DescribeConfig, DeserializeConfig, ConfigValidate)]
@@ -621,13 +902,21 @@ pub struct SequencerConfig {
     #[config(default_t = false)]
     pub revm_consistency_checker_revert_on_divergence: bool,
 
-    /// Block rebuild options.
+    /// Block rebuild / L1 revert options. See [`RebuildConfig`] for the three modes.
     #[config(nest)]
-    pub block_rebuild: Option<RebuildBlocksConfig>,
+    #[config_validate(custom(
+        |root: &Config, value: &Option<RebuildConfig>| !root.consensus_config.enabled || value.is_none(),
+        "requires `consensus.enabled=false`"
+    ))]
+    pub rebuild: Option<RebuildConfig>,
 
     /// If set, external node will sync up to and including this block number and then stop processing blocks.
     #[config(default)]
     pub en_sync_up_to_block: Option<u64>,
+
+    /// Maximum replay records requested per p2p replay response message by an external node.
+    #[config(default_t = 1)]
+    pub en_max_blocks_per_replay_message: u64,
 
     #[config(default, with = Serde![*])]
     /// List of (block_number, db_key) pairs to override when downloading replay records.
@@ -641,10 +930,18 @@ pub struct SequencerConfig {
 /// Configuration for all transaction validators applied during block production.
 #[derive(Clone, Debug, DescribeConfig, DeserializeConfig, ConfigValidate)]
 #[config(derive(Default))]
+#[config(validate(
+    Self::check_mutual_exclusion,
+    "deployment_filter cannot be enabled at the same time as policy_service.url; express the allow-list via the policy service"
+))]
 pub struct TxValidatorConfig {
     /// Deployment filter configuration.
     #[config(nest)]
     pub deployment_filter: DeploymentFilterConfig,
+
+    /// Prividium policy-service client configuration.
+    #[config(nest)]
+    pub policy_service: PolicyServiceConfig,
 }
 
 /// Configuration for the deployment filter.
@@ -661,6 +958,48 @@ pub struct DeploymentFilterConfig {
     pub allowed_deployers: Vec<Address>,
 }
 
+/// Policy-service client configuration. A `None` `url` means no client is
+/// wired (preserves today's behaviour for chains that don't run a policy
+/// service).
+#[derive(Clone, Debug, DescribeConfig, DeserializeConfig, ConfigValidate)]
+#[config(derive(Default))]
+#[config(validate(
+    Self::check_auth_required,
+    "auth_token is required when using `http://` transport"
+))]
+pub struct PolicyServiceConfig {
+    /// `http://host:port` or `unix:///path/to/socket`.
+    #[config(with = Serde![str], validate(check_url_scheme, "URL must use scheme `http` or `unix`"))]
+    pub url: Option<url::Url>,
+
+    /// Per-request timeout. Fail-closed on exceed.
+    #[config(default_t = Duration::from_secs(1))]
+    pub request_timeout: Duration,
+
+    /// Sent on every request. Opaque to the server.
+    #[config(default_t = "1".into())]
+    pub protocol_version: String,
+
+    /// If set, responses whose `protocolVersion` is not exactly equal are
+    /// rejected.
+    pub expected_protocol_version: Option<String>,
+
+    /// Source addresses whose txs skip the policy service. Defaults to the
+    /// protocol-internal senders so the chain's own system txs can't be
+    /// denied by a misconfigured service.
+    #[config(default_t = vec![
+        zksync_os_types::BOOTLOADER_FORMAL_ADDRESS,
+        zksync_os_tx_validators::deployment_filter::FORCE_DEPLOYER_ADDRESS,
+    ])]
+    pub bypass_from: Vec<Address>,
+
+    /// Bearer token sent as `Authorization: Bearer <token>` on every request.
+    /// Required for `http://` transports. Ignored for `unix://` transports,
+    /// where socket-path filesystem permissions are the access control.
+    #[config(secret)]
+    pub auth_token: Option<SecretString>,
+}
+
 #[derive(Clone, Debug, DescribeConfig, DeserializeConfig)]
 #[config(derive(Default))]
 pub struct RpcConfig {
@@ -671,6 +1010,19 @@ pub struct RpcConfig {
     /// Gas limit of transactions executed via eth_call
     #[config(default_t = 10000000)]
     pub eth_call_gas: usize,
+
+    /// Maximum execution time of a single JS tracer run
+    #[config(default_t = 10 * TimeUnit::Seconds)]
+    pub js_tracer_timeout: Duration,
+
+    /// Maximum memory growth allowed during a single JS tracer run, measured via jemalloc
+    /// per-thread allocation counters. Set to `0` to disable the check.
+    #[config(default_t = 512 * SizeUnit::MiB)]
+    pub js_tracer_max_memory: ByteSize,
+
+    /// Maximum block gas limit accepted for an `eth_simulateV1` block override.
+    #[config(default_t = 100_000_000)]
+    pub eth_simulate_block_gas_limit: u64,
 
     /// Number of concurrent API connections (passed to jsonrpsee, default value there is 128)
     #[config(default_t = 1000)]
@@ -718,6 +1070,16 @@ pub struct RpcConfig {
     /// because pubdata price increases or native price decreases in-between estimation and sequencing.
     #[config(default_t = 2.0)]
     pub estimate_gas_pubdata_price_factor: f64,
+
+    /// Rate limits for incoming JSON-RPC requests.
+    #[config(nest)]
+    pub rate_limits: RpcRateLimitsConfig,
+
+    /// List of disabled methods.
+    /// Some stateful methods like `eth_newFilter` don't make sense when running in a cluster behind a load-balancer.
+    /// They get rejected with -32601 "Method disabled".
+    #[config(default, with = Delimited::new(","))]
+    pub method_filter: HashSet<String>,
 }
 
 /// Only used on the Main Node.
@@ -730,31 +1092,70 @@ pub struct PrivateApiConfig {
     pub address: std::net::SocketAddr,
 }
 
+/// Rate-limit configuration for the JSON-RPC server.
+#[derive(Clone, Debug, DescribeConfig, DeserializeConfig)]
+#[config(tag = "type", derive(Default))]
+pub enum RpcRateLimitsConfig {
+    /// No rate limiting.
+    #[config(default)]
+    None,
+    /// One global cap, plus per-method buckets: `m_rps` applied to each entry in
+    /// `m_methods`, and the explicit RPS in `custom_methods` for each entry there.
+    Tiered {
+        global_rps: NonZeroU32,
+        m_rps: NonZeroU32,
+        #[config(default, with = Delimited::new(","))]
+        m_methods: HashSet<String>,
+        #[config(default, with = Entries::WELL_KNOWN.delimited(",", "="))]
+        custom_methods: HashMap<String, NonZeroU32>,
+    },
+}
+
+impl From<RpcRateLimitsConfig> for zksync_os_rpc::RateLimits {
+    fn from(c: RpcRateLimitsConfig) -> Self {
+        match c {
+            RpcRateLimitsConfig::None => Self::None,
+            RpcRateLimitsConfig::Tiered {
+                global_rps,
+                m_rps,
+                m_methods,
+                custom_methods,
+            } => Self::Tiered {
+                global_rps,
+                m_rps,
+                m_methods,
+                custom_methods,
+            },
+        }
+    }
+}
+
 /// L1 sender configuration. The signing key fields are only required on the Main Node;
 /// External Nodes do not send L1 transactions and may omit them.
 ///
-/// Each operator accepts either a hex private key string (backward-compatible) or a GCP KMS
-/// resource object: `{"type": "gcp_kms", "resource": "projects/.../cryptoKeyVersions/N"}`.
+/// Each operator accepts either a hex private key string (backward-compatible) or a cloud KMS
+/// object: `{"type": "gcp_kms", "resource": "projects/.../cryptoKeyVersions/N"}` or
+/// `{"type": "azure_kms", "key_id": "https://{vault}.vault.azure.net/keys/{name}/{version}"}`.
 #[derive(Clone, Debug, DescribeConfig, DeserializeConfig, ConfigValidate)]
 pub struct L1SenderConfig {
     /// Signer to commit batches to L1.
     /// Must be consistent with the operator key set on the contract (permissioned!)
     /// Not required for External Nodes, which do not send L1 transactions.
-    #[config_validate(required_if = NodeRole::MainNode)]
+    /// Required at runtime on the Main Node; presence is enforced at startup rather than here.
     #[config(secret, alias = "operator_commit_pk", with = SignerConfigDeserializer)]
     pub operator_commit_sk: Option<SignerConfig>,
 
     /// Signer to submit proofs to L1.
-    /// Can be arbitrary funded address - proof submission is permissionless.
+    /// Must hold `PROVER_ROLE` for the chain on the ValidatorTimelock (permissioned).
     /// Not required for External Nodes, which do not send L1 transactions.
-    #[config_validate(required_if = NodeRole::MainNode)]
+    /// On a Main Node, required at runtime only when settling on L1 (see `operator_commit_sk`).
     #[config(secret, alias = "operator_prove_pk", with = SignerConfigDeserializer)]
     pub operator_prove_sk: Option<SignerConfig>,
 
     /// Signer to execute batches on L1.
     /// Can be arbitrary funded address - execute submission is permissionless.
     /// Not required for External Nodes, which do not send L1 transactions.
-    #[config_validate(required_if = NodeRole::MainNode)]
+    /// On a Main Node, required at runtime only when settling on L1 (see `operator_commit_sk`).
     #[config(secret, alias = "operator_execute_pk", with = SignerConfigDeserializer)]
     pub operator_execute_sk: Option<SignerConfig>,
 
@@ -770,6 +1171,10 @@ pub struct L1SenderConfig {
     #[config(default_t = 2 * EtherUnit::Gwei)]
     pub max_fee_per_blob_gas: EtherAmount,
 
+    /// Force transaction resubmission options.
+    #[config(nest, default)]
+    pub force_transaction_resubmission: ForceTransactionResubmissionConfig,
+
     /// Max number of commands (to commit/prove/execute one batch) to be processed at a time.
     #[config(default_t = 16)]
     pub command_limit: usize,
@@ -778,12 +1183,26 @@ pub struct L1SenderConfig {
     #[config(default_t = 1 * TimeUnit::Seconds)]
     pub poll_interval: Duration,
 
-    /// Use Fusaka blob transaction format if the timestamp has passed.
+    /// Maximum time to wait for an L1 transaction to be included.
     ///
-    /// Defaults to `2^64-1` which is practically never. This is needed for local setup as anvil
-    /// does not support EIP-7594 yet (https://github.com/foundry-rs/foundry/issues/12222).
-    #[config(default_t = u64::MAX)]
-    pub fusaka_upgrade_timestamp: u64,
+    /// Normally 15-30 seconds is sufficient for normal-priority transactions; 60-120s covers most
+    /// lower-gas-price cases. 600 seconds is a conservative default that handles heavy congestion.
+    #[config(default_t = 600 * TimeUnit::Seconds)]
+    pub transaction_timeout: Duration,
+
+    /// L1 blocks (inclusive of the inclusion block) before a transaction is confirmed.
+    #[config(default_t = DEFAULT_REQUIRED_CONFIRMATIONS_L1)]
+    pub required_confirmations: u64,
+
+    /// Max submission attempts per L1 transaction when the L1 node rejects it with a
+    /// nonce-class error.
+    #[config(default_t = DEFAULT_NONCE_ERROR_MAX_ATTEMPTS)]
+    pub nonce_error_max_attempts: usize,
+
+    /// Backoff between attempts after a nonce-class rejection. Gives the L1 node time to
+    /// settle its pool/state view after a block import.
+    #[config(default_t = DEFAULT_NONCE_ERROR_RETRY_BACKOFF)]
+    pub nonce_error_retry_backoff: Duration,
 
     /// Whether L1 senders are enabled.
     /// Only affects the Main Node.
@@ -792,11 +1211,38 @@ pub struct L1SenderConfig {
     #[config(default_t = true)]
     pub enabled: bool,
 
-    /// Pubdata mode is used by block-producing components on the Main Node.
-    /// External Nodes only replay blocks, so they may leave this unset.
-    #[config_validate(required_if = NodeRole::MainNode)]
+    /// Pubdata mode used by block-producing components on the Main Node. Required at runtime on
+    /// Main Nodes; External Nodes never produce blocks and may leave it unset.
     #[config(with = Serde![str])]
     pub pubdata_mode: Option<PubdataMode>,
+
+    /// Stop accepting transactions when L1 senders fall this many batches behind their upstream.
+    /// Applied to commit, prove, execute senders and the upgrade gatekeeper.
+    pub max_batch_diff_to_upstream: Option<u64>,
+}
+
+#[derive(Clone, Copy, Debug, DescribeConfig, DeserializeConfig, ConfigValidate)]
+#[config(derive(Default))]
+pub struct ForceTransactionResubmissionConfig {
+    /// Skips startup in-flight recovery and resubmits queued L1 transactions with replacement fee caps.
+    #[config(default_t = false)]
+    pub enabled: bool,
+
+    /// Multiplier applied to `max_fee_per_gas` when force transaction resubmission is enabled.
+    #[config(default_t = 1.1, validate(is_positive_f64, "must be positive"))]
+    pub max_fee_per_gas_replacement_multiplier: f64,
+
+    /// Multiplier applied to `max_priority_fee_per_gas` when force transaction resubmission is enabled.
+    #[config(default_t = 1.1, validate(is_positive_f64, "must be positive"))]
+    pub max_priority_fee_per_gas_replacement_multiplier: f64,
+
+    /// Multiplier applied to `max_fee_per_blob_gas` when force transaction resubmission is enabled.
+    #[config(default_t = 2.0, validate(is_positive_f64, "must be positive"))]
+    pub max_fee_per_blob_gas_replacement_multiplier: f64,
+}
+
+fn is_positive_f64(&val: &f64) -> bool {
+    val > 0.0
 }
 
 #[derive(Clone, Debug, DescribeConfig, DeserializeConfig)]
@@ -817,9 +1263,19 @@ pub struct L1WatcherConfig {
     #[config(default_t = 2)]
     pub confirmations: u64,
 
-    /// How often to poll L1 for new priority requests.
+    /// How often to poll L1 for the latest block.
     #[config(default_t = 1 * TimeUnit::Seconds)]
     pub poll_interval: Duration,
+
+    /// How often to poll L1 for the latest finalized block.
+    /// Note: Finalization advances at epoch boundaries. Which is every ~6.4 minutes on L1.
+    #[config(default_t = 1 * TimeUnit::Minutes)]
+    pub finalized_poll_interval: Duration,
+
+    /// Number of recent blocks retained in the shared logs cache.
+    /// The value should be based on the depth at which blocks are finalized. Which could be >60 on L1.
+    #[config(default_t = 128)]
+    pub logs_cache_capacity: usize,
 
     /// Whether to run gateway migration watcher.
     #[config(default_t = false)]
@@ -829,8 +1285,6 @@ pub struct L1WatcherConfig {
     /// When a batch is discovered on L1 but not yet in local proof storage,
     /// the node will retry for this duration before panicking.
     /// This allows time for a sidecar sync process to fetch proofs from the main node.
-    /// Default: 10 minutes
-
     #[config(default_t = 10 * TimeUnit::Minutes)]
     pub proof_storage_grace_period: Duration,
 }
@@ -855,11 +1309,13 @@ pub struct MempoolTxValidatorConfig {
     #[config(default_t = 128 * 1024 * 1024)]
     pub max_input_bytes: usize,
 
-    /// Maximum transaction fee cap in wei (default: 30 ETH).
+    /// Maximum transaction fee cap (default: 30 ETH).
     /// Transactions with fees exceeding this will be rejected by the mempool.
     /// Set to 0 to disable the cap.
-    #[config(default_t = DEFAULT_TX_FEE_CAP)]
-    pub tx_fee_cap: u128,
+    /// Declared as EtherAmount because smart-config serializes params to JSON for
+    /// config metrics, and a raw u128 above u64::MAX panics there.
+    #[config(default_t = EtherAmount(DEFAULT_TX_FEE_CAP))]
+    pub tx_fee_cap: EtherAmount,
 }
 
 /// Only used on the Main Node.
@@ -974,6 +1430,10 @@ pub struct ProverApiConfig {
     /// Default: store files in ./db/fri_proofs/ with 1GiB disk usage cap
     #[config(nest, default)]
     pub proof_storage: ProofStorageConfig,
+
+    /// Stop accepting transactions when the prover pipeline falls this many batches behind
+    /// its upstream. Applied to both FRI and SNARK job managers.
+    pub max_batch_diff_to_upstream: Option<u64>,
 }
 
 #[derive(Clone, Debug, DescribeConfig, DeserializeConfig)]
@@ -1032,6 +1492,92 @@ pub struct ProofStorageConfig {
     pub failed_capacity: ByteSize,
 }
 
+/// Replay archive backend used for cold-storage copies of replay records.
+#[derive(Debug, Clone, DescribeConfig, DeserializeConfig)]
+#[config(tag = "type", derive(Default))]
+pub enum ReplayArchiveConfig {
+    #[config(default)]
+    Noop,
+    FileSystem {
+        /// Root directory for replay archive sessions.
+        root_path: PathBuf,
+        #[config(nest, default)]
+        encryption: ReplayArchiveEncryptionConfig,
+    },
+    S3WithCredentialFile {
+        /// Name or URL of the bucket.
+        bucket_base_url: String,
+        /// Path to the credentials file.
+        s3_credential_file_path: PathBuf,
+        /// Allows overriding AWS S3 API endpoint, e.g. to use another S3-compatible store provider.
+        endpoint: Option<String>,
+        /// Allows specifying bucket region (inferred from the env by default).
+        region: Option<String>,
+        #[config(nest, default)]
+        encryption: ReplayArchiveEncryptionConfig,
+    },
+}
+
+/// Replay archive encryption applied before data is written to cold storage.
+#[derive(Debug, Clone, DescribeConfig, DeserializeConfig)]
+#[config(tag = "type", derive(Default))]
+pub enum ReplayArchiveEncryptionConfig {
+    #[config(default)]
+    Noop,
+    AgeX25519 {
+        /// age X25519 recipient public key. The node only needs this public key.
+        recipient: String,
+    },
+}
+
+impl From<ReplayArchiveConfig> for zksync_os_replay_archive::ReplayArchiveConfig {
+    fn from(config: ReplayArchiveConfig) -> Self {
+        match config {
+            ReplayArchiveConfig::Noop => zksync_os_replay_archive::ReplayArchiveConfig::Noop,
+            ReplayArchiveConfig::FileSystem {
+                root_path,
+                encryption,
+            } => zksync_os_replay_archive::ReplayArchiveConfig::FileSystem {
+                root_path,
+                encryption: encryption.into(),
+            },
+            ReplayArchiveConfig::S3WithCredentialFile {
+                bucket_base_url,
+                s3_credential_file_path,
+                endpoint,
+                region,
+                encryption,
+            } => zksync_os_replay_archive::ReplayArchiveConfig::S3 {
+                config: zksync_os_replay_archive::S3ReplayArchiveConfig {
+                    bucket_base_url,
+                    auth_mode:
+                        zksync_os_replay_archive::S3ReplayArchiveAuthMode::AuthenticatedWithCredentialFile(
+                            s3_credential_file_path,
+                        ),
+                    endpoint,
+                    region,
+                },
+                encryption: encryption.into(),
+            },
+        }
+    }
+}
+
+impl From<ReplayArchiveEncryptionConfig>
+    for zksync_os_replay_archive::ReplayArchiveEncryptionConfig
+{
+    fn from(config: ReplayArchiveEncryptionConfig) -> Self {
+        match config {
+            ReplayArchiveEncryptionConfig::Noop => {
+                zksync_os_replay_archive::ReplayArchiveEncryptionConfig::Noop
+            }
+            ReplayArchiveEncryptionConfig::AgeX25519 { recipient } => {
+                zksync_os_replay_archive::ReplayArchiveEncryptionConfig::AgeX25519 { recipient }
+            }
+        }
+    }
+}
+
 /// Set of options related to the observability stack,
 /// e.g. logging, metrics, tracing, error tracking, etc.
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig, ConfigValidate)]
@@ -1060,6 +1606,10 @@ pub struct PrometheusConfig {
     /// Port to expose Prometheus metrics on.
     #[config(default_t = 3312)]
     pub port: u16,
+
+    /// Base URL for the Prometheus Pushgateway used for push-only metrics.
+    #[config(default_t = None)]
+    pub push_gateway_url: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
@@ -1160,6 +1710,9 @@ pub struct BatchVerificationConfig {
     // default address 0x36615Cf349d7F6344891B1e7CA7C72883F5dc049
     #[config(default_t = "0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110".into())]
     pub signing_key: SecretString,
+    /// Stop accepting transactions when batch verification falls this many batches behind
+    /// its upstream.
+    pub max_batch_diff_to_upstream: Option<u64>,
 }
 
 /// Config for the base token price updater.
@@ -1180,8 +1733,6 @@ pub struct BaseTokenPriceUpdaterConfig {
     pub base_token_addr_override: Option<Address>,
     /// Override for decimals of the base token.
     pub base_token_decimals_override: Option<u8>,
-    /// Override for address of the gateway base token address used to calculate ETH<->GatewayBaseToken ratio on gateway using chains.
-    pub gateway_base_token_addr_override: Option<Address>,
     /// Signer to update base token price on L1.
     /// Must be consistent with the key set on the chain admin contract.
     /// Not used for chains with ETH as base token; expected to be set for all other chains.
@@ -1281,6 +1832,54 @@ pub struct FeeConfig {
     pub native_price_override: Option<U128>,
 }
 
+/// Backpressure configuration.
+#[derive(Clone, Debug, DescribeConfig, DeserializeConfig)]
+#[config(derive(Default))]
+pub struct BackpressureConfig {
+    /// Stop accepting transactions when a block-pipeline component falls this many blocks behind
+    /// its upstream neighbour.
+    #[config(default_t = zksync_os_backpressure::DEFAULT_BLOCK_DIFF_LIMIT)]
+    pub default_block_diff_limit: u64,
+
+    /// Stop accepting transactions when a batch-pipeline component falls this many batches
+    /// behind its upstream neighbour.
+    #[config(default_t = zksync_os_backpressure::DEFAULT_BATCH_DIFF_LIMIT)]
+    pub default_batch_diff_limit: u64,
+}
+
+impl Config {
+    pub fn build_backpressure_config(&self) -> zksync_os_backpressure::BackpressureConfig {
+        use zksync_os_backpressure::{ComponentId, PipelineCondition};
+        let condition = |v| PipelineCondition {
+            max_batch_diff_to_upstream: v,
+            ..Default::default()
+        };
+        let mut cfg = zksync_os_backpressure::BackpressureConfig::default();
+        cfg.default_block_diff_limit = self.backpressure_config.default_block_diff_limit;
+        cfg.default_batch_diff_limit = self.backpressure_config.default_batch_diff_limit;
+        if let Some(v) = self.prover_api_config.max_batch_diff_to_upstream {
+            cfg.set(ComponentId::FriJobManager, condition(Some(v)));
+            cfg.set(ComponentId::GaplessCommitter, condition(Some(v)));
+            cfg.set(ComponentId::SnarkJobManager, condition(Some(v)));
+            cfg.set(ComponentId::GaplessL1ProofSender, condition(Some(v)));
+        }
+        if let Some(v) = self.batch_verification_config.max_batch_diff_to_upstream {
+            cfg.set(ComponentId::BatchVerification, condition(Some(v)));
+        }
+        if let Some(v) = self.l1_sender_config.max_batch_diff_to_upstream {
+            for id in [
+                ComponentId::L1SenderCommit,
+                ComponentId::L1SenderProve,
+                ComponentId::L1SenderExecute,
+                ComponentId::UpgradeGatekeeper,
+            ] {
+                cfg.set(id, condition(Some(v)));
+            }
+        }
+        cfg
+    }
+}
+
 impl From<NetworkConfig> for zksync_os_network::config::NetworkConfig {
     fn from(value: NetworkConfig) -> Self {
         Self {
@@ -1289,45 +1888,9 @@ impl From<NetworkConfig> for zksync_os_network::config::NetworkConfig {
                 .expect("`network.secret_key` is required for running p2p networking stack"),
             address: value.resolved_address(),
             port: value.port,
-            boot_nodes: value
-                .boot_nodes
-                .iter()
-                .map(|s| {
-                    resolve_enode(s)
-                        .unwrap_or_else(|e| panic!("failed to resolve boot node `{s}`: {e}"))
-                })
-                .collect(),
+            boot_nodes: value.boot_nodes,
         }
     }
-}
-
-/// Parse an enode URL, resolving the host portion if it is a hostname rather than an IP address.
-fn resolve_enode(enode: &TrustedPeer) -> Result<TrustedPeer, String> {
-    let enode_str = enode.to_string();
-
-    if let Ok(record) = enode_str.parse::<NodeRecord>() {
-        return Ok(TrustedPeer::from(record));
-    }
-
-    let mut url = url::Url::parse(&enode_str).map_err(|e| e.to_string())?;
-    let host = url.host_str().ok_or("enode URL has no host")?;
-
-    use std::net::ToSocketAddrs;
-
-    let ip = (host, 0u16)
-        .to_socket_addrs()
-        .map_err(|e| e.to_string())?
-        .find_map(|sa| match sa {
-            std::net::SocketAddr::V4(v4) => Some(v4.ip().to_string()),
-            _ => None,
-        })
-        .ok_or_else(|| format!("DNS resolution returned no IPv4 address for `{host}`"))?;
-
-    url.set_host(Some(&ip)).map_err(|e| e.to_string())?;
-    let resolved = url.to_string();
-
-    let record = resolved.parse::<NodeRecord>().map_err(|e| e.to_string())?;
-    Ok(TrustedPeer::from(record))
 }
 
 impl From<RpcConfig> for zksync_os_rpc::RpcConfig {
@@ -1335,6 +1898,9 @@ impl From<RpcConfig> for zksync_os_rpc::RpcConfig {
         Self {
             address: c.address,
             eth_call_gas: c.eth_call_gas,
+            js_tracer_timeout: c.js_tracer_timeout,
+            js_tracer_max_memory_bytes: c.js_tracer_max_memory.0 as usize,
+            eth_simulate_block_gas_limit: c.eth_simulate_block_gas_limit,
             max_connections: c.max_connections,
             max_request_size: c.max_request_size,
             max_response_size: c.max_response_size,
@@ -1345,7 +1911,64 @@ impl From<RpcConfig> for zksync_os_rpc::RpcConfig {
             send_raw_transaction_sync_timeout: c.send_raw_transaction_sync_timeout,
             gas_price_scale_factor: c.gas_price_scale_factor,
             estimate_gas_pubdata_price_factor: c.estimate_gas_pubdata_price_factor,
+            rate_limits: c.rate_limits.into(),
+            method_filter: c.method_filter,
         }
+    }
+}
+
+impl TxValidatorConfig {
+    fn check_mutual_exclusion(&self) -> Result<(), ErrorWithOrigin> {
+        if self.deployment_filter.enabled && self.policy_service.url.is_some() {
+            Err(ErrorWithOrigin::custom(
+                "deployment_filter cannot be enabled at the same time as policy_service.url; express the allow-list via the policy service",
+            ))
+        } else {
+            Ok(())
+        }
+    }
+}
+
+fn check_url_scheme(url: &url::Url) -> Result<(), ErrorWithOrigin> {
+    match url.scheme() {
+        "http" | "unix" => Ok(()),
+        other => Err(ErrorWithOrigin::custom(format!(
+            "unsupported URL scheme `{other}`; expected `http` or `unix`"
+        ))),
+    }
+}
+
+impl PolicyServiceConfig {
+    fn check_auth_required(&self) -> Result<(), ErrorWithOrigin> {
+        let Some(url) = &self.url else { return Ok(()) };
+        if url.scheme() == "http" && self.auth_token.is_none() {
+            return Err(ErrorWithOrigin::custom(
+                "auth_token is required when using `http://` transport",
+            ));
+        }
+        Ok(())
+    }
+
+    /// Build a `PolicyClient`, or `None` when no service is configured.
+    /// Panics on invalid URL: config validation already ran at load time.
+    pub fn build_client(
+        &self,
+        component: zksync_os_tx_validators::policy_client::Component,
+    ) -> Option<zksync_os_tx_validators::policy_client::PolicyClient> {
+        self.url.as_ref().map(|url| {
+            zksync_os_tx_validators::policy_client::PolicyClient::new(
+                zksync_os_tx_validators::policy_client::Config {
+                    url: url.to_string(),
+                    component,
+                    request_timeout: self.request_timeout,
+                    protocol_version: self.protocol_version.clone(),
+                    expected_protocol_version: self.expected_protocol_version.clone(),
+                    bypass_from: self.bypass_from.iter().copied().collect(),
+                    auth_token: self.auth_token.clone(),
+                },
+            )
+            .expect("failed to build PolicyClient from `policy_service`")
+        })
     }
 }
 
@@ -1368,6 +1991,11 @@ impl From<&Config> for zksync_os_sequencer::config::SequencerConfig {
                     } else {
                         deployment_filter::Config::Unrestricted
                     },
+                    policy_client: c
+                        .sequencer_config
+                        .tx_validator
+                        .policy_service
+                        .build_client(zksync_os_tx_validators::policy_client::Component::Sequencer),
                 }
             },
         }
@@ -1379,14 +2007,27 @@ impl L1SenderConfig {
         self,
         operator_signer: SignerConfig,
     ) -> zksync_os_l1_sender::config::L1SenderConfig<Input> {
+        let force_transaction_resubmission = self.force_transaction_resubmission;
         zksync_os_l1_sender::config::L1SenderConfig {
             operator_signer,
-            max_fee_per_gas_wei: self.max_fee_per_gas.0,
-            max_priority_fee_per_gas_wei: self.max_priority_fee_per_gas.0,
-            max_fee_per_blob_gas_wei: self.max_fee_per_blob_gas.0,
+            fee_config: zksync_os_l1_sender::config::L1SenderFeeConfig {
+                max_fee_per_gas_wei: self.max_fee_per_gas.0,
+                max_priority_fee_per_gas_wei: self.max_priority_fee_per_gas.0,
+                max_fee_per_blob_gas_wei: self.max_fee_per_blob_gas.0,
+                max_fee_per_gas_replacement_multiplier: force_transaction_resubmission
+                    .max_fee_per_gas_replacement_multiplier,
+                max_priority_fee_per_gas_replacement_multiplier: force_transaction_resubmission
+                    .max_priority_fee_per_gas_replacement_multiplier,
+                max_fee_per_blob_gas_replacement_multiplier: force_transaction_resubmission
+                    .max_fee_per_blob_gas_replacement_multiplier,
+            },
+            force_transaction_resubmission: force_transaction_resubmission.enabled,
             command_limit: self.command_limit,
             poll_interval: self.poll_interval,
-            fusaka_upgrade_timestamp: self.fusaka_upgrade_timestamp,
+            transaction_timeout: self.transaction_timeout,
+            required_confirmations: self.required_confirmations,
+            nonce_error_max_attempts: self.nonce_error_max_attempts,
+            nonce_error_retry_backoff: self.nonce_error_retry_backoff,
             phantom_data: Default::default(),
         }
     }
@@ -1394,10 +2035,9 @@ impl L1SenderConfig {
 
 impl From<L1SenderConfig> for zksync_os_l1_sender::config::L1SenderConfig<CommitCommand> {
     fn from(c: L1SenderConfig) -> Self {
-        let signer = c
-            .operator_commit_sk
-            .clone()
-            .expect("operator_commit_sk must be set on the Main Node");
+        let signer = c.operator_commit_sk.clone().expect(
+            "l1_sender.operator_commit_sk must be set on the Main Node when settling on L1",
+        );
         c.into_lib_l1_sender_config(signer)
     }
 }
@@ -1407,17 +2047,16 @@ impl From<L1SenderConfig> for zksync_os_l1_sender::config::L1SenderConfig<ProofC
         let signer = c
             .operator_prove_sk
             .clone()
-            .expect("operator_prove_sk must be set on the Main Node");
+            .expect("l1_sender.operator_prove_sk must be set on the Main Node when settling on L1");
         c.into_lib_l1_sender_config(signer)
     }
 }
 
 impl From<L1SenderConfig> for zksync_os_l1_sender::config::L1SenderConfig<ExecuteCommand> {
     fn from(c: L1SenderConfig) -> Self {
-        let signer = c
-            .operator_execute_sk
-            .clone()
-            .expect("operator_execute_sk must be set on the Main Node");
+        let signer = c.operator_execute_sk.clone().expect(
+            "l1_sender.operator_execute_sk must be set on the Main Node when settling on L1",
+        );
         c.into_lib_l1_sender_config(signer)
     }
 }
@@ -1428,7 +2067,18 @@ impl From<L1WatcherConfig> for zksync_os_l1_watcher::L1WatcherConfig {
             max_blocks_to_process: c.max_blocks_to_process,
             confirmations: c.confirmations,
             poll_interval: c.poll_interval,
+            finalized_poll_interval: c.finalized_poll_interval,
+            logs_cache_capacity: c.logs_cache_capacity,
             proof_storage_grace_period: c.proof_storage_grace_period,
+        }
+    }
+}
+
+impl From<InteropFeeUpdaterConfig> for zksync_os_mempool::InteropFeeUpdaterConfig {
+    fn from(c: InteropFeeUpdaterConfig) -> Self {
+        Self {
+            polling_interval: c.polling_interval,
+            update_deviation_percentage: c.update_deviation_percentage,
         }
     }
 }
@@ -1447,17 +2097,7 @@ impl From<MempoolTxValidatorConfig> for zksync_os_mempool::TxValidatorConfig {
     fn from(c: MempoolTxValidatorConfig) -> Self {
         Self {
             max_input_bytes: c.max_input_bytes,
-            tx_fee_cap: c.tx_fee_cap,
-        }
-    }
-}
-
-impl From<RebuildBlocksConfig> for RebuildOptions {
-    fn from(c: RebuildBlocksConfig) -> Self {
-        Self {
-            from_block: c.from_block,
-            blocks_to_empty: c.blocks_to_empty.into_iter().collect(),
-            reset_timestamps: c.reset_timestamps,
+            tx_fee_cap: c.tx_fee_cap.0,
         }
     }
 }
@@ -1505,7 +2145,6 @@ pub fn base_token_price_updater_config(
         price_fetching_max_attempts: c.price_fetching_max_attempts,
         base_token_addr_override: c.base_token_addr_override,
         base_token_decimals_override: c.base_token_decimals_override,
-        gateway_base_token_addr_override: c.gateway_base_token_addr_override,
         token_multiplier_setter_signer,
         max_fee_per_gas_wei: l1_sender_config.max_fee_per_gas.0,
         max_priority_fee_per_gas_wei: l1_sender_config.max_priority_fee_per_gas.0,
@@ -1602,6 +2241,107 @@ mod tests {
         repo.single::<NetworkConfig>().unwrap().parse().unwrap()
     }
 
+    fn parse_replay_archive_config<const N: usize>(
+        env_vars: [(&str, &str); N],
+    ) -> ReplayArchiveConfig {
+        let schema = ConfigSchema::new(&ReplayArchiveConfig::DESCRIPTION, "replay_archive");
+        let repo = ConfigRepository::new(&schema).with(Environment::from_iter("", env_vars));
+        repo.single::<ReplayArchiveConfig>()
+            .unwrap()
+            .parse()
+            .unwrap()
+    }
+
+    #[test]
+    fn replay_archive_config_defaults_to_noop() {
+        let config = parse_replay_archive_config([]);
+
+        assert!(matches!(config, ReplayArchiveConfig::Noop));
+    }
+
+    #[test]
+    fn replay_archive_config_parses_filesystem_backend() {
+        let config = parse_replay_archive_config([
+            ("REPLAY_ARCHIVE_TYPE", "FileSystem"),
+            ("REPLAY_ARCHIVE_ROOT_PATH", "/tmp/replay-archive"),
+        ]);
+
+        match config {
+            ReplayArchiveConfig::FileSystem {
+                root_path,
+                encryption,
+            } => {
+                assert_eq!(root_path, PathBuf::from("/tmp/replay-archive"));
+                assert!(matches!(encryption, ReplayArchiveEncryptionConfig::Noop));
+            }
+            ReplayArchiveConfig::Noop => panic!("expected file system replay archive config"),
+            ReplayArchiveConfig::S3WithCredentialFile { .. } => {
+                panic!("expected file system replay archive config")
+            }
+        }
+    }
+
+    #[test]
+    fn replay_archive_config_parses_s3_backend() {
+        let config = parse_replay_archive_config([
+            ("REPLAY_ARCHIVE_TYPE", "S3WithCredentialFile"),
+            ("REPLAY_ARCHIVE_BUCKET_BASE_URL", "replay-archive"),
+            (
+                "REPLAY_ARCHIVE_S3_CREDENTIAL_FILE_PATH",
+                "/path/to/credentials.json",
+            ),
+            ("REPLAY_ARCHIVE_ENDPOINT", "http://localhost:9000"),
+            ("REPLAY_ARCHIVE_REGION", "us-east-2"),
+        ]);
+
+        match config {
+            ReplayArchiveConfig::S3WithCredentialFile {
+                bucket_base_url,
+                s3_credential_file_path,
+                endpoint,
+                region,
+                encryption,
+            } => {
+                assert_eq!(bucket_base_url, "replay-archive");
+                assert_eq!(
+                    s3_credential_file_path,
+                    PathBuf::from("/path/to/credentials.json")
+                );
+                assert_eq!(endpoint.as_deref(), Some("http://localhost:9000"));
+                assert_eq!(region.as_deref(), Some("us-east-2"));
+                assert!(matches!(encryption, ReplayArchiveEncryptionConfig::Noop));
+            }
+            ReplayArchiveConfig::Noop | ReplayArchiveConfig::FileSystem { .. } => {
+                panic!("expected S3 replay archive config")
+            }
+        }
+    }
+
+    #[test]
+    fn replay_archive_config_parses_age_x25519_encryption() {
+        let config = parse_replay_archive_config([
+            ("REPLAY_ARCHIVE_TYPE", "FileSystem"),
+            ("REPLAY_ARCHIVE_ROOT_PATH", "/tmp/replay-archive"),
+            ("REPLAY_ARCHIVE_ENCRYPTION_TYPE", "AgeX25519"),
+            ("REPLAY_ARCHIVE_ENCRYPTION_RECIPIENT", "age1recipient"),
+        ]);
+
+        match config {
+            ReplayArchiveConfig::FileSystem { encryption, .. } => match encryption {
+                ReplayArchiveEncryptionConfig::AgeX25519 { recipient } => {
+                    assert_eq!(recipient, "age1recipient");
+                }
+                ReplayArchiveEncryptionConfig::Noop => {
+                    panic!("expected age X25519 replay archive encryption")
+                }
+            },
+            ReplayArchiveConfig::Noop => panic!("expected file system replay archive config"),
+            ReplayArchiveConfig::S3WithCredentialFile { .. } => {
+                panic!("expected file system replay archive config")
+            }
+        }
+    }
+
     #[test]
     fn network_interface_is_a_separate_field_and_overrides_address() {
         let config = parse_network_config([
@@ -1652,7 +2392,9 @@ mod tests {
                 run_priority_tree: true,
                 ..Default::default()
             },
+            l1_provider_config: ProviderConfig::default(),
             network_config: NetworkConfig::default(),
+            consensus_config: ConsensusConfig::default(),
             genesis_config: GenesisConfig {
                 bridgehub_address: Some(Address::ZERO),
                 bytecode_supplier_address: Some(Address::with_last_byte(0x01)),
@@ -1671,11 +2413,16 @@ mod tests {
                 max_fee_per_gas: 200 * EtherUnit::Gwei,
                 max_priority_fee_per_gas: 1 * EtherUnit::Gwei,
                 max_fee_per_blob_gas: 2 * EtherUnit::Gwei,
+                force_transaction_resubmission: ForceTransactionResubmissionConfig::default(),
                 command_limit: 16,
                 poll_interval: Duration::from_millis(100),
-                fusaka_upgrade_timestamp: u64::MAX,
+                transaction_timeout: Duration::from_secs(600),
+                required_confirmations: DEFAULT_REQUIRED_CONFIRMATIONS_L1,
+                nonce_error_max_attempts: DEFAULT_NONCE_ERROR_MAX_ATTEMPTS,
+                nonce_error_retry_backoff: DEFAULT_NONCE_ERROR_RETRY_BACKOFF,
                 enabled: true,
                 pubdata_mode: Some(PubdataMode::Blobs),
+                max_batch_diff_to_upstream: None,
             },
             l1_watcher_config: L1WatcherConfig::default(),
             batcher_config: BatcherConfig::default(),
@@ -1685,12 +2432,14 @@ mod tests {
             observability_config: ObservabilityConfig::default(),
             gas_adjuster_config: GasAdjusterConfig::default(),
             batch_verification_config: BatchVerificationConfig::default(),
+            replay_archive_config: ReplayArchiveConfig::default(),
             base_token_price_updater_config: BaseTokenPriceUpdaterConfig::default(),
             interop_fee_updater_config: InteropFeeUpdaterConfig::default(),
             external_price_api_client_config: Some(ExternalPriceApiClientConfig::Forced {
                 forced: ForcedPriceClientConfig::default(),
             }),
             fee_config: FeeConfig::default(),
+            backpressure_config: BackpressureConfig::default(),
         }
     }
 
@@ -1701,10 +2450,6 @@ mod tests {
         config.genesis_config.bytecode_supplier_address = None;
         config.genesis_config.chain_id = None;
         config.genesis_config.genesis_input_path = None;
-        config.l1_sender_config.operator_commit_sk = None;
-        config.l1_sender_config.operator_prove_sk = None;
-        config.l1_sender_config.operator_execute_sk = None;
-        config.l1_sender_config.pubdata_mode = None;
         config.external_price_api_client_config = None;
 
         let err = config.validate().await.unwrap_err().to_string();
@@ -1720,22 +2465,21 @@ mod tests {
             err.contains("`genesis.genesis_input_path` is required when `general.node_role=main`")
         );
         assert!(
-            err.contains(
-                "`l1_sender.operator_commit_sk` is required when `general.node_role=main`"
-            )
-        );
-        assert!(
-            err.contains("`l1_sender.operator_prove_sk` is required when `general.node_role=main`")
-        );
-        assert!(
-            err.contains(
-                "`l1_sender.operator_execute_sk` is required when `general.node_role=main`"
-            )
-        );
-        assert!(err.contains("`l1_sender.pubdata_mode` is required when `general.node_role=main`"));
-        assert!(
             err.contains("`external_price_api_client` is required when `general.node_role=main`")
         );
+    }
+
+    #[tokio::test]
+    async fn main_node_can_omit_all_operator_keys_at_config_time() {
+        // Operator-key presence (and `pubdata_mode`) is enforced at runtime once the settlement
+        // layer is discovered, not at config time.
+        let mut config = base_config(NodeRole::MainNode);
+        config.l1_sender_config.operator_commit_sk = None;
+        config.l1_sender_config.operator_prove_sk = None;
+        config.l1_sender_config.operator_execute_sk = None;
+        config.l1_sender_config.pubdata_mode = None;
+
+        config.validate().await.unwrap();
     }
 
     #[tokio::test]
@@ -1801,6 +2545,60 @@ mod tests {
         );
         assert!(
             err.contains("`batch_verification.client_enabled` requires `network.enabled=true`")
+        );
+    }
+
+    fn parse_policy_service_config<const N: usize>(
+        env_vars: [(&str, &str); N],
+    ) -> Result<PolicyServiceConfig, ParseErrors> {
+        let schema = ConfigSchema::new(&PolicyServiceConfig::DESCRIPTION, "policy_service");
+        let repo = ConfigRepository::new(&schema).with(Environment::from_iter("", env_vars));
+        repo.single::<PolicyServiceConfig>().unwrap().parse()
+    }
+
+    #[test]
+    fn policy_service_accepts_http_url_with_token() {
+        let result = parse_policy_service_config([
+            ("POLICY_SERVICE_URL", "http://policy.local:9000"),
+            ("POLICY_SERVICE_AUTH_TOKEN", "secret"),
+        ]);
+        assert!(
+            result.is_ok(),
+            "http URL with token should be accepted, got: {:?}",
+            result.unwrap_err()
+        );
+    }
+
+    #[test]
+    fn policy_service_rejects_http_url_without_token() {
+        let err = parse_policy_service_config([("POLICY_SERVICE_URL", "http://policy.local:9000")])
+            .unwrap_err()
+            .to_string();
+        assert!(
+            err.contains("auth_token is required"),
+            "expected token-required error, got: {err}"
+        );
+    }
+
+    #[test]
+    fn policy_service_accepts_unix_url_without_token() {
+        let result =
+            parse_policy_service_config([("POLICY_SERVICE_URL", "unix:///run/policy.sock")]);
+        assert!(
+            result.is_ok(),
+            "unix URL without token should be accepted, got: {:?}",
+            result.unwrap_err()
+        );
+    }
+
+    #[test]
+    fn policy_service_rejects_unsupported_scheme() {
+        let err = parse_policy_service_config([("POLICY_SERVICE_URL", "ftp://policy.local:9000")])
+            .unwrap_err()
+            .to_string();
+        assert!(
+            err.contains("unsupported URL scheme"),
+            "expected scheme rejection, got: {err}"
         );
     }
 }
