@@ -41,7 +41,7 @@ use zksync_os_metadata::NODE_CLIENT_VERSION;
 use zksync_os_storage_api::ReadReplay;
 
 /// Max number of active devp2p connections.
-const MAX_ACTIVE_CONNECTIONS: usize = 25;
+const MAX_ACTIVE_CONNECTIONS: usize = 100;
 /// Retry boot node DNS resolution for up to ~2 minutes so discv5 bootstrap has usable peers.
 const BOOT_NODE_RESOLUTION_RETRY_DELAY: Duration = Duration::from_secs(5);
 const BOOT_NODE_RESOLUTION_MAX_RETRIES: usize = 24;
