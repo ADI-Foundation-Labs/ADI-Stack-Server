@@ -4,8 +4,7 @@ use alloy::sol_types::SolCall;
 use std::collections::BTreeMap;
 use zksync_os_integration_tests::contracts::SampleForceDeployment;
 use zksync_os_integration_tests::upgrade::{Action, CommitterFacetV31, FacetCut, UpgradeTester};
-use zksync_os_integration_tests::{GatewayTester, Tester};
-use zksync_os_server::default_protocol_version::NEXT_PROTOCOL_VERSION;
+use zksync_os_integration_tests::{NEXT_TO_L1, Tester};
 
 /// Executes the simplest patch protocol upgrade:
 /// - no contracts are deployed
@@ -19,81 +18,10 @@ async fn upgrade_patch_no_deployments() -> anyhow::Result<()> {
     let upgrade_timestamp = U256::from(1); // Protocol upgrade can be executed immediately.
     let deadline = U256::MAX; // The protocol version will not have any deadline in this upgrade
 
-    // Test that we can deposit L2 funds from a rich L1 account
     let tester = Tester::setup().await?;
-    let upgrade_tester = UpgradeTester::for_default_upgrade(tester).await?;
+    let upgrade_tester = UpgradeTester::for_default_upgrade(&tester).await?;
 
     // Prepare protocol upgrade
-    let protocol_upgrade = upgrade_tester
-        .protocol_upgrade_builder()
-        .await?
-        .bump_patch(1)
-        .with_force_deployments(BTreeMap::new())
-        .with_timestamp(upgrade_timestamp)
-        .build();
-
-    upgrade_tester
-        .execute_default_upgrade(
-            &protocol_upgrade,
-            deadline,
-            upgrade_timestamp,
-            true,
-            Vec::new(),
-        )
-        .await?;
-
-    Ok(())
-}
-
-#[test_log::test(tokio::test)]
-async fn upgrade_patch_no_deployments_gateway() -> anyhow::Result<()> {
-    let upgrade_timestamp = U256::from(1); // Protocol upgrade can be executed immediately.
-    let deadline = U256::MAX; // The protocol version will not have any deadline in this upgrade
-
-    // Test that we can deposit L2 funds from a rich L1 account
-    let gateway_tester = GatewayTester::builder()
-        .protocol_version(NEXT_PROTOCOL_VERSION)
-        .num_chains(0)
-        .build()
-        .await?;
-    let tester = gateway_tester.into_gateway();
-    let upgrade_tester = UpgradeTester::for_default_upgrade(tester).await?;
-
-    // Prepare protocol upgrade
-    let protocol_upgrade = upgrade_tester
-        .protocol_upgrade_builder()
-        .await?
-        .bump_patch(1)
-        .with_force_deployments(BTreeMap::new())
-        .with_timestamp(upgrade_timestamp)
-        .build();
-
-    upgrade_tester
-        .execute_default_upgrade(
-            &protocol_upgrade,
-            deadline,
-            upgrade_timestamp,
-            true,
-            Vec::new(),
-        )
-        .await?;
-
-    Ok(())
-}
-
-#[test_log::test(tokio::test)]
-async fn upgrade_patch_no_deployments_settles_to_gateway() -> anyhow::Result<()> {
-    let upgrade_timestamp = U256::from(1);
-    let deadline = U256::MAX;
-
-    let gateway_tester = GatewayTester::builder()
-        .protocol_version(NEXT_PROTOCOL_VERSION)
-        .num_chains(1)
-        .build()
-        .await?;
-    let tester = gateway_tester.into_primary_chain();
-    let upgrade_tester = UpgradeTester::for_default_upgrade(tester).await?;
-
     let protocol_upgrade = upgrade_tester
         .protocol_upgrade_builder()
         .await?
@@ -132,14 +60,12 @@ async fn upgrade_to_v31_with_deployments() -> anyhow::Result<()> {
     .into_iter()
     .collect();
 
-    // Test that we can deposit L2 funds from a rich L1 account
     let tester = Tester::setup().await?;
-    let upgrade_tester = UpgradeTester::for_default_upgrade(tester).await?;
+    let upgrade_tester = UpgradeTester::for_default_upgrade(&tester).await?;
 
-    // Publish the bytecodes for upgrade beforehand.
-    // TODO: we need to use bytecode instead of deployed bytecode for now, since under the hood `publish_bytecodes`
-    // actually deploys contracts since BytecodesSupplier is not ready for zksync os
-    // Once this is fixed, also check the logic for `ForceDeploymentBytecodeInfo` in the builder.
+    // Pre-register the force-deployment bytecode via an L2 create tx.
+    // This test exercises the legacy path where the node already knows the preimage
+    // and the upgrade tx does not carry `factory_deps`.
     upgrade_tester
         .publish_bytecodes([SampleForceDeployment::BYTECODE.clone()])
         .await?;
@@ -192,7 +118,10 @@ async fn upgrade_to_v31_with_deployments() -> anyhow::Result<()> {
     let main_node_block = upgrade_tester.tester.l2_provider.get_block_number().await?;
 
     // Ensure that EN can sync from the upgraded node.
-    let en1 = upgrade_tester.tester.launch_external_node().await?;
+    let en1 = upgrade_tester
+        .tester
+        .launch_from_config(upgrade_tester.tester.external_node_config())
+        .await?;
 
     while en1.l2_provider.get_block_number().await? < main_node_block {
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
@@ -202,9 +131,8 @@ async fn upgrade_to_v31_with_deployments() -> anyhow::Result<()> {
 }
 
 /// Performs V31->V32 protocol upgrade which also does a force deployment.
-/// Upgraded chain settles to gateway.
 #[test_log::test(tokio::test)]
-async fn upgrade_to_v32_with_deployments_settles_to_gateway() -> anyhow::Result<()> {
+async fn upgrade_to_v32_with_deployments() -> anyhow::Result<()> {
     let upgrade_timestamp = U256::from(1); // Protocol upgrade can be executed immediately.
     let deadline = U256::MAX; // The protocol version will not have any deadline in this upgrade
 
@@ -219,28 +147,25 @@ async fn upgrade_to_v32_with_deployments_settles_to_gateway() -> anyhow::Result<
     .into_iter()
     .collect();
 
-    let gateway_tester = GatewayTester::builder()
-        .protocol_version(NEXT_PROTOCOL_VERSION)
-        .num_chains(1)
-        .build()
-        .await?;
-    let tester = gateway_tester.into_primary_chain();
-    let upgrade_tester = UpgradeTester::for_default_upgrade(tester).await?;
+    let tester = NEXT_TO_L1.environment().await?.launch_default().await?;
+    let upgrade_tester = UpgradeTester::for_default_upgrade(&tester).await?;
 
-    // Publish the bytecodes for upgrade beforehand.
-    // TODO: we need to use bytecode instead of deployed bytecode for now, since under the hood `publish_bytecodes`
-    // actually deploys contracts since BytecodesSupplier is not ready for zksync os
-    // Once this is fixed, also check the logic for `ForceDeploymentBytecodeInfo` in the builder.
+    // Publish the raw runtime bytecode from the force-deployment payload to the
+    // L1 BytecodesSupplier. This exercises the supplier-backed path where the
+    // node discovers force-deployment preimages from `EVMBytecodePublished`
+    // events using the upgrade tx `factory_deps`.
     upgrade_tester
-        .publish_bytecodes([SampleForceDeployment::BYTECODE.clone()])
+        .publish_bytecodes_to_l1_supplier([SampleForceDeployment::DEPLOYED_BYTECODE.clone()])
         .await?;
 
-    // Prepare protocol upgrade
+    // Prepare protocol upgrade with `factory_deps` so the node fetches preimages
+    // from the supplier instead of relying on a prior L2 deployment.
     let protocol_upgrade = upgrade_tester
         .protocol_upgrade_builder()
         .await?
         .bump_minor(1)
         .with_force_deployments(force_deployments)
+        .with_factory_deps()
         .with_timestamp(upgrade_timestamp)
         .build();
 
@@ -265,7 +190,10 @@ async fn upgrade_to_v32_with_deployments_settles_to_gateway() -> anyhow::Result<
     let main_node_block = upgrade_tester.tester.l2_provider.get_block_number().await?;
 
     // Ensure that EN can sync from the upgraded node.
-    let en1 = upgrade_tester.tester.launch_external_node().await?;
+    let en1 = upgrade_tester
+        .tester
+        .launch_from_config(upgrade_tester.tester.external_node_config())
+        .await?;
 
     while en1.l2_provider.get_block_number().await? < main_node_block {
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;

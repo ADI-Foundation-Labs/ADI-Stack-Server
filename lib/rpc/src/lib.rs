@@ -2,27 +2,37 @@ mod call_fees;
 
 mod config;
 
-pub use config::RpcConfig;
+pub use config::{RateLimits, RpcConfig};
+use std::collections::HashSet;
 use std::sync::Arc;
 use tokio::sync::watch;
 
 mod eth_call_handler;
 pub use eth_call_handler::EthCallHandler;
+mod eth_fill_transaction_handler;
 mod eth_filter;
 mod eth_impl;
 mod eth_pubsub_impl;
+mod finality_impl;
 mod metrics;
 mod ots_impl;
 mod result;
 mod rpc_storage;
+mod simulate;
 pub use rpc_storage::{ReadRpcStorage, RpcStorage};
 mod debug_impl;
 pub mod js_tracer;
-mod log_proof_utils;
+mod limits;
+mod method_filter_middleware;
 mod monitoring_middleware;
 mod net_impl;
+mod rate_limit_middleware;
 mod sandbox;
+mod trace_filter;
+mod tx_forwarder;
+pub use tx_forwarder::{TxForwardEndpoint, TxForwarder};
 mod tx_handler;
+mod txpool_impl;
 mod types;
 mod unstable_impl;
 mod web3_impl;
@@ -32,14 +42,18 @@ use crate::debug_impl::DebugNamespace;
 use crate::eth_filter::EthFilterNamespace;
 use crate::eth_impl::EthNamespace;
 use crate::eth_pubsub_impl::EthPubsubNamespace;
+use crate::finality_impl::FinalityNamespace;
+use crate::limits::{Limiter, LoggingLimiter};
+use crate::method_filter_middleware::MethodFiltering;
 use crate::monitoring_middleware::Monitoring;
 use crate::net_impl::NetNamespace;
 use crate::ots_impl::OtsNamespace;
+use crate::rate_limit_middleware::RateLimiting;
+use crate::txpool_impl::TxpoolNamespace;
 use crate::unstable_impl::UnstableNamespace;
 use crate::web3_impl::Web3Namespace;
 use crate::zks_impl::ZksNamespace;
 use alloy::primitives::Address;
-use alloy::providers::DynProvider;
 use anyhow::Context;
 use hyper::Method;
 use jsonrpsee::RpcModule;
@@ -50,22 +64,26 @@ use reth_tasks::Runtime;
 use tower_http::cors::{Any, CorsLayer};
 use zksync_os_fee_overrides::ConfigOverrides;
 use zksync_os_genesis::GenesisInputSource;
-use zksync_os_interface::types::BlockContext;
 use zksync_os_mempool::subpools::l2::L2Subpool;
 use zksync_os_rpc_api::debug::DebugApiServer;
 use zksync_os_rpc_api::eth::EthApiServer;
 use zksync_os_rpc_api::filter::EthFilterApiServer;
+use zksync_os_rpc_api::finality::ZksFinalityApiServer;
 use zksync_os_rpc_api::net::NetApiServer;
 use zksync_os_rpc_api::ots::OtsApiServer;
 use zksync_os_rpc_api::pubsub::EthPubSubApiServer;
+use zksync_os_rpc_api::txpool::TxpoolApiServer;
 use zksync_os_rpc_api::unstable::UnstableApiServer;
 use zksync_os_rpc_api::web3::Web3ApiServer;
 use zksync_os_rpc_api::zks::ZksApiServer;
+use zksync_os_storage_api::BlockContext;
+use zksync_os_tx_validators::policy_client::PolicyClient;
 use zksync_os_types::TransactionAcceptanceState;
 
 #[allow(clippy::too_many_arguments)]
 pub async fn spawn<RpcStorage: ReadRpcStorage, Mempool: L2Subpool>(
     config: RpcConfig,
+    listener: tokio::net::TcpListener,
     chain_id: u64,
     bridgehub_address: Address,
     bytecode_supplier_address: Address,
@@ -75,20 +93,21 @@ pub async fn spawn<RpcStorage: ReadRpcStorage, Mempool: L2Subpool>(
     acceptance_state: watch::Receiver<TransactionAcceptanceState>,
     last_constructed_block_context: watch::Receiver<Option<BlockContext>>,
     config_overrides: watch::Receiver<ConfigOverrides>,
-    tx_forwarder: Option<DynProvider>,
-    gateway_provider: Option<DynProvider>,
+    tx_forwarder: Option<TxForwarder>,
+    policy_client: Option<PolicyClient>,
     runtime: &Runtime,
     wait_for_db: impl Future<Output = ()> + Send + 'static,
 ) -> anyhow::Result<()> {
-    tracing::info!("Starting JSON-RPC server at {}", config.address);
+    metrics::register_task_monitor();
 
     let mut rpc = RpcModule::new(());
     let eth_call_handler = EthCallHandler::new(
         config.clone(),
         storage.clone(),
         chain_id,
-        last_constructed_block_context,
+        last_constructed_block_context.clone(),
         config_overrides.clone(),
+        policy_client.clone(),
     );
     rpc.merge(
         EthNamespace::new(
@@ -100,25 +119,29 @@ pub async fn spawn<RpcStorage: ReadRpcStorage, Mempool: L2Subpool>(
             acceptance_state,
             tx_forwarder,
             config_overrides,
+            policy_client,
+            last_constructed_block_context,
         )
         .into_rpc(),
     )?;
     let eth_filter = EthFilterNamespace::new(config.clone(), storage.clone(), mempool.clone());
     rpc.merge(eth_filter.clone().into_rpc())?;
-    rpc.merge(EthPubsubNamespace::new(storage.clone(), mempool, runtime.clone()).into_rpc())?;
+    rpc.merge(
+        EthPubsubNamespace::new(storage.clone(), mempool.clone(), runtime.clone()).into_rpc(),
+    )?;
     rpc.merge(
         ZksNamespace::new(
             bridgehub_address,
             bytecode_supplier_address,
             storage.clone(),
             genesis_input_source,
-            chain_id,
-            gateway_provider,
         )
         .into_rpc(),
     )?;
+    rpc.merge(FinalityNamespace::new(storage.clone()).into_rpc())?;
     rpc.merge(OtsNamespace::new(storage.clone()).into_rpc())?;
     rpc.merge(DebugNamespace::new(storage.clone(), eth_call_handler).into_rpc())?;
+    rpc.merge(TxpoolNamespace::new(mempool.clone()).into_rpc())?;
     rpc.merge(NetNamespace::new(chain_id).into_rpc())?;
     rpc.merge(Web3Namespace.into_rpc())?;
     rpc.merge(UnstableNamespace::new(storage).into_rpc())?;
@@ -136,8 +159,19 @@ pub async fn spawn<RpcStorage: ReadRpcStorage, Mempool: L2Subpool>(
     let middleware = tower::ServiceBuilder::new().layer(cors);
 
     let max_response_size_bytes = config.max_response_size_bytes();
+    let limiter = LoggingLimiter::new(Limiter::new(config.rate_limits.clone().into_limits()));
+    let rate_limit_logging = LoggingLimiter::run(limiter.clone());
+    let method_filter = Arc::new(config.method_filter.clone());
+    // Snapshot the registered method names so monitoring can bound metric label cardinality:
+    // any other method name (e.g. junk sent to pollute metrics) is collapsed to a single label.
+    let known_methods = Arc::new(rpc.method_names().collect::<HashSet<&'static str>>());
     let rpc_middleware = RpcServiceBuilder::new()
-        .layer_fn(move |service| Monitoring::new(service, max_response_size_bytes));
+        // Monitoring is outermost so rate-limited responses still appear in error metrics.
+        .layer_fn(move |service| {
+            Monitoring::new(service, max_response_size_bytes, known_methods.clone())
+        })
+        .layer_fn(move |service| MethodFiltering::new(service, method_filter.clone()))
+        .layer_fn(move |service| RateLimiting::new(service, limiter.clone()));
 
     let server_config = ServerConfigBuilder::default()
         .max_connections(config.max_connections)
@@ -151,9 +185,19 @@ pub async fn spawn<RpcStorage: ReadRpcStorage, Mempool: L2Subpool>(
         .set_http_middleware(middleware)
         .set_rpc_middleware(rpc_middleware);
 
+    let local_addr = listener
+        .local_addr()
+        .context("failed to get RPC listener local address")?;
+    tracing::info!(
+        "Starting JSON-RPC server at {local_addr} (configured: {})",
+        config.address
+    );
     let server = server_builder
-        .build(config.address)
-        .await
+        .build_from_tcp(
+            listener
+                .into_std()
+                .context("failed to convert RPC listener to std")?,
+        )
         .context("Failed building HTTP JSON-RPC server")?;
 
     runtime.spawn_critical_with_graceful_shutdown_signal("rpc server", |shutdown| async move {
@@ -177,6 +221,9 @@ pub async fn spawn<RpcStorage: ReadRpcStorage, Mempool: L2Subpool>(
             // The stale-filter cleanup loop exited unexpectedly; this task also ends in that case.
             _ = eth_filter.watch_and_clear_stale_filters() => {
                 unreachable!("eth_filter.watch_and_clear_stale_filters() is an infinite loop")
+            }
+            _ = rate_limit_logging => {
+                unreachable!("LoggingLimiter::run is an infinite loop")
             }
             // Graceful shutdown was requested; stop accepting RPC traffic and wait for the server to exit.
             _guard = &mut shutdown => {

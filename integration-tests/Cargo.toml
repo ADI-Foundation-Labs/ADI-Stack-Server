@@ -13,7 +13,12 @@ build = "build.rs"
 
 [dependencies]
 zksync_os_server.workspace = true
+zksync_os_operator_signer.workspace = true
+zksync_os_alloy_ext.workspace = true
+zksync_os_provider.workspace = true
 zksync_os_contract_interface.workspace = true
+zksync_os_l1_watcher.workspace = true
+zksync_os_tx_validators.workspace = true
 zksync_os_types.workspace = true
 zksync_os_rpc_api.workspace = true
 zksync_os_merkle_tree_api.workspace = true
@@ -21,6 +26,9 @@ zksync_os_rpc_private.workspace = true
 zksync_os_state_full_diffs.workspace = true
 zksync_os_multivm.workspace = true
 zksync_os_network.workspace = true
+zksync_os_replay_archive.workspace = true
+zksync_os_rocksdb.workspace = true
+zksync_os_status_server.workspace = true
 zksync_os_integration_tests_macros.workspace = true
 zksync_os_verify_storage_proof = { path = "../tools/verify-storage-proof" }
 
@@ -29,8 +37,7 @@ reth-tasks.workspace = true
 alloy = { workspace = true, default-features = false, features = ["provider-anvil-node", "rand", "json-rpc", "pubsub", "provider-ws"] }
 anyhow.workspace = true
 flate2.workspace = true
-fs2.workspace = true
-reqwest = { workspace = true, optional = true }
+reqwest.workspace = true
 tar.workspace = true
 tokio.workspace = true
 tempfile.workspace = true
@@ -47,6 +54,7 @@ serde_yaml.workspace = true
 # Needed for upgrade functionality tests
 zk_os_api.workspace = true
 zk_os_basic_system.workspace = true
+blake2.workspace = true
 
 [build-dependencies]
 flate2.workspace = true
@@ -55,7 +63,8 @@ sha2 = { workspace = true }
 [dev-dependencies]
 test-log = { workspace = true, default-features = false, features = ["trace", "color"] }
 regex.workspace = true
+httpmock.workspace = true
 
 [features]
-prover-tests = ["dep:reqwest"]
+prover-tests = []
 gpu-prover-tests = ["prover-tests"]

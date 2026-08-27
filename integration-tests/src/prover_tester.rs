@@ -1,35 +1,46 @@
-use crate::dyn_wallet_provider::EthDynProvider;
-use crate::network::Zksync;
-use crate::provider::ZksyncApi;
 use alloy::eips::BlockNumberOrTag;
 use alloy::primitives::{U256, keccak256};
 use alloy::providers::{DynProvider, Provider};
 use alloy::rpc::types::Filter;
 use std::time::Duration;
+use zksync_os_alloy_ext::network::Zksync;
+use zksync_os_alloy_ext::provider::ZksyncApi;
 use zksync_os_contract_interface::l1_discovery::L1State;
+use zksync_os_provider::NodeProvider;
 
 #[derive(Debug)]
 pub struct ProverTester {
-    l1_provider: EthDynProvider,
-    gateway_provider: Option<EthDynProvider>,
-    l2_provider: EthDynProvider,
+    l1_provider: NodeProvider,
+    l2_provider: NodeProvider,
     l2_zk_provider: DynProvider<Zksync>,
 }
 
 impl ProverTester {
     /// Create a new client targeting the given base URL
     pub fn new(
-        l1_provider: EthDynProvider,
-        gateway_provider: Option<EthDynProvider>,
-        l2_provider: EthDynProvider,
+        l1_provider: NodeProvider,
+        l2_provider: NodeProvider,
         l2_zk_provider: DynProvider<Zksync>,
     ) -> Self {
         Self {
             l1_provider,
-            gateway_provider,
             l2_provider,
             l2_zk_provider,
         }
+    }
+
+    pub async fn last_proven_batch(&self) -> anyhow::Result<u64> {
+        let bridgehub_address = self.l2_zk_provider.get_bridgehub_contract().await?;
+        let chain_id = self.l2_provider.get_chain_id().await?;
+
+        // Get L1 state which contains diamond proxy address
+        let l1_state =
+            L1State::fetch(self.l1_provider.clone(), bridgehub_address, chain_id).await?;
+        let total_batches_proved = l1_state
+            .diamond_proxy_l1
+            .get_total_batches_proved(BlockNumberOrTag::Latest.into())
+            .await?;
+        Ok(total_batches_proved)
     }
 
     /// Checks batch status by verifying that the proof has been verified on L1.
@@ -39,15 +50,10 @@ impl ProverTester {
         let bridgehub_address = self.l2_zk_provider.get_bridgehub_contract().await?;
         let chain_id = self.l2_provider.get_chain_id().await?;
 
-        // Get L1/SL state which contains diamond proxy address
-        let l1_state = L1State::fetch(
-            self.l1_provider.clone().erased(),
-            self.gateway_provider.as_ref().map(|p| p.clone().erased()),
-            bridgehub_address,
-            chain_id,
-        )
-        .await?;
-        let diamond_proxy_address = l1_state.diamond_proxy_address_sl();
+        // Get L1 state which contains diamond proxy address
+        let l1_state =
+            L1State::fetch(self.l1_provider.clone(), bridgehub_address, chain_id).await?;
+        let diamond_proxy_address = l1_state.diamond_proxy_address();
         tracing::info!(
             batch_number,
             %diamond_proxy_address,
@@ -60,8 +66,7 @@ impl ProverTester {
             .address(diamond_proxy_address)
             .from_block(0)
             .to_block(BlockNumberOrTag::Latest);
-        let sl_provider = self.gateway_provider.as_ref().unwrap_or(&self.l1_provider);
-        let logs = sl_provider.get_logs(&filter).await?;
+        let logs = self.l1_provider.get_logs(&filter).await?;
         if logs.is_empty() {
             tracing::info!("no `BlocksVerification` events discovered on L1");
             return Ok(false);

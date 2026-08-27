@@ -8,6 +8,9 @@ use std::path::PathBuf;
 use tokio::sync::watch;
 pub use zksync_os_fee_overrides::ConfigOverrides;
 
+#[cfg(test)]
+mod tests;
+
 /// Load config overrides from file if it exists.
 fn load_from_file(path: &PathBuf) -> anyhow::Result<ConfigOverrides> {
     let contents = std::fs::read_to_string(path)?;
@@ -19,7 +22,10 @@ fn load_from_file(path: &PathBuf) -> anyhow::Result<ConfigOverrides> {
 /// Save config overrides to file.
 fn save_to_file(overrides: &ConfigOverrides, path: &PathBuf) -> anyhow::Result<()> {
     let json = serde_json::to_string_pretty(overrides)?;
-    std::fs::write(path, json)?;
+    // Write atomically (tmp + rename) so a crash mid-write can't corrupt the file.
+    let tmp_path = path.with_extension("json.tmp");
+    std::fs::write(&tmp_path, json)?;
+    std::fs::rename(&tmp_path, path)?;
     Ok(())
 }
 
@@ -99,7 +105,7 @@ pub async fn run_private_rpc_server(
 
     // Load from file if exists, merge with fallback
     let loaded = load_from_file(&persistence_path)
-        .inspect_err(|e| tracing::debug!(?e, "Could not load config overrides from file"))
+        .inspect_err(|e| tracing::warn!(?e, "Could not load config overrides from file"))
         .ok();
 
     let initial = loaded

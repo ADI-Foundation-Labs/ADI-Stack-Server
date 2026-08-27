@@ -13,8 +13,9 @@ use crate::IZKChain::IZKChainInstance;
 use alloy::contract::SolCallBuilder;
 use alloy::eips::BlockId;
 use alloy::network::Ethereum;
-use alloy::primitives::{Address, B256, TxHash, U256};
+use alloy::primitives::{Address, B256, U256};
 use alloy::providers::Provider;
+use zksync_os_provider::NodeProvider;
 
 alloy::sol! {
     // `Messaging.sol`
@@ -46,8 +47,7 @@ alloy::sol! {
     }
 
     interface ServerNotifier {
-        event MigrateToGateway(uint256 indexed chainId, uint256 migrationNumber);
-        event MigrateFromGateway(uint256 indexed chainId, uint256 migrationNumber);
+        event UpgradeTimestampUpdated(uint256 indexed chainId, uint256 indexed protocolVersion, uint256 upgradeTimestamp);
     }
 
     interface ISystemContext {
@@ -93,7 +93,7 @@ alloy::sol! {
 
         function addInteropRootsInBatch(InteropRoot[] calldata interopRootsInput);
 
-        uint256 public totalPublishedInteropRoots;
+        uint256 public interopRootLogId;
 
         function getChainTree(uint256 chainId) public view returns (Bytes32PushTree);
 
@@ -170,11 +170,6 @@ alloy::sol! {
         ) external view returns (uint256);
     }
 
-    #[sol(rpc)]
-    interface IChainAssetHandler {
-        function migrationNumber(uint256 _chainId) external view returns (uint256);
-    }
-
     // `IChainTypeManager.sol`
     #[sol(rpc)]
     interface IChainTypeManager {
@@ -225,6 +220,40 @@ alloy::sol! {
 
         /// Provides an actual data for the upgrade execution.
         event NewUpgradeCutData(uint256 indexed protocolVersion, DiamondCutData diamondCutData);
+
+        /// Address of the L1 bytecodes supplier used for upgrades (v31+).
+        function L1_BYTECODES_SUPPLIER() external view returns (address);
+
+        /// The block number on the CTM's chain where `setUpgradeDiamondCutInner` ran for the
+        /// given (old) protocol version. Non-zero means this CTM owns the upgrade cut data for
+        /// that version. Populated starting with the V31 ChainTypeManager.
+        function upgradeCutDataBlock(uint256 protocolVersion) external view returns (uint256);
+    }
+
+    // `ValidatorTimelock.sol`
+    // Used by the node startup flow to revert committed batches before local block rebuild.
+    #[sol(rpc)]
+    interface IValidatorTimelock {
+        function REVERTER_ROLE() external view returns (bytes32);
+        function hasRoleForChainId(uint256 _chainId, bytes32 _role, address _address) external view returns (bool);
+        function revertBatchesSharedBridge(address _chainAddress, uint256 _newLastBatch) external;
+    }
+
+    // `SettlementLayerV31UpgradeBase.sol` — the per-chain upgrade init contract.
+    // `NewUpgradeCutData` carries a placeholder `additionalForceDeploymentsData`
+    // that `upgradeChainFromVersion` rewrites per-chain inside the delegatecall
+    // via `getL2UpgradeTxData(bridgehub, chainId, existingTxData)`. The server
+    // must call this before executing the L2 upgrade tx — otherwise the
+    // placeholder's empty `additionalForceDeploymentsData` would revert inside
+    // `performForceDeployedContractsInit`.
+    #[sol(rpc)]
+    interface ISettlementLayerV31Upgrade {
+        function getL2UpgradeTxData(
+            address _bridgehub,
+            uint256 _chainId,
+            bool _zksyncOS,
+            bytes memory _existingTxData
+        ) external view returns (bytes memory);
     }
 
     // `IZKChain.sol`
@@ -239,8 +268,6 @@ alloy::sol! {
         function getAdmin() external view returns (address);
         function getChainTypeManager() external view returns (address);
         function getProtocolVersion() external view returns (uint256);
-        function getL2SystemContractsUpgradeTxHash() external view returns (bytes32);
-        function getL2SystemContractsUpgradeBatchNumber() external view returns (uint256);
         function baseTokenGasPriceMultiplierNominator() external view returns (uint128);
         function baseTokenGasPriceMultiplierDenominator() external view returns (uint128);
         function getBaseToken() external view returns (address);
@@ -402,9 +429,9 @@ alloy::sol! {
         function tokenMultiplierSetter() external view returns (address);
     }
 
-    // `BytecodeSupplier.sol`
+    // `BytecodesSupplier.sol`
     interface IBytecodeSupplier {
-        event BytecodePublished(bytes32 indexed bytecodeHash, bytes bytecode);
+        event EVMBytecodePublished(bytes32 indexed bytecodeHash, bytes bytecode);
     }
 
     #[sol(rpc)]
@@ -453,24 +480,23 @@ impl<P: Provider> MessageRoot<P> {
         self.instance.provider()
     }
 
-    pub async fn total_published_interop_roots(&self, block_id: BlockId) -> Result<u64> {
+    pub async fn interop_root_log_id(&self, block_id: BlockId) -> Result<u64> {
         self.instance
-            .totalPublishedInteropRoots()
+            .interopRootLogId()
             .block(block_id)
             .call()
             .await
             .map(|n| n.saturating_to())
-            .enrich("totalPublishedInteropRoots", Some(block_id))
+            .enrich("interopRootLogId", Some(block_id))
     }
+}
 
-    pub async fn code_exists_at_block(&self, block_id: BlockId) -> alloy::contract::Result<bool> {
-        let code = self
-            .provider()
-            .get_code_at(*self.address())
-            .block_id(block_id)
-            .await?;
-
-        Ok(!code.0.is_empty())
+impl MessageRoot<NodeProvider> {
+    /// L1 block at which this message root contract was deployed, used as the lower bound for
+    /// binary searches over L1 history. Convenience over [`NodeProvider::deployment_block`] that
+    /// the provider caches per address.
+    pub async fn deployment_block(&self) -> anyhow::Result<u64> {
+        self.provider().deployment_block(self.address).await
     }
 }
 
@@ -607,30 +633,6 @@ impl<P: Provider + Clone> Bridgehub<P> {
     pub async fn get_all_zk_chain_chain_ids(&self) -> alloy::contract::Result<Vec<U256>> {
         self.instance.getAllZKChainChainIDs().call().await
     }
-
-    pub async fn whitelisted_settlement_layers(
-        &self,
-        chain_id: impl Into<U256>,
-    ) -> alloy::contract::Result<bool> {
-        self.instance
-            .whitelistedSettlementLayers(chain_id.into())
-            .call()
-            .await
-    }
-
-    pub async fn chain_asset_handler_address(&self) -> alloy::contract::Result<Address> {
-        self.instance.chainAssetHandler().call().await
-    }
-
-    pub async fn migration_number(&self, chain_id: u64) -> alloy::contract::Result<U256> {
-        let chain_asset_handler_address = self.chain_asset_handler_address().await?;
-        let chain_asset_handler =
-            IChainAssetHandler::new(chain_asset_handler_address, self.instance.provider());
-        chain_asset_handler
-            .migrationNumber(U256::from(chain_id))
-            .call()
-            .await
-    }
 }
 
 #[derive(Clone, Debug)]
@@ -719,6 +721,15 @@ pub struct ZkChain<P: Provider> {
     instance: IZKChainInstance<P, Ethereum>,
 }
 
+impl ZkChain<NodeProvider> {
+    /// L1 block at which this diamond proxy was deployed, used as the lower bound for binary
+    /// searches over L1 history. Convenience over [`NodeProvider::deployment_block`] that the
+    /// provider caches per address.
+    pub async fn deployment_block(&self) -> anyhow::Result<u64> {
+        self.provider().deployment_block(*self.address()).await
+    }
+}
+
 impl<P: Provider> ZkChain<P> {
     pub fn new(address: Address, provider: P) -> Self {
         let instance = IZKChainInstance::new(address, provider);
@@ -733,12 +744,13 @@ impl<P: Provider> ZkChain<P> {
         self.instance.provider()
     }
 
-    pub async fn stored_batch_hash(&self, batch_number: u64) -> Result<B256> {
+    pub async fn stored_batch_hash(&self, batch_number: u64, block_id: BlockId) -> Result<B256> {
         self.instance
             .storedBatchHash(U256::from(batch_number))
+            .block(block_id)
             .call()
             .await
-            .enrich("storedBatchHash", None)
+            .enrich("storedBatchHash", Some(block_id))
     }
 
     pub async fn get_total_batches_committed(&self, block_id: BlockId) -> Result<u64> {
@@ -829,27 +841,6 @@ impl<P: Provider> ZkChain<P> {
             .enrich("getProtocolVersion", Some(block_id))
     }
 
-    /// Returns current upgrade transaction waiting to be executed. Zeroed out if not present.
-    pub async fn get_upgrade_tx_hash(&self, block_id: BlockId) -> Result<TxHash> {
-        self.instance
-            .getL2SystemContractsUpgradeTxHash()
-            .block(block_id)
-            .call()
-            .await
-            .enrich("getL2SystemContractsUpgradeTxHash", Some(block_id))
-    }
-
-    /// Returns batch number that contains current upgrade transaction. Returns `0` if not present.
-    pub async fn get_upgrade_batch_number(&self, block_id: BlockId) -> Result<u64> {
-        self.instance
-            .getL2SystemContractsUpgradeBatchNumber()
-            .block(block_id)
-            .call()
-            .await
-            .map(|n| n.saturating_to())
-            .enrich("getL2SystemContractsUpgradeBatchNumber", Some(block_id))
-    }
-
     /// Returns base token address.
     pub async fn get_base_token_address(&self) -> Result<Address> {
         self.instance
@@ -877,13 +868,14 @@ impl<P: Provider> ZkChain<P> {
             .enrich("baseTokenGasPriceMultiplierDenominator", None)
     }
 
-    /// Returns the address of the current settlement layer as stored in `ZKChainStorage`.
-    pub async fn get_settlement_layer(&self) -> Result<Address> {
+    /// Returns the address of the settlement layer as stored in `ZKChainStorage` at `block_id`.
+    pub async fn get_settlement_layer(&self, block_id: BlockId) -> Result<Address> {
         self.instance
             .getSettlementLayer()
+            .block(block_id)
             .call()
             .await
-            .enrich("getSettlementLayer", None)
+            .enrich("getSettlementLayer", Some(block_id))
     }
 
     pub async fn get_server_notifier_address(&self) -> Result<Address> {
@@ -895,6 +887,17 @@ impl<P: Provider> ZkChain<P> {
             .call()
             .await
             .enrich("serverNotifierAddress", None)
+    }
+}
+
+/// Returns `true` if the error came from the contract itself (empty return data or a revert),
+/// which is how an EVM reports a call to a function selector that the deployed code does not
+/// implement. Network / transport failures return `false` so they can be propagated.
+pub fn is_method_missing(err: &alloy::contract::Error) -> bool {
+    match err {
+        alloy::contract::Error::ZeroData(..) => true,
+        alloy::contract::Error::TransportError(te) => te.as_error_resp().is_some(),
+        _ => false,
     }
 }
 

@@ -1,80 +1,93 @@
 use crate::committed_batch_provider::CommittedBatchProvider;
-use crate::watcher::{L1Watcher, L1WatcherError};
+use crate::watcher::{L1WatcherError, StartResolver};
 use crate::{L1WatcherConfig, ProcessL1Event, util};
-use alloy::primitives::Address;
-use alloy::providers::{DynProvider, Provider};
 use alloy::rpc::types::Log;
-use std::time::Duration;
 use tokio::sync::watch;
-use zksync_os_batch_types::{BatchInfo, DiscoveredCommittedBatch};
+use zksync_os_batch_types::DiscoveredCommittedBatch;
 use zksync_os_contract_interface::IExecutor::ReportCommittedBatchRangeZKsyncOS;
 use zksync_os_contract_interface::ZkChain;
+use zksync_os_provider::NodeProvider;
 use zksync_os_storage_api::WriteFinality;
 
+/// Watches L1 commit events and advances the committed finality frontier.
+///
+/// This component reads `ReportCommittedBatchRangeZKsyncOS` events, resolves the committed batch
+/// payload from L1 calldata, updates `WriteFinality`, and inserts the discovered batch into
+/// `CommittedBatchProvider`.
+///
+/// Depended on by:
+/// - `L1ExecuteWatcher`, which waits on the committed batches this watcher publishes;
+/// - `Batcher` and `PriorityTreeManager`, which consume the same committed batch data during
+///   startup replay and live operation;
+/// - node startup / recovery logic, which relies on the committed frontier stored in finality.
 pub struct L1CommitWatcher<Finality> {
-    zk_chain: ZkChain<DynProvider>,
     next_batch_number: u64,
-    // L1 tip observed at watcher startup. Used to identify historical events during catch-up.
-    startup_latest_l1_block: u64,
+    // SL tip used for finality initialization. Used to identify historical events during catch-up.
+    l1_block_initial_finality_init_at: u64,
     // Last committed batch as of startup. Historical commits above this value are stale.
     startup_last_committed_batch: u64,
     committed_batch_provider: CommittedBatchProvider,
     finality: Finality,
     commit_submitted_rx: Option<watch::Receiver<u64>>,
-    grace_period: Duration,
 }
 
 impl<Finality: WriteFinality> L1CommitWatcher<Finality> {
+    #[allow(clippy::too_many_arguments)]
     pub async fn create_watcher(
         config: L1WatcherConfig,
-        zk_chain: ZkChain<DynProvider>,
+        zk_chain: ZkChain<NodeProvider>,
         committed_batch_provider: CommittedBatchProvider,
         finality: Finality,
-        l1_chain_id: u64,
+        l1_block_initial_finality_init_at: u64,
         commit_submitted_rx: Option<watch::Receiver<u64>>,
-    ) -> anyhow::Result<L1Watcher> {
-        let current_l1_block = zk_chain.provider().get_block_number().await?;
-        let last_committed_batch = finality.get_finality_status().last_committed_batch;
+    ) -> anyhow::Result<StartResolver<(), Self>> {
         tracing::info!(
-            current_l1_block,
-            last_committed_batch,
+            l1_block_initial_finality_init_at,
             config.max_blocks_to_process,
             ?config.poll_interval,
             zk_chain_address = ?zk_chain.address(),
             "initializing L1 commit watcher"
         );
-        let last_l1_block = util::find_l1_commit_block_by_batch_number(
-            zk_chain.clone(),
-            last_committed_batch,
-            config.max_blocks_to_process,
-        )
-        .await?;
-        tracing::info!(last_l1_block, "resolved on L1");
 
-        let this = Self {
-            zk_chain: zk_chain.clone(),
-            next_batch_number: last_committed_batch + 1,
-            startup_latest_l1_block: current_l1_block,
-            startup_last_committed_batch: last_committed_batch,
-            committed_batch_provider,
-            finality,
-            commit_submitted_rx,
-            grace_period: config.proof_storage_grace_period,
+        let provider = zk_chain.provider().clone();
+        let address = (*zk_chain.address()).into();
+
+        let resolve_start = move |()| async move {
+            let last_committed_batch = finality.get_finality_status().last_committed_batch;
+            // The startup sweep in `CommittedBatchProvider` already resolved the live commit
+            // block of the committed frontier batch; fall back to an L1 search when it is
+            // unavailable (batch 0 at genesis).
+            let last_l1_block = match committed_batch_provider.commit_l1_block(last_committed_batch)
+            {
+                Some(block) => block,
+                None => {
+                    util::find_l1_commit_block_by_batch_number(&zk_chain, last_committed_batch)
+                        .await?
+                        .0
+                }
+            };
+            tracing::info!(last_committed_batch, last_l1_block, "resolved on L1");
+
+            let processor = Self {
+                next_batch_number: last_committed_batch + 1,
+                l1_block_initial_finality_init_at,
+                startup_last_committed_batch: last_committed_batch,
+                committed_batch_provider,
+                finality,
+                commit_submitted_rx,
+            };
+            // We start from the last L1 block as it may contain more committed batches apart
+            // from the last one.
+            Ok((last_l1_block, processor))
         };
-        let l1_watcher = L1Watcher::new(
-            zk_chain.provider().clone(),
-            // We start from last L1 block as it may contain more committed batches apart from the last
-            // one.
-            last_l1_block,
-            config.max_blocks_to_process,
-            config.confirmations,
-            l1_chain_id,
-            config.poll_interval,
-            this.into(),
-        )
-        .await?;
 
-        Ok(l1_watcher)
+        Ok(StartResolver::new(
+            config,
+            provider,
+            address,
+            None,
+            resolve_start,
+        ))
     }
 }
 
@@ -85,12 +98,9 @@ impl<Finality: WriteFinality> ProcessL1Event for L1CommitWatcher<Finality> {
     type SolEvent = ReportCommittedBatchRangeZKsyncOS;
     type WatchedEvent = ReportCommittedBatchRangeZKsyncOS;
 
-    fn contract_address(&self) -> Address {
-        *self.zk_chain.address()
-    }
-
     async fn process_event(
         &mut self,
+        provider: &NodeProvider,
         report: ReportCommittedBatchRangeZKsyncOS,
         log: Log,
     ) -> Result<(), L1WatcherError> {
@@ -98,7 +108,7 @@ impl<Finality: WriteFinality> ProcessL1Event for L1CommitWatcher<Finality> {
         // Startup-only guard: skip historical commits that are above the startup committed frontier.
         // This handles batches that were committed and reverted before the node started.
         if should_skip_historical_commit(
-            self.startup_latest_l1_block,
+            self.l1_block_initial_finality_init_at,
             self.startup_last_committed_batch,
             batch_number,
             log.block_number,
@@ -106,7 +116,7 @@ impl<Finality: WriteFinality> ProcessL1Event for L1CommitWatcher<Finality> {
             tracing::warn!(
                 batch_number,
                 log_block_number = ?log.block_number,
-                startup_latest_l1_block = self.startup_latest_l1_block,
+                l1_block_initial_finality_init_at = self.l1_block_initial_finality_init_at,
                 startup_last_committed_batch = self.startup_last_committed_batch,
                 "skipping historical committed batch above startup frontier; likely reverted before startup",
             );
@@ -121,45 +131,27 @@ impl<Finality: WriteFinality> ProcessL1Event for L1CommitWatcher<Finality> {
 
             tracing::debug!(batch_number, "discovered committed batch");
             let tx_hash = log.transaction_hash.expect("indexed log without tx hash");
-            let committed_batch = util::retry_with_grace_period(
-                || async {
-                    util::fetch_commit_calldata(&self.zk_chain, tx_hash)
-                        .await
-                        .map(Some)
-                },
-                self.grace_period,
-                Duration::from_secs(5),
-                &format!("committed batch {}", batch_number),
-            )
-            .await?;
-
-            // todo: stop using this struct once fully migrated from S3
-            let last_executed_batch_info = BatchInfo {
-                commit_info: committed_batch.commit_info,
-                chain_address: Default::default(),
-                upgrade_tx_hash: committed_batch.upgrade_tx_hash,
-                blob_sidecar: None,
-            };
+            let l1_block_number = log.block_number.expect("indexed log without block number");
+            let zk_chain = ZkChain::new(log.address(), provider.clone());
             let batch_info =
-                last_executed_batch_info.into_stored(&committed_batch.protocol_version);
+                util::fetch_committed_batch_data(&zk_chain, tx_hash, l1_block_number, batch_number)
+                    .await?
+                    .into_stored();
             let committed_batch = DiscoveredCommittedBatch {
                 batch_info,
                 block_range: report.firstBlockNumber..=report.lastBlockNumber,
             };
 
             let last_committed_block = committed_batch.last_block_number();
-            let current = self.finality.get_finality_status();
-            if batch_number <= current.last_committed_batch
-                || last_committed_block <= current.last_committed_block
-            {
-                return Err(L1WatcherError::Other(anyhow::anyhow!(
-                    "non-monotonous committed event: batch {batch_number} block {last_committed_block}, \
-                     current batch {} block {}",
-                    current.last_committed_batch,
-                    current.last_committed_block,
-                )));
-            }
             self.finality.update_finality_status(|finality| {
+                assert!(
+                    batch_number > finality.last_committed_batch,
+                    "non-monotonous committed batch"
+                );
+                assert!(
+                    last_committed_block > finality.last_committed_block,
+                    "non-monotonous committed block"
+                );
                 finality.last_committed_batch = batch_number;
                 finality.last_committed_block = last_committed_block;
             });
@@ -181,13 +173,14 @@ fn should_restart_for_unexpected_commit(
 /// Returns true if the commit event belongs to startup catch-up range and is above the startup
 /// committed frontier.
 fn should_skip_historical_commit(
-    startup_latest_l1_block: u64,
+    l1_block_initial_finality_init_at: u64,
     startup_last_committed_batch: u64,
     batch_number: u64,
     log_block_number: Option<u64>,
 ) -> bool {
     log_block_number.is_some_and(|log_block_number| {
-        log_block_number <= startup_latest_l1_block && batch_number > startup_last_committed_batch
+        log_block_number <= l1_block_initial_finality_init_at
+            && batch_number > startup_last_committed_batch
     })
 }
 

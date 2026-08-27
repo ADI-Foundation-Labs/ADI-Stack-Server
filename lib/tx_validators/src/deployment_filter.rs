@@ -12,7 +12,7 @@ use zksync_os_interface::tracing::{
 };
 
 /// Always allowed to deploy — ensures protocol upgrades are never blocked by the filter.
-const FORCE_DEPLOYER_ADDRESS: Address = address!("0000000000000000000000000000000000008007");
+pub const FORCE_DEPLOYER_ADDRESS: Address = address!("0000000000000000000000000000000000008007");
 
 #[derive(Clone, Debug, Default)]
 pub enum Config {
@@ -188,7 +188,14 @@ mod tests {
         /// Simulate a new transaction boundary.
         fn begin_tx(&mut self) {
             EvmTracer::begin_tx(&mut self.tracer, &[]);
-            TxValidator::begin_tx(&mut self.validator, &[]).unwrap();
+            let dummy_context = zksync_os_interface::tracing::BeginTxContext {
+                from: Address::ZERO,
+                to: Some(Address::ZERO),
+                value: U256::ZERO,
+                gas_limit: 21_000,
+                calldata: &[],
+            };
+            TxValidator::begin_tx(&mut self.validator, &dummy_context).unwrap();
         }
 
         /// Simulate a frame entering execution.
