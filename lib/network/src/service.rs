@@ -387,6 +387,8 @@ impl NetworkService {
             .listener_addr(rlpx_address)
             .peer_config(
                 PeersConfig::default()
+                    .with_max_inbound(MAX_ACTIVE_CONNECTIONS)
+                    .with_peer_rotation_interval(None)
                     // Sets peer ban duration to 1 second, effectively disabling it
                     .with_ban_duration(Duration::from_secs(1))
                     // Keep backoff durations short so that consensus nodes reconnect quickly
