@@ -2,9 +2,10 @@ mod transaction;
 pub use transaction::L2PooledTransaction;
 
 mod config;
-pub use config::{DEFAULT_TX_FEE_CAP, TxValidatorConfig};
+pub use config::{DEFAULT_TX_FEE_CAP, TxGasRateLimitConfig, TxValidatorConfig};
 
 pub mod subpools;
+pub use subpools::rate_limited_l2::gas_rate_limit_retry_after;
 
 mod interop_fee_updater;
 pub use interop_fee_updater::{InteropFeeUpdater, InteropFeeUpdaterConfig, LocalEthCall};
