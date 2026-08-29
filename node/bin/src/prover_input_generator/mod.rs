@@ -187,7 +187,16 @@ impl<ReadState: ReadStateHistory + Clone + Send + 'static> ProverInputGenerator<
             "prover input computation",
             |shutdown| async move {
                 tokio::select! {
-                    Ok(result) = &mut handle => {
+                    // Match the `JoinError` explicitly: an unmatched `Ok(..)` pattern would
+                    // disable this branch on panic, parking the task on `shutdown` forever
+                    // while it still holds `result_tx` — a silent pipeline-wide deadlock.
+                    joined = &mut handle => {
+                        let Ok(result) = joined.inspect_err(|err| {
+                            tracing::error!(block_number, error = %err, "prover input computation failed");
+                        }) else {
+                            // Dropping `result_tx` surfaces the failure to `run`, which fails the component.
+                            return;
+                        };
                         let _ = result_tx.send(result);
                     }
                     _guard = shutdown => {
