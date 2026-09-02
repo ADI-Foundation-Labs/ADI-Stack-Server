@@ -16629,6 +16629,7 @@ dependencies = [
  "serde",
  "tracing",
  "zksync_os_storage_api",
+ "zksync_os_types",
 ]
 
 [[package]]
