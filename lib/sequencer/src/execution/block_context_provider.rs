@@ -102,7 +102,13 @@ impl<Subpool: L2Subpool> BlockContextProvider<Subpool> {
             .last_block
             .take()
             .expect("tried to produce a block without replaying at least one record");
-        let fee_params = self.fee_provider.produce_fee_params().await?;
+        let mut fee_params = self.fee_provider.produce_fee_params().await?;
+        // Merge overrides before the pool is told: `pending_basefee` is the mempool's own
+        // admission threshold, so feeding it the un-overridden fee would build blocks at the
+        // overridden price while parking every transaction priced for it.
+        self.config_overrides_receiver
+            .borrow()
+            .apply_to_fee_params(&mut fee_params);
         self.pool.update_pending_block_fees(fee_params, None);
         let block_number = previous_record.block_context.block_number + 1;
         // Create stream:
@@ -181,7 +187,7 @@ impl<Subpool: L2Subpool> BlockContextProvider<Subpool> {
             native_price,
             pubdata_price,
         } = fee_params;
-        let mut block_context = BlockContext {
+        let block_context = BlockContext {
             eip1559_basefee,
             native_price,
             pubdata_price,
@@ -200,9 +206,6 @@ impl<Subpool: L2Subpool> BlockContextProvider<Subpool> {
             execution_version: execution_version as u32,
             blob_fee: U256::ONE,
         };
-        self.config_overrides_receiver
-            .borrow()
-            .apply_to(&mut block_context);
         self.last_constructed_block_ctx_sender
             .send_replace(Some(block_context));
         Ok(Some(PreparedBlockCommand {
