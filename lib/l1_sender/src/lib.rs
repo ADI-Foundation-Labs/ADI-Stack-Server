@@ -1568,6 +1568,7 @@ mod tests {
     use alloy::rpc::types::{Block, Header};
     use alloy::signers::k256::ecdsa::SigningKey;
     use alloy::transports::mock::Asserter;
+    use tokio::sync::watch;
     use zksync_os_operator_signer::SignerConfig;
     use zksync_os_provider::NodeProvider;
 
@@ -1627,6 +1628,7 @@ mod tests {
             to_address: Address::ZERO,
             commit_submitted_tx: None,
             l1_block_number: 42,
+            config_overrides_receiver: watch::channel(ConfigOverrides::default()).1,
         };
         let (_input_tx, input_rx) = mpsc::channel(1);
         let (output_tx, _output_rx) = mpsc::channel(1);
