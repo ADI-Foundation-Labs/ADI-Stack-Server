@@ -244,13 +244,42 @@ pub async fn execute_block_in_vm<V: ViewState>(
 
                         match (tx.tx_type(), command.invalid_tx_policy) {
                             (ZkTxType::L1 | ZkTxType::Upgrade, _) => {
-                                return Err(
-                                    BlockDump {
-                                        ctx,
-                                        txs: all_processed_txs.clone(),
-                                        error: format!("invalid {} tx: {e:?} ({})", tx.tx_type(), tx.hash()),
+                                match rejection_method(&e) {
+                                    // Seal what we have and let the tx retry from the subpool head in the next block.
+                                    TxRejectionMethod::SealBlock(reason) if !executed_txs.is_empty() => {
+                                        tracing::info!(
+                                            block_number = ctx.block_number,
+                                            "Sealing block {} before {} tx {} because it hit a sealing criterion: reason={reason:?}, error={e:?}",
+                                            ctx.block_number,
+                                            tx.tx_type(),
+                                            tx.hash(),
+                                        );
+                                        break reason;
                                     }
-                                )
+                                    // A resource-limit error for the first L1 tx means the block limits are
+                                    // configured below L1's per-tx caps. Log the configuration error without
+                                    // generating a block dump.
+                                    TxRejectionMethod::SealBlock(reason) => {
+                                        tracing::error!(
+                                            block_number = ctx.block_number,
+                                            "Cannot include {} tx {} in an empty block because it hit a sealing criterion; block limits may be configured below L1's per-tx caps: reason={reason:?}, error={e:?}",
+                                            tx.tx_type(),
+                                            tx.hash(),
+                                        );
+                                        break reason;
+                                    }
+                                    // A genuinely invalid priority tx is a protocol violation: the FIFO cannot
+                                    // skip it, so retain the block dump for investigation.
+                                    _ => {
+                                        return Err(
+                                            BlockDump {
+                                                ctx,
+                                                txs: all_processed_txs.clone(),
+                                                error: format!("invalid {} tx: {e:?} ({})", tx.tx_type(), tx.hash()),
+                                            }
+                                        )
+                                    }
+                                }
                             }
                             (ZkTxType::System, _) => {
                                 return Err(
@@ -390,7 +419,7 @@ pub async fn execute_block_in_vm<V: ViewState>(
     EXECUTION_METRICS.gas_per_block.observe(cumulative_gas_used);
     EXECUTION_METRICS
         .pubdata_per_block
-        .observe(output.pubdata.len() as u64);
+        .observe(output.pubdata_used());
     EXECUTION_METRICS
         .transactions_per_block
         .observe(executed_txs.len() as u64);
@@ -405,7 +434,7 @@ pub async fn execute_block_in_vm<V: ViewState>(
         "Block {block_number} ({label}) sealed because of {seal_reason:?} in block executor \
         with {tx_count} transactions ({purged_tx_count} purged) and {cumulative_gas_used} gas. \
         Block hash output: {block_hash_output:?}, canonical hash: {canonical_hash:?}. \
-        storage writes: {write_count}, unique reads: {unique_reads_count}, preimages: {preimages_count}, pubdata bytes: {pubdata_len}.",
+        storage writes: {write_count}, unique reads: {unique_reads_count}, preimages: {preimages_count}, pubdata bytes: {pubdata_used}.",
         block_number = output.header.number,
         label = command.metrics_label,
         tx_count = executed_txs.len(),
@@ -413,7 +442,7 @@ pub async fn execute_block_in_vm<V: ViewState>(
         canonical_hash = output.header.hash(),
         write_count = output.storage_writes.len(),
         preimages_count = output.published_preimages.len(),
-        pubdata_len = output.pubdata.len(),
+        pubdata_used = output.pubdata_used(),
     );
 
     tracing::debug!(

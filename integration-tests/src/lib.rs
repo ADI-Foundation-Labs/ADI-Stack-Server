@@ -33,10 +33,9 @@ use zksync_os_provider::NodeProvider;
 use zksync_os_server::ServerPorts;
 use zksync_os_server::config::Config;
 pub use zksync_os_server::config::{DeploymentFilterConfig, PolicyServiceConfig};
+use zksync_os_server::default_protocol_version::PROTOCOL_VERSION;
 #[cfg(feature = "prover-tests")]
-use zksync_os_server::default_protocol_version::PROTOCOL_VERSION_V31_0;
-use zksync_os_server::default_protocol_version::{NEXT_PROTOCOL_VERSION, PROTOCOL_VERSION};
-use zksync_os_state_full_diffs::FullDiffsState;
+use zksync_os_server::default_protocol_version::{PROTOCOL_VERSION_V30_2, PROTOCOL_VERSION_V31_0};
 use zksync_os_status_server::StatusResponse;
 use zksync_os_types::{
     L1PriorityTxType, L1TxType, NodeRole, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
@@ -74,19 +73,20 @@ impl TestCase {
         }
     }
 
-    pub const fn next_to_l1() -> Self {
-        Self {
-            protocol_version: NEXT_PROTOCOL_VERSION,
-        }
-    }
-
     pub async fn environment(self) -> anyhow::Result<TestEnvironment> {
         TestEnvironment::from_case(self).await
     }
 }
 
+// A NEXT_TO_L1 lane (fresh chain at `NEXT_PROTOCOL_VERSION`) needs local-chain fixtures for
+// v32.0; reintroduce it once they are generated. Until then v32 is covered via in-test upgrades.
 pub const CURRENT_TO_L1: TestCase = TestCase::current_to_l1();
-pub const NEXT_TO_L1: TestCase = TestCase::next_to_l1();
+
+/// Fresh chain at v30.2 — the oldest protocol version with live proving support (V6).
+#[cfg(feature = "prover-tests")]
+pub const V30_TO_L1: TestCase = TestCase {
+    protocol_version: PROTOCOL_VERSION_V30_2,
+};
 
 /// Set of private keys for batch verification participants.
 pub const BATCH_VERIFICATION_KEYS: [&str; 2] = [
@@ -95,8 +95,8 @@ pub const BATCH_VERIFICATION_KEYS: [&str; 2] = [
 ];
 /// Shutdown completes in <5 seconds when there is no CPU starvation. But because prover input
 /// generator runs its CPU-bound task on a blocking thread it can significantly slow down graceful
-/// shutdown. We put 60s here until zksync-os v0.4.0 which will get rid of RISC-V simulator and
-/// allow async/abortable prover input generation.
+/// shutdown. Keep 60s until V7 proving support is dropped (V8 generates prover input natively
+/// at batch seal, without the blocking RISC-V simulator).
 const NODE_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(60);
 /// Set of addresses (i.e. public keys) expected by batch verification. Derived from [`BATCH_VERIFICATION_KEYS`].
 static BATCH_VERIFICATION_ADDRESSES: LazyLock<Vec<String>> = LazyLock::new(|| {
@@ -142,6 +142,11 @@ impl TestEnvironment {
         })
     }
 
+    /// Anvil's direct RPC endpoint, e.g. to put a fault-injecting proxy in front of it.
+    pub fn l1_rpc_url(&self) -> &str {
+        &self.l1.address
+    }
+
     pub async fn default_config(&self) -> anyhow::Result<Config> {
         let mut config = build_node_config(&self.l1, self.chain_layout, false).await?;
         Tester::bind_runtime_config(
@@ -155,6 +160,34 @@ impl TestEnvironment {
     pub async fn launch_default(self) -> anyhow::Result<Tester> {
         let config = self.default_config().await?;
         self.launch(config).await
+    }
+
+    /// Launches the node with its L1 RPC routed through `l1_rpc_url` (e.g. a fault-injecting
+    /// proxy in front of anvil) instead of anvil's direct endpoint. Test-side helpers
+    /// (`Tester::l1_provider()` etc.) still talk to anvil directly.
+    pub async fn launch_with_l1_rpc(
+        self,
+        mut config: Config,
+        l1_rpc_url: String,
+    ) -> anyhow::Result<Tester> {
+        if !prover_input_generation_enabled() {
+            disable_prover_input_generation(&mut config);
+        }
+        Tester::bind_runtime_config(
+            &self.l1,
+            self.prepared_runtime.tempdir.as_ref(),
+            &mut config,
+        );
+        config.l1_provider_config.rpc_url = l1_rpc_url;
+        Tester::launch_node_inner(
+            self.l1,
+            config,
+            self.prepared_runtime.tempdir,
+            self.chain_layout,
+            None,
+            true,
+        )
+        .await
     }
 
     pub async fn launch(self, mut config: Config) -> anyhow::Result<Tester> {
@@ -252,6 +285,14 @@ pub struct SupportingNode {
 impl Tester {
     pub fn config(&self) -> &Config {
         &self.config
+    }
+
+    /// URL of the node's prover API, if the prover server is enabled.
+    /// Stable across [`Tester::stop`] / restart (HTTP ports are preserved).
+    pub fn prover_api_url(&self) -> Option<String> {
+        self.bound_ports
+            .prover_api
+            .map(|port| format!("http://localhost:{port}"))
     }
 
     fn apply_external_node_defaults(&self, config: &mut Config) {
@@ -513,7 +554,7 @@ impl Tester {
             role = %node_role,
         );
         tracing::info!(parent: &node_span, "Launching test node");
-        let bound_ports = zksync_os_server::run::<FullDiffsState>(&runtime, config.clone())
+        let bound_ports = zksync_os_server::run(&runtime, config.clone())
             .instrument(node_span)
             .await;
         let task_manager_handle = runtime
@@ -838,70 +879,90 @@ impl AnvilL1 {
         std::fs::write(&l1_state_path, &l1_state)
             .context("failed to write L1 state to temporary state file")?;
 
-        // --slots-in-an-epoch defines what blocks are "finalized" in Anvil, last finalized block is `latest - 2 * slots_in_an_epoch`
-        // so we set block time to 0.25s and slots in epoch set to 10 and finalization delays is about 10*0.25s*2=5s which is reasonable for tests.
-        let provider = ProviderBuilder::new().connect_anvil_with_wallet_and_config(|anvil| {
-            anvil
-                .chain_id(L1_CHAIN_ID)
-                .arg("--block-time")
-                .arg("0.25")
-                .arg("--mixed-mining")
-                .arg("--load-state")
-                .arg(l1_state_path)
-                .arg("--slots-in-an-epoch")
-                .arg("10")
-        })?;
-        let address = provider.inner().anvil().endpoint();
+        // Under CI load a freshly started Anvil can wedge (stop answering RPC for 60+s)
+        // right after passing the readiness check; retrying against it is hopeless, so
+        // after a few failed probes we kill it and spawn a fresh one.
+        const SPAWN_ATTEMPTS: usize = 3;
+        let mut last_err = None;
+        for attempt in 1..=SPAWN_ATTEMPTS {
+            // --slots-in-an-epoch defines what blocks are "finalized" in Anvil, last finalized block is `latest - 2 * slots_in_an_epoch`
+            // so we set block time to 0.25s and slots in epoch set to 10 and finalization delays is about 10*0.25s*2=5s which is reasonable for tests.
+            let provider =
+                ProviderBuilder::new().connect_anvil_with_wallet_and_config(|anvil| {
+                    anvil
+                        .chain_id(L1_CHAIN_ID)
+                        .arg("--block-time")
+                        .arg("0.25")
+                        .arg("--mixed-mining")
+                        .arg("--load-state")
+                        .arg(&l1_state_path)
+                        .arg("--slots-in-an-epoch")
+                        .arg("10")
+                })?;
+            let address = provider.inner().anvil().endpoint();
 
-        // `AnvilInstance`'s Drop never runs if the test process is SIGKILLed or aborts,
-        // which would orphan an anvil that mines (and allocates) forever. The leash kills
-        // it whenever this process dies, no matter how.
-        leash::attach(provider.inner().anvil().child().id(), "anvil")?;
+            // `AnvilInstance`'s Drop never runs if the test process is SIGKILLed or aborts,
+            // which would orphan an anvil that mines (and allocates) forever. The leash kills
+            // it whenever this process dies, no matter how.
+            leash::attach(provider.inner().anvil().child().id(), "anvil")?;
 
-        let wallet = provider.wallet().clone();
+            let wallet = provider.wallet().clone();
 
-        (|| async {
-            // Wait for L1 node to get up and be able to respond.
-            provider.clone().get_chain_id().await?;
-            Ok(())
-        })
-        .retry(
-            ConstantBuilder::default()
-                .with_delay(Duration::from_millis(200))
-                .with_max_times(50),
-        )
-        .notify(|err: &anyhow::Error, dur: Duration| {
-            tracing::info!(%err, ?dur, "retrying connection to L1 node");
-        })
-        .await?;
+            (|| async {
+                // Wait for L1 node to get up and be able to respond.
+                provider.clone().get_chain_id().await?;
+                Ok(())
+            })
+            .retry(
+                ConstantBuilder::default()
+                    .with_delay(Duration::from_millis(200))
+                    .with_max_times(50),
+            )
+            .notify(|err: &anyhow::Error, dur: Duration| {
+                tracing::info!(%err, ?dur, "retrying connection to L1 node");
+            })
+            .await?;
 
-        tracing::info!("L1 chain started on {}", address);
+            tracing::info!("L1 chain started on {}", address);
 
-        // `NodeProvider::new` probes Anvil's capabilities over a transport with no request
-        // timeout; an Anvil that wedges right after passing the readiness check above would
-        // otherwise hang the test until nextest's terminate timeout.
-        let provider = (|| async {
-            tokio::time::timeout(Duration::from_secs(10), NodeProvider::new(provider.clone()))
-                .await
-                .context("timed out probing L1 node capabilities")?
-                .context("failed to probe L1 node capabilities")
-        })
-        .retry(
-            ConstantBuilder::default()
-                .with_delay(Duration::from_millis(200))
-                .with_max_times(5),
-        )
-        .notify(|err: &anyhow::Error, dur: Duration| {
-            tracing::info!(%err, ?dur, "retrying L1 node capability probing");
-        })
-        .await?;
+            // `NodeProvider::new` probes Anvil's capabilities over a transport with no request
+            // timeout; an Anvil that wedges right after passing the readiness check above would
+            // otherwise hang the test until nextest's terminate timeout.
+            let probed = (|| async {
+                tokio::time::timeout(Duration::from_secs(10), NodeProvider::new(provider.clone()))
+                    .await
+                    .context("timed out probing L1 node capabilities")?
+                    .context("failed to probe L1 node capabilities")
+            })
+            .retry(
+                ConstantBuilder::default()
+                    .with_delay(Duration::from_millis(200))
+                    .with_max_times(2),
+            )
+            .notify(|err: &anyhow::Error, dur: Duration| {
+                tracing::info!(%err, ?dur, "retrying L1 node capability probing");
+            })
+            .await;
 
-        Ok(Self {
-            address,
-            provider,
-            wallet,
-            _tempdir: Arc::new(tempdir),
-        })
+            match probed {
+                Ok(provider) => {
+                    return Ok(Self {
+                        address,
+                        provider,
+                        wallet,
+                        _tempdir: Arc::new(tempdir),
+                    });
+                }
+                Err(err) => {
+                    tracing::warn!(%err, attempt, "anvil unresponsive to capability probing; respawning");
+                    // Dropping `provider` (the last owner of `AnvilInstance`) kills the wedged anvil.
+                    last_err = Some(err);
+                }
+            }
+        }
+        Err(last_err
+            .expect("SPAWN_ATTEMPTS > 0")
+            .context("L1 node capability probing failed for every spawned anvil"))
     }
 }
 
@@ -909,7 +970,7 @@ impl AnvilL1 {
 async fn spawn_prover_service(tester: &Tester, sequencer_urls: &[String], iterations: usize) {
     let protocol_version = tester.chain_layout.protocol_version();
     let app_bin_path = match protocol_version {
-        PROTOCOL_VERSION => utils::materialize_multiblock_batch_bin(
+        PROTOCOL_VERSION_V30_2 => utils::materialize_multiblock_batch_bin(
             &tester.tempdir.path().join("app_bins"),
             "v6",
             zksync_os_multivm::apps::v6::MULTIBLOCK_BATCH,
@@ -975,7 +1036,7 @@ async fn spawn_prover_service(tester: &Tester, sequencer_urls: &[String], iterat
 #[cfg(feature = "prover-tests")]
 fn prover_release_for_protocol(protocol_version: &str) -> &'static str {
     match protocol_version {
-        PROTOCOL_VERSION => "v0.7.1",
+        PROTOCOL_VERSION_V30_2 => "v0.7.1",
         PROTOCOL_VERSION_V31_0 => "v0.8.0",
         _ => {
             panic!("unsupported protocol version `{protocol_version}` for prover binary selection")

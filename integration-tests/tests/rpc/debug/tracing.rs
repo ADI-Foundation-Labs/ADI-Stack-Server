@@ -47,6 +47,7 @@ fn check_call_frame(
             gas: call_frame.gas,
             gas_used: call_frame.gas_used,
             calls: call_frame.calls.clone(),
+            ..Default::default()
         }
     );
     assert_eq!(call_frame.calls.len(), 1, "expected exactly 1 subcall");
@@ -72,6 +73,7 @@ fn check_call_frame(
             // Below is not asserted
             gas: subcall.gas,
             gas_used: subcall.gas_used,
+            ..Default::default()
         }
     );
 }
@@ -87,9 +89,10 @@ fn pubdata_exhaustion_fee_config() -> FeeConfig {
     }
 }
 
-/// This limit is high enough for validation to pass under `pubdata_exhaustion_fee_config()`,
-/// but low enough for the tx to run out of resources when paying for execution pubdata.
-const PUBDATA_EXHAUSTION_GAS_LIMIT: u64 = 580_000;
+/// This limit is high enough for validation (including the post-v31 intrinsic-native check) to
+/// pass under `pubdata_exhaustion_fee_config()`, but low enough for the tx to run out of
+/// resources when paying for execution pubdata.
+const PUBDATA_EXHAUSTION_GAS_LIMIT: u64 = 750_000;
 
 fn assert_pubdata_exhaustion_call_frame(call_frame: &CallFrame) {
     assert_eq!(
@@ -172,6 +175,7 @@ async fn call_trace_transaction(tester: Tester) -> anyhow::Result<()> {
             gas: revert_call_frame.gas,
             gas_used: revert_call_frame.gas_used,
             calls: revert_call_frame.calls.clone(),
+            ..Default::default()
         }
     );
     assert_eq!(
@@ -196,6 +200,7 @@ async fn call_trace_transaction(tester: Tester) -> anyhow::Result<()> {
             // Below is not asserted
             gas: revert_subcall.gas,
             gas_used: revert_subcall.gas_used,
+            ..Default::default()
         }
     );
 

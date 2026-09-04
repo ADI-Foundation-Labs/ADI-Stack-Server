@@ -12,13 +12,13 @@ mod init_tx_forwarder;
 mod l1_revert;
 mod main_node_client;
 mod node_state_on_startup;
+pub mod pig_telemetry;
 mod ports;
 mod priority_tree_pipeline_step;
 pub mod prover_api;
 mod prover_block;
 mod prover_input_generator;
 mod provider;
-mod state_initializer;
 pub mod tree_manager;
 pub mod util;
 
@@ -47,7 +47,6 @@ use crate::prover_api::snark_job_manager::{FakeSnarkProver, SnarkJobManager};
 use crate::prover_api::snark_proving_pipeline_step::SnarkProvingPipelineStep;
 use crate::prover_input_generator::ProverInputGenerator;
 use crate::provider::{ProviderKind, build_node_provider};
-use crate::state_initializer::StateInitializer;
 use crate::tree_manager::TreeManager;
 use alloy::consensus::BlobTransactionSidecar;
 use alloy::primitives::{Address, BlockNumber, U256};
@@ -110,6 +109,7 @@ use zksync_os_rpc::RpcStorage;
 use zksync_os_rpc_private::{ConfigOverrides, run_private_rpc_server};
 use zksync_os_sequencer::execution::block_context_provider::BlockContextProvider;
 use zksync_os_sequencer::execution::{BlockApplier, BlockCanonizer, BlockExecutor, FeeProvider};
+use zksync_os_state_full_diffs::FullDiffsState;
 use zksync_os_status_server::{StatusServerState, run_status_server};
 use zksync_os_storage::db::{BlockReplayStorage, ExecutedBatchStorage};
 use zksync_os_storage::in_memory::Finality;
@@ -132,10 +132,7 @@ const BATCH_DB_NAME: &str = "batch";
 pub const INTERNAL_CONFIG_FILE_NAME: &str = "internal_config.json";
 const CONFIG_OVERRIDES_FILE: &str = "config_overrides.json";
 
-pub async fn run<State: ReadStateHistory + WriteState + StateInitializer + Clone>(
-    runtime: &Runtime,
-    config: Config,
-) -> ServerPorts {
+pub async fn run(runtime: &Runtime, config: Config) -> ServerPorts {
     let BoundListeners {
         rpc: rpc_listener,
         status: prebound_status_listener,
@@ -208,6 +205,14 @@ pub async fn run<State: ReadStateHistory + WriteState + StateInitializer + Clone
         ProviderKind::L1,
     )
     .await;
+    // Counted BEFORE the L1 state is read: an in-flight commit tx that mines in between is
+    // then reflected in both counts (over-approximating the UnexpectedCommit guard, which is
+    // safe); the reverse order could miss it in both.
+    let in_flight_commit_txs = if node_role.is_main() && config.batcher_config.enabled {
+        in_flight_commit_tx_count(&config, &l1_provider).await
+    } else {
+        0
+    };
     // Genesis and the repository manager are initialized here (before the startup revert) so
     // that the `from_block_hash` guard can read the current local block hash.
     let diamond_proxy_l1 =
@@ -338,7 +343,9 @@ pub async fn run<State: ReadStateHistory + WriteState + StateInitializer + Clone
     .await
     .expect("failed to init CommittedBatchProvider");
 
-    let state = State::new(&config.general_config, &genesis).await;
+    let state = FullDiffsState::new(config.general_config.rocks_db_path.clone(), &genesis)
+        .await
+        .expect("Failed to initialize full diffs state");
 
     tracing::info!("Initializing mempools");
     let zk_provider_factory = ZkProviderFactory::new(state.clone(), repositories.clone(), chain_id);
@@ -389,6 +396,8 @@ pub async fn run<State: ReadStateHistory + WriteState + StateInitializer + Clone
         last_l1_proved_block,
         last_l1_executed_block,
     };
+
+    node_startup_state.assert_consistency();
 
     if let Some(from_block_number) = rebuild_options.as_ref().map(|o| o.from_block_number)
         && node_role.is_main()
@@ -449,8 +458,6 @@ pub async fn run<State: ReadStateHistory + WriteState + StateInitializer + Clone
         blocks_to_replay = node_startup_state.block_replay_storage_last_block + 1 - starting_block,
         "Node state on startup"
     );
-
-    node_startup_state.assert_consistency();
 
     // MN sends `VerifyBatch` requests to the network and receives `PeerVerifyBatchResult`s back.
     let (verify_request_tx, verify_request_rx) = tokio::sync::mpsc::channel::<VerifyBatch>(16);
@@ -532,6 +539,7 @@ pub async fn run<State: ReadStateHistory + WriteState + StateInitializer + Clone
                     max_blocks_per_message: config
                         .sequencer_config
                         .en_max_blocks_per_replay_message,
+                    replay_inactivity_timeout: config.sequencer_config.en_replay_inactivity_timeout,
                     replay_sender,
                     verification: config.batch_verification_config.client_enabled.then(|| {
                         ExternalNodeVerifierConfig {
@@ -572,10 +580,24 @@ pub async fn run<State: ReadStateHistory + WriteState + StateInitializer + Clone
     };
 
     // Channel from L1Sender<CommitCommand> to L1CommitWatcher.
-    // Initialized to startup's last_committed_batch so any commit above that value
-    // which the pipeline didn't submit in this session triggers a restart.
-    let (commit_submitted_tx, commit_submitted_rx) =
-        watch::channel(node_startup_state.l1_state.last_committed_batch);
+    // Initialized to startup's last_committed_batch plus any in-flight commit transactions a
+    // previous session left in the L1 mempool: the watcher starts processing L1 events before
+    // the pipeline's in-flight recovery seeds this watch, so a leftover tx mining in that gap
+    // must not trip the `UnexpectedCommit` guard. Each in-flight commit tx commits exactly one
+    // batch; if one never mines, the guard is merely that much more permissive until the
+    // pipeline overtakes it.
+    let commit_submitted_init = {
+        let base = node_startup_state.l1_state.last_committed_batch;
+        if in_flight_commit_txs > 0 {
+            tracing::info!(
+                base,
+                in_flight_commit_txs,
+                "arming the UnexpectedCommit guard above in-flight commit txs from a previous session"
+            );
+        }
+        base + in_flight_commit_txs
+    };
+    let (commit_submitted_tx, commit_submitted_rx) = watch::channel(commit_submitted_init);
 
     tracing::info!("Initializing L1 Watchers");
     runtime.spawn_critical_task(
@@ -871,12 +893,6 @@ pub async fn run<State: ReadStateHistory + WriteState + StateInitializer + Clone
         "repository persist loop",
         repositories_clone.run_persist_loop(),
     );
-    let state_clone = state.clone();
-    runtime.spawn_critical_task(
-        "state compact loop",
-        state_clone.compact_periodically_optional(),
-    );
-
     let replay_archive =
         init_replay_archive(config.replay_archive_config.clone().into(), runtime).await;
     if let (Some((replay_archive_sender, _)), Some(inserted_genesis_replay_record)) =
@@ -1023,6 +1039,7 @@ pub async fn run<State: ReadStateHistory + WriteState + StateInitializer + Clone
         last_constructed_block_ctx_receiver,
         config_overrides_receiver,
         tx_forwarder,
+        l1_provider.clone().erased(),
         rpc_policy_client,
         runtime,
         wait_for_db,
@@ -1322,7 +1339,7 @@ async fn run_main_node_pipeline(
                 .maximum_in_flight_blocks,
             read_state: state.clone(),
             pubdata_mode,
-            merkle_tree: tree,
+            merkle_tree: tree.clone(),
             runtime: runtime.clone(),
             disabled: !config.prover_input_generator_config.enable_input_generation,
         })
@@ -1343,6 +1360,7 @@ async fn run_main_node_pipeline(
             sidecar_sender,
             committed_batch_provider: committed_batch_provider.clone(),
             read_state: state.clone(),
+            merkle_tree: tree,
         })
         .pipe(BatchVerificationPipelineStep::new(
             config.batch_verification_config.clone().into(),
@@ -1494,6 +1512,7 @@ async fn run_en_pipeline(
                 finality.clone(),
                 node_state_on_startup.l1_state.clone(),
                 state.clone(),
+                tree.clone(),
                 verify_batch_rx,
                 outgoing_verify_results,
             ),
@@ -1597,6 +1616,38 @@ fn effective_main_node_pubdata_mode(config: &Config) -> PubdataMode {
         .l1_sender_config
         .pubdata_mode
         .expect("`l1_sender.pubdata_mode` is required on the Main Node")
+}
+
+/// Counts commit transactions a previous session left in the L1 mempool (pending minus latest
+/// nonce of the commit operator). Used to arm the `UnexpectedCommit` guard above them: they may
+/// mine before the pipeline's in-flight recovery seeds the `commit_submitted` watch. Degrades
+/// to 0 (the tightest guard) when the operator key is absent or L1 reads fail — the guard is
+/// an alarm, not a correctness mechanism, so startup must not depend on it.
+async fn in_flight_commit_tx_count(config: &Config, l1_provider: &NodeProvider) -> u64 {
+    let Some(signer) = &config.l1_sender_config.operator_commit_sk else {
+        return 0;
+    };
+    let count = async {
+        let operator_address = signer.address().await?;
+        let latest = l1_provider.get_transaction_count(operator_address).await?;
+        let pending = l1_provider
+            .get_transaction_count(operator_address)
+            .pending()
+            .await?;
+        anyhow::Ok(pending.saturating_sub(latest))
+    }
+    .await;
+    match count {
+        Ok(count) => count,
+        Err(err) => {
+            tracing::warn!(
+                %err,
+                "failed to count in-flight commit txs; arming the UnexpectedCommit guard at the \
+                 committed frontier"
+            );
+            0
+        }
+    }
 }
 
 /// Validates that the `l1_sender.operator_*_sk` keys required for the L1Sender pipeline are
@@ -1713,9 +1764,7 @@ fn determine_starting_block(
         "No batches committed to L1 yet - start with block/batch 1"
     );
 
-    let desired_starting_block = if let Some(forced_starting_block_number) =
-        config.general_config.force_starting_block_number
-    {
+    if let Some(forced_starting_block_number) = config.general_config.force_starting_block_number {
         forced_starting_block_number
     } else {
         // Start with the oldest block from:
@@ -1731,8 +1780,7 @@ fn determine_starting_block(
             // In the current tree implementation this will always be ahead of `last_l1_executed_block`,
             // but this may change if we make tree persistence async (like elsewhere)
             node_startup_state.tree_last_block,
-            // For compacted state, we need to replay all blocks that were not persisted yet.
-            // For FullDiffs state (default) - this is always ahead of `last_l1_executed_block`.
+            // The last block available in state - this is always ahead of `last_l1_executed_block`.
             *state.block_range_available().end(),
             // If block rebuild (aka block reversion) is configured, we should ensure we replay
             // all the blocks we are rebuilding
@@ -1751,24 +1799,7 @@ fn determine_starting_block(
         }
 
         last_matching_block.min(want_to_start_from)
-    };
-
-    // Ignore genesis here as we never actually run it in sequencer
-    if desired_starting_block > 0
-        && desired_starting_block < state.block_range_available().start() + 1
-    {
-        // This may only happen with Compacted State. This means that the block we want to rerun was already compacted.
-        // This can be fixed by manually removing the storage persistence - which will force the node to start from block 1.
-
-        // Alternatively, we can clear storage programmatically here and start from 1 - this is not currently implemented
-        panic!(
-            "Cannot start: desired_starting_block < state.block_range_available().start() + 1: {} < {}",
-            desired_starting_block,
-            state.block_range_available().start() + 1
-        );
     }
-
-    desired_starting_block
 }
 
 /// Finds the last block number where the local node's block hash matches the main node's block hash.

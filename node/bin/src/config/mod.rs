@@ -6,7 +6,6 @@ use alloy::primitives::{Address, B256, BlockHash, Bytes, U128};
 use num::{BigInt, BigUint, rational::Ratio};
 use reth_net_nat::net_if::resolve_net_if_ip;
 use reth_network_peers::TrustedPeer;
-use serde::{Deserialize, Serialize};
 use smart_config::metadata::{SizeUnit, TimeUnit};
 use smart_config::value::SecretString;
 use smart_config::{
@@ -396,13 +395,12 @@ pub struct GeneralConfig {
 
     /// Min number of blocks to replay on restart
     /// Depending on L1/persistence state, we may need to replay more blocks than this number
-    /// In some cases, we need to replay the whole blockchain (e.g. switching state backends) -
+    /// In some cases, we need to replay the whole blockchain -
     /// in such cases a warning is logged.
     #[config(default_t = 10)]
     pub min_blocks_to_replay: usize,
 
     /// Force a block number to start replaying from.
-    /// Only FullDiffs backend is supported:
     ///     On EN: can be any historical block number;
     ///     On Main Node: any historical block number up to the last l1 executed one.
     #[config(default_t = None)]
@@ -412,17 +410,8 @@ pub struct GeneralConfig {
     #[config(default_t = DEFAULT_ROCKS_DB_PATH.into())]
     pub rocks_db_path: PathBuf,
 
-    /// State backend to use. When changed, a replay of all blocks may be needed.
-    #[config(default_t = StateBackendConfig::FullDiffs)]
-    #[config(with = Serde![str])]
-    pub state_backend: StateBackendConfig,
-
-    /// Min number of blocks to retain in memory
-    /// it defines the blocks for which the node can handle API requests
-    /// older blocks will be compacted into RocksDb - and thus unavailable for `eth_call`.
-    ///
-    /// Currently, it affects both the storage logs (for Compacted state impl - see `state` crate for details)
-    /// and repositories (see `repositories` package in this crate)
+    /// Min number of blocks the repositories retain in memory before persisting to RocksDB
+    /// (see `repositories` package in this crate).
     #[config(default_t = 512)]
     pub blocks_to_retain_in_memory: usize,
 
@@ -648,12 +637,6 @@ impl ConsensusConfig {
             storage_path,
         })
     }
-}
-
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub enum StateBackendConfig {
-    FullDiffs,
-    Compacted,
 }
 
 #[derive(Clone, Debug, DescribeConfig, DeserializeConfig, ConfigValidate)]
@@ -923,6 +906,13 @@ pub struct SequencerConfig {
     #[config(default_t = 1)]
     pub en_max_blocks_per_replay_message: u64,
 
+    /// Maximum time an external node tolerates without receiving any message on its replay
+    /// connection before dropping the session and reconnecting. Must comfortably exceed the
+    /// chain's block cadence; on a chain that can legitimately go idle for longer, raise this
+    /// to avoid periodic reconnect churn.
+    #[config(default_t = Duration::from_secs(300))]
+    pub en_replay_inactivity_timeout: Duration,
+
     #[config(default, with = Serde![*])]
     /// List of (block_number, db_key) pairs to override when downloading replay records.
     pub en_replay_record_overrides: Vec<(u64, Bytes)>,
@@ -1169,7 +1159,7 @@ pub struct TxGasRateLimitConfig {
     pub enabled: bool,
 
     /// Target sustained executed-gas throughput, in gas per second.
-    #[config(default_t = NonZeroU64::new(72_000_000).unwrap())]
+    #[config(default_t = NonZeroU64::new(35_000_000).unwrap())]
     pub gas_per_second: NonZeroU64,
 
     /// Bank capacity (idle burst headroom), in seconds' worth of `gas_per_second`. Sized to
@@ -1279,10 +1269,21 @@ pub struct L1SenderConfig {
     pub force_transaction_resubmission: ForceTransactionResubmissionConfig,
 
     /// Max number of commands (to commit/prove/execute one batch) to be processed at a time.
+    /// With pipelined sending this is the in-flight window size: the max number of
+    /// submitted-but-not-yet-mined L1 transactions. Must not exceed the L1 node's per-account
+    /// pool cap — 16 for both geth's blobpool (`maxTxsPerAccount`) and reth's default
+    /// `max-account-slots` — or sends are rejected until the pool drains.
     #[config(default_t = 16)]
     pub command_limit: usize,
 
-    /// How often to poll L1 for new blocks.
+    /// When true (default), L1 transactions are submitted through a bounded in-flight window
+    /// and confirmations are tracked separately, so submission never waits for inclusion.
+    /// When false, commands are processed in synchronous cycles instead: drain up to
+    /// `command_limit` commands, send, wait for all receipts + confirmations, repeat.
+    #[config(default_t = true)]
+    pub pipelining_enabled: bool,
+
+    /// Receipt/inclusion polling cadence of the L1 senders.
     #[config(default_t = 1 * TimeUnit::Seconds)]
     pub poll_interval: Duration,
 
@@ -1326,22 +1327,55 @@ pub struct L1SenderConfig {
 
 #[derive(Clone, Copy, Debug, DescribeConfig, DeserializeConfig, ConfigValidate)]
 #[config(derive(Default))]
+#[config(validate(
+    Self::check_replacement_multipliers,
+    "replacement multipliers must be >= 1.1 (>= 2.0 for the blob fee) while force resubmission \
+     is enabled: geth and reth replace a pooled transaction only with a 10% fee bump (100% for \
+     blob transactions)"
+))]
 pub struct ForceTransactionResubmissionConfig {
     /// Skips startup in-flight recovery and resubmits queued L1 transactions with replacement fee caps.
     #[config(default_t = false)]
     pub enabled: bool,
 
     /// Multiplier applied to `max_fee_per_gas` when force transaction resubmission is enabled.
+    /// Must be >= 1.1 (the pool price-bump rule). The commit sender raises its effective
+    /// multipliers to 2.0 as needed — replacing a blob transaction requires a 100% bump.
     #[config(default_t = 1.1, validate(is_positive_f64, "must be positive"))]
     pub max_fee_per_gas_replacement_multiplier: f64,
 
     /// Multiplier applied to `max_priority_fee_per_gas` when force transaction resubmission is enabled.
+    /// Must be >= 1.1 (the pool price-bump rule). The commit sender raises its effective
+    /// multipliers to 2.0 as needed — replacing a blob transaction requires a 100% bump.
     #[config(default_t = 1.1, validate(is_positive_f64, "must be positive"))]
     pub max_priority_fee_per_gas_replacement_multiplier: f64,
 
     /// Multiplier applied to `max_fee_per_blob_gas` when force transaction resubmission is enabled.
+    /// Must be >= 2.0: only blob transactions have a blob fee, and replacing one requires a
+    /// 100% bump on all three fee caps.
     #[config(default_t = 2.0, validate(is_positive_f64, "must be positive"))]
     pub max_fee_per_blob_gas_replacement_multiplier: f64,
+}
+
+impl ForceTransactionResubmissionConfig {
+    /// Replacing a pooled transaction requires a >= 10% fee bump (geth/reth default price
+    /// bump); the blob fee cap only exists on blob transactions, whose replacement requires
+    /// 100% on every field — the commit sender enforces that 2.0 minimum itself. Lower
+    /// multipliers make every forced resubmission fail as "replacement transaction
+    /// underpriced" — a crash loop — so they are rejected up front.
+    fn check_replacement_multipliers(&self) -> Result<(), ErrorWithOrigin> {
+        if self.enabled
+            && (self.max_fee_per_gas_replacement_multiplier < 1.1
+                || self.max_priority_fee_per_gas_replacement_multiplier < 1.1
+                || self.max_fee_per_blob_gas_replacement_multiplier < 2.0)
+        {
+            return Err(ErrorWithOrigin::custom(
+                "replacement multipliers must be >= 1.1 (>= 2.0 for the blob fee) while force \
+                 resubmission is enabled",
+            ));
+        }
+        Ok(())
+    }
 }
 
 fn is_positive_f64(&val: &f64) -> bool {
@@ -1852,9 +1886,6 @@ pub struct BatchVerificationConfig {
     /// [main node] Retry delay between attempts.
     #[config(default_t = Duration::from_secs(1))]
     pub retry_delay: Duration,
-    /// [main node] Total timeout.
-    #[config(default_t = Duration::from_secs(300))]
-    pub total_timeout: Duration,
     /// [external node] Signing key.
     // default address 0x36615Cf349d7F6344891B1e7CA7C72883F5dc049
     #[config(default_t = "0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110".into())]
@@ -2174,6 +2205,7 @@ impl L1SenderConfig {
             },
             force_transaction_resubmission: force_transaction_resubmission.enabled,
             command_limit: self.command_limit,
+            pipelining_enabled: self.pipelining_enabled,
             poll_interval: self.poll_interval,
             transaction_timeout: self.transaction_timeout,
             required_confirmations: self.required_confirmations,
@@ -2262,7 +2294,6 @@ impl From<BatchVerificationConfig> for zksync_os_batch_verification::BatchVerifi
             accepted_signers: c.accepted_signers,
             request_timeout: c.request_timeout,
             retry_delay: c.retry_delay,
-            total_timeout: c.total_timeout,
             signing_key: c.signing_key,
         }
     }
@@ -2601,6 +2632,7 @@ mod tests {
                 max_fee_per_blob_gas: 2 * EtherUnit::Gwei,
                 force_transaction_resubmission: ForceTransactionResubmissionConfig::default(),
                 command_limit: 16,
+                pipelining_enabled: true,
                 poll_interval: Duration::from_millis(100),
                 transaction_timeout: Duration::from_secs(600),
                 required_confirmations: DEFAULT_REQUIRED_CONFIRMATIONS_L1,

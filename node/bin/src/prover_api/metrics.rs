@@ -7,6 +7,11 @@ use vise::{
 const PROVER_JOB_LABELS: [&str; 3] = ["stage", "type", "id"];
 pub type ProverJobLabels = (ProverStage, ProverType, String);
 
+const PROVING_LATENCIES: Buckets = Buckets::values(&[
+    0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0, 200.0, 500.0, 1000.0,
+    2000.0, 5000.0, 10_000.0,
+]);
+
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "prover")]
 pub struct ProverMetrics {
@@ -22,17 +27,17 @@ pub struct ProverMetrics {
     /// doesn't always equal to .batch_count()
     pub batch_count: LabeledFamily<ProverStage, Gauge>,
     /// The time passed between when a job was picked and reported back
-    #[metrics(unit = Unit::Seconds, labels = PROVER_JOB_LABELS, buckets = Buckets::LATENCIES)]
+    #[metrics(unit = Unit::Seconds, labels = PROVER_JOB_LABELS, buckets = PROVING_LATENCIES)]
     pub prove_time: LabeledFamily<ProverJobLabels, Histogram<Duration>, 3>,
     /// The time passed between when a job was picked and reported back
     /// divided by the number of transactions in job.
     /// That is, for SNARKs it's divided by the total number of txs in batch range.
-    #[metrics(unit = Unit::Seconds, labels = PROVER_JOB_LABELS, buckets = Buckets::LATENCIES)]
+    #[metrics(unit = Unit::Seconds, labels = PROVER_JOB_LABELS, buckets = PROVING_LATENCIES)]
     pub prove_time_per_tx: LabeledFamily<ProverJobLabels, Histogram<Duration>, 3>,
     /// The time passed between when a job was picked and reported back
     /// divided by the number of native resource in job in millions.
     /// That is, for SNARKs it's divided by the total number of txs in batch range.
-    #[metrics(unit = Unit::Seconds, labels = PROVER_JOB_LABELS, buckets = Buckets::linear(0.0..=2.0, 0.1))]
+    #[metrics(unit = Unit::Seconds, labels = PROVER_JOB_LABELS, buckets = PROVING_LATENCIES)]
     pub prove_time_per_million_native: LabeledFamily<ProverJobLabels, Histogram<Duration>, 3>,
     #[metrics(labels = ["stage", "type"], buckets = Buckets::values(&[1.0, 2.0, 3.0, 4.0, 5.0, 10.0, 20.0, 50.0]))]
     pub proved_after_attempts: LabeledFamily<(ProverStage, ProverType), Histogram, 2>,
@@ -44,18 +49,27 @@ pub struct ProverMetrics {
     #[metrics(unit = Unit::Seconds, labels = ["stage", "method"], buckets = Buckets::LATENCIES)]
     pub job_map_lock_hold_time: LabeledFamily<(ProverStage, JobMapMethod), Histogram<Duration>, 2>,
     /// Number of computational native proven.
-    #[metrics(labels = PROVER_JOB_LABELS, buckets = Buckets::exponential(10_000_000.0..=2_000_000_000.0, 2.0))]
+    #[metrics(labels = PROVER_JOB_LABELS, buckets = Buckets::exponential(10_000_000.0..=100_000_000_000.0, 10.0))]
     pub computational_native_proven: LabeledFamily<ProverJobLabels, Histogram<u64>, 3>,
 }
+
+/// `Buckets::LATENCIES` lumps 5s-30s into one bucket, where a fat batch payload transfer lands.
+const PROVER_API_LATENCIES: Buckets = Buckets::values(&[
+    0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0,
+    200.0, 500.0,
+]);
 
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "prover_api")]
 pub struct ProverApiMetrics {
-    /// Latency for job pick requests
-    #[metrics(unit = Unit::Seconds, labels = ["stage", "job_result"], buckets = Buckets::LATENCIES)]
+    /// Latency for job pick requests, including writing the payload to the prover.
+    #[metrics(unit = Unit::Seconds, labels = ["stage", "job_result"], buckets = PROVER_API_LATENCIES)]
     pub pick_job_latency: LabeledFamily<(ProverStage, PickJobResult), Histogram<Duration>, 2>,
+    /// Time hyper spent writing the pick payload. Includes transfers the prover abandoned.
+    #[metrics(unit = Unit::Seconds, labels = ["stage"], buckets = PROVER_API_LATENCIES)]
+    pub pick_job_transfer_latency: LabeledFamily<ProverStage, Histogram<Duration>>,
     /// Latency for proof submission requests
-    #[metrics(unit = Unit::Seconds, labels = ["stage"], buckets = Buckets::LATENCIES)]
+    #[metrics(unit = Unit::Seconds, labels = ["stage"], buckets = PROVER_API_LATENCIES)]
     pub submit_proof_latency: LabeledFamily<ProverStage, Histogram<Duration>>,
     /// Counter for timed-out jobs that were reassigned to another prover
     #[metrics(labels = ["stage"])]
@@ -85,7 +99,8 @@ pub enum PickJobResult {
     NoJob,
     /// Request failed with error
     Error,
-    /// Client disconnected before the response was sent
+    /// Client disconnected while the request was being handled. A disconnect during the payload
+    /// transfer is reported as `new_job`.
     Cancelled,
 }
 
@@ -97,6 +112,7 @@ pub enum JobMapMethod {
     CompleteManyJobs,
     GetJobBatchMetadata,
     GetProverInput,
+    UnassignJob,
     Status,
 }
 

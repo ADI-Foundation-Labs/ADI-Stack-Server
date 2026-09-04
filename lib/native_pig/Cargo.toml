@@ -1,5 +1,5 @@
 [package]
-name = "zksync_os_state"
+name = "zksync_os_native_pig"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -10,18 +10,17 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-zksync_os_rocksdb.workspace = true
-zksync_os_genesis.workspace = true
-zksync_os_storage_api.workspace = true
-
+zksync_os_batch_types.workspace = true
 zksync_os_interface.workspace = true
-zk_os_forward_system.workspace = true
-zk_ee.workspace = true
+zksync_os_merkle_tree.workspace = true
+zksync_os_storage_api.workspace = true
+zksync_os_types.workspace = true
 
-alloy = { workspace = true, default-features = false }
+zk_os_forward_system_0_4_0.workspace = true
+zk_os_basic_system_0_4_0.workspace = true
+zk_ee_0_4_0.workspace = true
+
+alloy.workspace = true
 anyhow.workspace = true
-ruint.workspace = true
-tokio = { workspace = true, features = ["full"] }
 tracing.workspace = true
-dashmap.workspace = true
 vise.workspace = true
