@@ -60,6 +60,8 @@ pub struct ProverApiMetrics {
     /// Counter for timed-out jobs that were reassigned to another prover
     #[metrics(labels = ["stage"])]
     pub timed_out_jobs_reassigned: LabeledFamily<ProverStage, vise::Counter>,
+    /// SNARK proofs rejected at submit because their shape is invalid.
+    pub malformed_snark_proofs: vise::Counter,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue)]
