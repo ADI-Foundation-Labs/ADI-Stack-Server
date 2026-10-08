@@ -89,13 +89,18 @@ impl SnarkJobManager {
         payload: Vec<u8>,
         prover_id: String,
     ) -> anyhow::Result<()> {
-        // note: we still hold mutex while verifying the proof -
-        // this is desired since we don't want the batches to timeout
-
-        // todo: verify_snark_proof()
-        // if false {
-        //     anyhow::bail!("proof validation failed")
-        // }
+        // An empty range completes no jobs and panics `JobBatchStats::new`.
+        anyhow::ensure!(
+            batch_from <= batch_to,
+            "batch range {batch_from}-{batch_to} is empty"
+        );
+        // Only the shape is checked: a well-formed but wrong proof still reverts on L1.
+        super::snark_proof_shape::check_snark_proof_shape(&payload).inspect_err(|err| {
+            super::metrics::PROVER_API_METRICS
+                .malformed_snark_proofs
+                .inc();
+            tracing::warn!(prover_id, batch_from, batch_to, %err, "rejected malformed SNARK proof");
+        })?;
 
         // Prover should generate the proof with VK received from server. These must always match.
         // If they don't, proof won't be accepted, validation will fail, therefore it's pointless to proceed.
