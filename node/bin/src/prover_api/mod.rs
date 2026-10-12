@@ -9,6 +9,7 @@ pub mod proof_storage;
 mod prover_job_map;
 pub mod prover_server;
 pub mod snark_job_manager;
+mod snark_proof_shape;
 pub mod snark_proving_pipeline_step;
 #[cfg(test)]
 mod test_util;
