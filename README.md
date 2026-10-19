@@ -6,7 +6,7 @@ ADI Stack Server is the sequencer implementation for the [ADI Stack OS](https://
 the new operating system of the ADI Stack.<br>
 The ADI Stack Server design optimizes for throughput, low latency, and a seamless development experience.
 
-ADI Stack utilizing the [MatterLabs zkOS stack](https://github.com/matter-labs/zksync-os-server)
+ADI Stack is built on the [MatterLabs zkOS stack](https://github.com/matter-labs/zksync-os-server).
 
 ## Design principles
 
