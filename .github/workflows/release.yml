@@ -1,9 +1,13 @@
 # Release: plans the next ADI version from the first-parent history of main and,
-# once enabled, tags it. Runs on every push to main and by hand (no inputs needed).
+# once enabled, tags it and publishes a GitHub Release with the notes. Runs on
+# every push to main and by hand (no inputs needed).
 #
-# For now it is a DRY RUN: it reports the version and changelog the next release
-# would get, and writes nothing. The steps that commit, tag and publish are
-# below, commented out, until we switch releases on.
+# The version lives only in the tag (vX.Y.Z); the notes only in the GitHub
+# Release. Nothing is committed to main.
+#
+# For now it is a DRY RUN: it reports the version and notes the next release
+# would get, and writes nothing. The tag and release steps are below,
+# commented out, until we switch releases on.
 name: Release
 
 on:
@@ -29,7 +33,6 @@ env:
   # dagger-modules feat/upstream-aware-planner; move to its release tag once merged.
   DAGGER_MODULES_REF: 032f91e035b477fae4afee6430c404fe4789e248
   TAG_PREFIX: v
-  CHANGELOG_PATH: CHANGELOG.adi.md
 
 jobs:
   release:
@@ -78,10 +81,10 @@ jobs:
         env:
           MODULE: ${{ steps.dm.outputs.path }}/release
         run: |
-          dagger call -q -m "$MODULE" prepare-release --source=. --dry-run \
-            --ecosystem=generic --changelog-path="$CHANGELOG_PATH" --tag-prefix="$TAG_PREFIX" \
-            --release-branch=main > plan.json
+          dagger call -q -m "$MODULE" plan --source=. --tag-prefix="$TAG_PREFIX" > plan.json
           jq . plan.json
+          # The release title is the tag, so the notes drop the section heading.
+          jq -r .changelogSection plan.json | sed '1{/^## /d;}' > notes.md
           {
             echo "changed=$(jq -r .changed plan.json)"
             echo "tag=$(jq -r .tag plan.json)"
@@ -98,23 +101,23 @@ jobs:
             echo
             jq -r --arg last "$LAST" '
               if .changed then
-                "Next release: **\(.tag)** (\(.bump)) after `\($last)`, from \(.commits) conventional commits. Nothing was written: releases are not switched on yet.\n\n<details open><summary>Changelog entry</summary>\n\n\(.changelog)\n</details>"
+                "Next release: **\(.tag)** (\(.bump)) after `\($last)`, from \(.commits) conventional commits. Nothing was written: releases are not switched on yet."
               else
                 "Nothing to release since `\($last)`: no feat, fix, perf or breaking change on main since then."
               end' plan.json
+            if [ "$(jq -r .changed plan.json)" = true ]; then
+              printf '\n<details open><summary>Release notes</summary>\n\n'
+              cat notes.md
+              printf '\n</details>\n'
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
 
       # ---------------------------------------------------------------------
-      # Release. Disabled: uncomment to switch releases on. Needs:
-      #   - a GitHub App with contents: write on this repo, allowed to bypass the
-      #     main branch and v* tag rulesets; vars.RELEASE_APP_ID and
-      #     secrets.RELEASE_APP_PRIVATE_KEY. Pushes made with GITHUB_TOKEN start
-      #     no workflows, so the tag would never reach docker.yml.
-      #   - a rehearsal of the push against GitHub (the module pushes with the
-      #     `oauth2` username and a `ci.skip` push option, written for GitLab).
-      # prepare-release commits VERSION and CHANGELOG.adi.md to main as
-      # "chore(release): vX.Y.Z", tags it and pushes both; the tag starts
-      # docker.yml. The next run of this workflow finds the tag and stops.
+      # Release. Disabled: uncomment to switch releases on. Needs a GitHub App
+      # with contents: write on this repo, allowed by the v* tag ruleset, in
+      # vars.RELEASE_APP_ID and secrets.RELEASE_APP_PRIVATE_KEY. A tag pushed
+      # with GITHUB_TOKEN starts no workflows, so docker.yml would never build it.
+      # The tag goes on the commit this run planned, even if main moved since.
       # ---------------------------------------------------------------------
       # - name: Release token
       #   id: app
@@ -124,23 +127,14 @@ jobs:
       #     app-id: ${{ vars.RELEASE_APP_ID }}
       #     private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
       #
-      # - name: Commit, tag and push
-      #   if: steps.plan.outputs.changed == 'true'
-      #   env:
-      #     MODULE: ${{ steps.dm.outputs.path }}/release
-      #     RELEASE_TOKEN: ${{ steps.app.outputs.token }}
-      #   run: |
-      #     dagger call -q -m "$MODULE" prepare-release --source=. --git-token=env:RELEASE_TOKEN \
-      #       --ecosystem=generic --changelog-path="$CHANGELOG_PATH" --tag-prefix="$TAG_PREFIX" \
-      #       --release-branch=main
-      #
-      # - name: GitHub release
+      # - name: Tag and publish
       #   if: steps.plan.outputs.changed == 'true'
       #   env:
       #     GH_TOKEN: ${{ steps.app.outputs.token }}
       #     TAG: ${{ steps.plan.outputs.tag }}
       #   run: |
-      #     jq -r .changelog plan.json > notes.md
+      #     git tag "$TAG" "$GITHUB_SHA"
+      #     git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "refs/tags/$TAG"
       #     gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --verify-tag --title "$TAG" --notes-file notes.md
 
       - name: Replay history
