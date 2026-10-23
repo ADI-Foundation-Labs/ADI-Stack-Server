@@ -1,13 +1,5 @@
-# Release: plans the next ADI version from the first-parent history of main and,
-# once enabled, tags it and publishes a GitHub Release with the notes. Runs on
-# every push to main and by hand (no inputs needed).
-#
-# The version lives only in the tag (vX.Y.Z); the notes only in the GitHub
-# Release. Nothing is committed to main.
-#
-# For now it is a DRY RUN: it reports the version and notes the next release
-# would get, and writes nothing. The tag and release steps are below,
-# commented out, until we switch releases on.
+# Dry run until the tag step below is uncommented. The version lives only in the tag
+# and the notes in the GitHub Release; nothing is committed to main.
 name: Release
 
 on:
@@ -21,7 +13,6 @@ on:
         type: string
         required: false
 
-# One release run at a time, in push order; never cancel one half-way.
 concurrency:
   group: release
   cancel-in-progress: false
@@ -30,7 +21,7 @@ permissions: {}
 
 env:
   DAGGER_VERSION: "0.19.11"
-  # dagger-modules feat/upstream-aware-planner; move to its release tag once merged.
+  # feat/upstream-aware-planner (dagger-modules MR !21); switch to its release tag once merged.
   DAGGER_MODULES_REF: 032f91e035b477fae4afee6430c404fe4789e248
   TAG_PREFIX: v
 
@@ -49,8 +40,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      # Our line starts at v1.0.0. The v0.x tags in this repo are upstream's or
-      # the old build scheme (v0.23.0-b1) and are never a baseline.
+      # v0.x tags here are upstream's or old build tags (v0.23.0-b1); our line starts at v1.0.0.
       - name: Find the last release
         id: last
         run: |
@@ -112,13 +102,8 @@ jobs:
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
-      # ---------------------------------------------------------------------
-      # Release. Disabled: uncomment to switch releases on. Needs a GitHub App
-      # with contents: write on this repo, allowed by the v* tag ruleset, in
-      # vars.RELEASE_APP_ID and secrets.RELEASE_APP_PRIVATE_KEY. A tag pushed
-      # with GITHUB_TOKEN starts no workflows, so docker.yml would never build it.
-      # The tag goes on the commit this run planned, even if main moved since.
-      # ---------------------------------------------------------------------
+      # Needs a GitHub App allowed by the v* tag ruleset: a tag pushed with
+      # GITHUB_TOKEN starts no workflows, so docker.yml would never build it.
       # - name: Release token
       #   id: app
       #   if: steps.plan.outputs.changed == 'true'

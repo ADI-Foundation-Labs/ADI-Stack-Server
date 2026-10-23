@@ -1,8 +1,5 @@
 name: Set up dagger-modules
-description: >
-  Fetch the release tooling (dagger-modules, private GitLab) at a pinned ref and
-  install the dagger CLI. The credentials come from scripts/grant-github-access.sh
-  in dagger-modules: a read-only project deploy token, not tied to a person.
+description: Fetch dagger-modules (private GitLab) at a pinned ref and install the dagger CLI.
 
 inputs:
   gitlab-user:
@@ -50,5 +47,4 @@ runs:
       shell: bash
       env:
         DAGGER_VERSION: ${{ inputs.dagger-version }}
-      # install.sh verifies the archive against the release checksums.
       run: curl -fsSL https://dl.dagger.io/dagger/install.sh | sudo DAGGER_VERSION="$DAGGER_VERSION" BIN_DIR=/usr/local/bin sh
