@@ -27,37 +27,6 @@ and the repo's maintainers will review the PR.
 [here](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/creating-a-pull-request-from-a-fork)
 for guidance how to work with PRs created from a fork.
 
-## Pull request titles and releases
-
-ADI Stack Server has its own version line (`v1.0.0`, `v1.1.0`, …), independent of the
-upstream [matter-labs/zksync-os-server](https://github.com/matter-labs/zksync-os-server)
-version. The next version is computed from pull request titles, so the title matters:
-
-- Title every pull request as a [Conventional Commit](https://www.conventionalcommits.org/):
-  `fix(rpc): retry failed calls`, `feat(prover): add V8 lane`, `docs: …`.
-- `fix` and `perf` make a patch release, `feat` a minor one, and `!` after the type
-  (`feat!: …`) or a `BREAKING CHANGE:` footer a major one. `chore`, `docs`, `ci`, `build`,
-  `test`, `refactor` and `style` release nothing and stay out of the changelog.
-- Commits inside the pull request count too: a `feat` commit inside a `fix:` pull request
-  makes a minor release.
-- An upstream sync (a branch that merges `upstream/main`) is titled
-  `<type>(upstream): sync vX.Y.Z`. The type is the bump you decide for our users: `fix(upstream)`,
-  `feat(upstream)`, or `feat(upstream)!` when upstream brings a breaking change. The upstream
-  commits inside it are not counted one by one. Merge it with a merge commit, never squash.
-
-Every push to `main` runs the [Release workflow](.github/workflows/release.yml). It shows the
-next version and changelog entry in the run summary. Releases are not switched on yet, so it
-tags nothing. To check the effect of the rules over a range of history, run it by hand with
-`from` set to a commit or tag:
-
-```sh
-gh workflow run release.yml -f from=<commit or tag>
-```
-
-ADI release notes are in [CHANGELOG.adi.md](CHANGELOG.adi.md); the version is in
-[VERSION](VERSION). Upstream's `CHANGELOG.md` and the `Cargo.toml` versions are upstream's and
-are left as they are.
-
 ## Licenses
 
 If you contribute to this project, your contributions will be made to the project under both Apache 2.0 and the MIT

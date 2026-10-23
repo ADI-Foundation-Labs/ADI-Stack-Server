@@ -3,8 +3,7 @@
 #
 # For now it is a DRY RUN: it reports the version and changelog the next release
 # would get, and writes nothing. The steps that commit, tag and publish are
-# below, commented out, until we switch releases on. See "Releases" in
-# CONTRIBUTING.md for the rules the planner follows.
+# below, commented out, until we switch releases on.
 name: Release
 
 on:
