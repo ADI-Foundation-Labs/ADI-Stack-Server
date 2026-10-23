@@ -1,0 +1,152 @@
+# Dry run until the tag step below is uncommented. The version lives only in the tag
+# and the notes in the GitHub Release; nothing is committed to main.
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      from:
+        description: "Optional. Also replay the rules over the history after this commit or tag (report only)."
+        type: string
+        required: false
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions: {}
+
+env:
+  DAGGER_VERSION: "0.19.11"
+  # feat/upstream-aware-planner (dagger-modules MR !21); switch to its release tag once merged.
+  DAGGER_MODULES_REF: 032f91e035b477fae4afee6430c404fe4789e248
+  TAG_PREFIX: v
+
+jobs:
+  release:
+    name: Release (dry run)
+    # Forks have no access to the release tooling.
+    if: github.repository == 'ADI-Foundation-Labs/ADI-Stack-Server'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # v0.x tags here are upstream's or old build tags (v0.23.0-b1); our line starts at v1.0.0.
+      - name: Find the last release
+        id: last
+        run: |
+          tag=$(git tag --list "${TAG_PREFIX}[1-9]*" --merged HEAD --sort=-v:refname \
+            | grep -E "^${TAG_PREFIX}[1-9][0-9]*\.[0-9]+\.[0-9]+$" | head -n 1 || true)
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          if [ -n "$tag" ]; then
+            echo "Last release: $tag"
+          else
+            msg="No release tag (${TAG_PREFIX}1.0.0 or later) in the history of $GITHUB_REF_NAME. Tag the baseline by hand once: git tag ${TAG_PREFIX}1.0.0 <commit> && git push origin ${TAG_PREFIX}1.0.0"
+            echo "::notice title=No baseline release::$msg"
+            printf '## Release (dry run)\n\n%s\n' "$msg" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Set up dagger-modules
+        id: dm
+        if: steps.last.outputs.tag != '' || inputs.from != ''
+        uses: ./.github/actions/setup-dagger-modules
+        with:
+          gitlab-user: ${{ vars.DAGGER_MODULES_GITLAB_USER }}
+          gitlab-token: ${{ secrets.DAGGER_MODULES_GITLAB_TOKEN }}
+          ref: ${{ env.DAGGER_MODULES_REF }}
+          dagger-version: ${{ env.DAGGER_VERSION }}
+
+      - name: Plan
+        id: plan
+        if: steps.last.outputs.tag != ''
+        env:
+          MODULE: ${{ steps.dm.outputs.path }}/release
+        run: |
+          dagger call -q -m "$MODULE" plan --source=. --tag-prefix="$TAG_PREFIX" > plan.json
+          jq . plan.json
+          # The release title is the tag, so the notes drop the section heading.
+          jq -r .changelogSection plan.json | sed '1{/^## /d;}' > notes.md
+          {
+            echo "changed=$(jq -r .changed plan.json)"
+            echo "tag=$(jq -r .tag plan.json)"
+            echo "version=$(jq -r .nextVersion plan.json)"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Summary
+        if: steps.plan.outcome == 'success'
+        env:
+          LAST: ${{ steps.last.outputs.tag }}
+        run: |
+          {
+            echo "## Release (dry run)"
+            echo
+            jq -r --arg last "$LAST" '
+              if .changed then
+                "Next release: **\(.tag)** (\(.bump)) after `\($last)`, from \(.commits) conventional commits. Nothing was written: releases are not switched on yet."
+              else
+                "Nothing to release since `\($last)`: no feat, fix, perf or breaking change on main since then."
+              end' plan.json
+            if [ "$(jq -r .changed plan.json)" = true ]; then
+              printf '\n<details open><summary>Release notes</summary>\n\n'
+              cat notes.md
+              printf '\n</details>\n'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Needs a GitHub App allowed by the v* tag ruleset: a tag pushed with
+      # GITHUB_TOKEN starts no workflows, so docker.yml would never build it.
+      # - name: Release token
+      #   id: app
+      #   if: steps.plan.outputs.changed == 'true'
+      #   uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+      #   with:
+      #     app-id: ${{ vars.RELEASE_APP_ID }}
+      #     private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+      #
+      # - name: Tag and publish
+      #   if: steps.plan.outputs.changed == 'true'
+      #   env:
+      #     GH_TOKEN: ${{ steps.app.outputs.token }}
+      #     TAG: ${{ steps.plan.outputs.tag }}
+      #   run: |
+      #     git tag "$TAG" "$GITHUB_SHA"
+      #     git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "refs/tags/$TAG"
+      #     gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --verify-tag --title "$TAG" --notes-file notes.md
+
+      - name: Replay history
+        if: inputs.from != ''
+        env:
+          MODULE: ${{ steps.dm.outputs.path }}/release
+          FROM: ${{ inputs.from }}
+        run: |
+          git rev-parse -q --verify "${FROM}^{commit}" >/dev/null || { echo "::error::from: '$FROM' is not a commit"; exit 1; }
+          git merge-base --is-ancestor "$FROM" HEAD || { echo "::error::from: '$FROM' is not in the history of $GITHUB_REF_NAME"; exit 1; }
+          start=$(git tag --list "${TAG_PREFIX}[1-9]*" --merged "$FROM" --sort=-v:refname \
+            | grep -E "^${TAG_PREFIX}[1-9][0-9]*\.[0-9]+\.[0-9]+$" | head -n 1 || true)
+          start=${start#"$TAG_PREFIX"}
+          dagger call -q -m "$MODULE" simulate --source=. --from="$FROM" --to=HEAD \
+            --start-version="${start:-1.0.0}" --tag-prefix="$TAG_PREFIX" --expand --format=markdown > history.md
+          {
+            echo
+            echo "## History after \`$FROM\`"
+            echo
+            # The job summary takes up to 1 MiB; the full table is in the artifact.
+            if [ "$(wc -c < history.md)" -lt 900000 ]; then cat history.md
+            else echo "Too large for the summary; see the \`release-history\` artifact."; echo; tail -n 1 history.md; fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload history
+        if: inputs.from != ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-history
+          path: history.md

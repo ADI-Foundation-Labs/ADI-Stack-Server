@@ -1,0 +1,50 @@
+name: Set up dagger-modules
+description: Fetch dagger-modules (private GitLab) at a pinned ref and install the dagger CLI.
+
+inputs:
+  gitlab-user:
+    description: Deploy token username (vars.DAGGER_MODULES_GITLAB_USER).
+    required: true
+  gitlab-token:
+    description: Deploy token (secrets.DAGGER_MODULES_GITLAB_TOKEN).
+    required: true
+  ref:
+    description: dagger-modules commit, tag or branch.
+    required: true
+  dagger-version:
+    description: dagger CLI version; matches the modules' engineVersion.
+    required: true
+
+outputs:
+  path:
+    description: Checkout of dagger-modules; modules live in its subdirectories.
+    value: ${{ steps.fetch.outputs.path }}
+
+runs:
+  using: composite
+  steps:
+    - name: Fetch dagger-modules
+      id: fetch
+      shell: bash
+      env:
+        DM_USER: ${{ inputs.gitlab-user }}
+        DM_TOKEN: ${{ inputs.gitlab-token }}
+        DM_REF: ${{ inputs.ref }}
+        DM_REPO: gitlab.sre.ideasoft.io/adi-foundation/adi-chain/tools/dagger-modules.git
+      run: |
+        if [ -z "$DM_USER" ] || [ -z "$DM_TOKEN" ]; then
+          echo "::error title=dagger-modules access missing::Set secret DAGGER_MODULES_GITLAB_TOKEN and variable DAGGER_MODULES_GITLAB_USER with scripts/grant-github-access.sh in dagger-modules."
+          exit 1
+        fi
+        dir="$RUNNER_TEMP/dagger-modules"
+        git init -q "$dir"
+        git -C "$dir" fetch -q --depth 1 "https://${DM_USER}:${DM_TOKEN}@${DM_REPO}" "$DM_REF"
+        git -C "$dir" checkout -q FETCH_HEAD
+        echo "dagger-modules $DM_REF at $(git -C "$dir" rev-parse --short HEAD)"
+        echo "path=$dir" >> "$GITHUB_OUTPUT"
+
+    - name: Install dagger ${{ inputs.dagger-version }}
+      shell: bash
+      env:
+        DAGGER_VERSION: ${{ inputs.dagger-version }}
+      run: curl -fsSL https://dl.dagger.io/dagger/install.sh | sudo DAGGER_VERSION="$DAGGER_VERSION" BIN_DIR=/usr/local/bin sh
