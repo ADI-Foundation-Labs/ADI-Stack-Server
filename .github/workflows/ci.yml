@@ -4,7 +4,11 @@ on:
   push:
     branches:
       - main
+    tags:
+      - "v*"
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
 
 # Cancel in-progress runs for the same PR / ref (PRs only).
 concurrency:
@@ -79,8 +83,8 @@ jobs:
           cargo clippy --all-targets --all-features --workspace
           --exclude zksync_os_integration_tests -- -D warnings
 
-  test:
-    name: Unit tests
+  build-tests:
+    name: Build and unit tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -94,20 +98,66 @@ jobs:
       - name: Install Rust toolchain
         run: rustup show active-toolchain || rustup toolchain install
 
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.5.1
+
       - uses: Swatinem/rust-cache@v2
 
       - name: Install cargo-nextest
         uses: taiki-e/install-action@nextest
 
+      - name: Build and archive tests
+        run: cargo nextest archive --workspace --archive-file nextest-archive.tar.zst
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nextest-archive
+          path: nextest-archive.tar.zst
+          retention-days: 1
+          compression-level: 0
+
+      # Same --workspace selection as the archive, so nothing is recompiled.
       - name: Run unit tests
-        run: cargo nextest run --workspace --exclude zksync_os_integration_tests
+        run: cargo nextest run --workspace -E 'not package(zksync_os_integration_tests)'
+
+  integration-tests:
+    name: Integration tests
+    # Prover-input-heavy tests time out on standard runners.
+    runs-on: server-runner-linux-x64-8c-32r
+    needs: build-tests
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.5.1
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@nextest
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: nextest-archive
+
+      # build.rs doesn't run for archived tests.
+      - name: Decompress L1 states
+        run: for f in local-chains/*/l1-state.json.gz; do gunzip -kf "$f"; done
+
+      - name: Run integration tests
+        run: >
+          cargo-nextest nextest run --archive-file nextest-archive.tar.zst
+          -E 'package(zksync_os_integration_tests)' --profile ci
 
   # Single required status check for branch protection.
   ci-success:
     name: CI Status Check
     runs-on: ubuntu-latest
     if: always() && !cancelled()
-    needs: [build, fmt, clippy, test]
+    needs: [build, fmt, clippy, build-tests, integration-tests]
     steps:
       - name: Verify all jobs passed
         run: |
