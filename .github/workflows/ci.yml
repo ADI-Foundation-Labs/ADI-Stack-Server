@@ -21,6 +21,9 @@ permissions:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
+  # Full debug info makes the test archive large enough that downloading it dominates the IT job;
+  # line tables keep file:line in backtraces.
+  CARGO_PROFILE_DEV_DEBUG: line-tables-only
 
 jobs:
   build:
