@@ -45,6 +45,19 @@ default-filter = 'not test(~interop) & not test(does_not_get_stuck) & not test(b
 # Usage: cargo nextest run -p zksync_os_integration_tests --profile no-pig
 [profile.no-pig]
 
+# Profile for the 8-core CI runner.
+[profile.ci]
+
+[[profile.ci.overrides]]
+# Needs the whole runner to re-commit within the 180s L1 wait.
+filter = 'test(~danger_block_rebuild_with_l1_revert_from_mid_batch)'
+threads-required = "num-test-threads"
+
+[[profile.ci.overrides]]
+# With one CPU per test, rebuild tests miss the 180s L1 wait.
+filter = 'test(~node::rebuild::)'
+threads-required = 4
+
 # Skip slow external node tests in coverage profile
 # TODO: investigate why this test gets stuck in coverage runs
 # by producing 550s proving computations in coverage mode
