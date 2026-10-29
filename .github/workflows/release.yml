@@ -1,5 +1,6 @@
 # Dry run for now. To switch releases on, in one PR:
-#   1. uncomment the lines under the "release:" markers below;
+#   1. uncomment the "Release token" step and GH_TOKEN, and swap the dry-run
+#      dagger call for the one commented under it;
 #   2. give one of its commits the footer `Release-As: 1.0.0`. Merging the PR then
 #      releases v1.0.0; until a v1.0.0 exists, nothing is released.
 name: Release
@@ -17,8 +18,7 @@ permissions: {}
 env:
   DAGGER_VERSION: "0.19.11"
   # feat/upstream-aware-planner (dagger-modules MR !21); switch to its release tag once merged.
-  MODULE: gitlab.sre.ideasoft.io/adi-foundation/adi-chain/tools/dagger-modules.git/release@67959dbd282b270da14bd19836b5e73de8f45ee5
-  RELEASE_ARGS: --tag-only --lowest-version=1.0.0
+  MODULE: gitlab.sre.ideasoft.io/adi-foundation/adi-chain/tools/dagger-modules.git/release@28ea8c559478b9872d36ea7055e435e488e8df6a
 
 jobs:
   preview:
@@ -43,19 +43,21 @@ jobs:
         with:
           version: ${{ env.DAGGER_VERSION }}
 
+      # Dagger fetches the private module with git, which asks this helper for the
+      # deploy token; the token is read from the env of the step that runs dagger.
+      - name: Allow access to dagger-modules
+        run: |
+          # shellcheck disable=SC2016
+          git config --global credential.https://gitlab.sre.ideasoft.io.helper \
+            '!f() { test "$1" = get && printf "username=%s\npassword=%s\n" "$DM_USER" "$DM_TOKEN"; }; f'
+
       - name: Plan
         env:
           DM_USER: ${{ vars.DAGGER_MODULES_GITLAB_USER }}
           DM_TOKEN: ${{ secrets.DAGGER_MODULES_GITLAB_TOKEN }}
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
-          # Dagger asks this helper for GitLab credentials; the token stays in the step's env, never on disk.
-          # shellcheck disable=SC2016
-          git config --global credential.https://gitlab.sre.ideasoft.io.helper \
-            '!f() { test "$1" = get && printf "username=%s\npassword=%s\n" "$DM_USER" "$DM_TOKEN"; }; f'
-          # shellcheck disable=SC2086
-          dagger call -q -m "$MODULE" prepare-release --source=. $RELEASE_ARGS \
-            --dry-run --pr-title="$PR_TITLE" > result.json
+          dagger call -q -m "$MODULE" prepare-release --source=. --tag-only --lowest-version=1.0.0 --dry-run --pr-title="$PR_TITLE" > result.json
           jq -r .summary result.json | tee -a "$GITHUB_STEP_SUMMARY" > comment.md
 
       - uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88 # v3.0.5
@@ -83,9 +85,16 @@ jobs:
         with:
           version: ${{ env.DAGGER_VERSION }}
 
+      # Dagger fetches the private module with git, which asks this helper for the
+      # deploy token; the token is read from the env of the step that runs dagger.
+      - name: Allow access to dagger-modules
+        run: |
+          # shellcheck disable=SC2016
+          git config --global credential.https://gitlab.sre.ideasoft.io.helper \
+            '!f() { test "$1" = get && printf "username=%s\npassword=%s\n" "$DM_USER" "$DM_TOKEN"; }; f'
+
       # The App must be allowed by the v* tag ruleset. A tag pushed with GITHUB_TOKEN
       # starts no workflows, so docker.yml would never build it.
-      # release:
       # - name: Release token
       #   id: app
       #   uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
@@ -97,17 +106,8 @@ jobs:
         env:
           DM_USER: ${{ vars.DAGGER_MODULES_GITLAB_USER }}
           DM_TOKEN: ${{ secrets.DAGGER_MODULES_GITLAB_TOKEN }}
-          # release:
           # GH_TOKEN: ${{ steps.app.outputs.token }}
         run: |
-          # Dagger asks this helper for GitLab credentials; the token stays in the step's env, never on disk.
-          # shellcheck disable=SC2016
-          git config --global credential.https://gitlab.sre.ideasoft.io.helper \
-            '!f() { test "$1" = get && printf "username=%s\npassword=%s\n" "$DM_USER" "$DM_TOKEN"; }; f'
-          flags=(--dry-run)
-          # release:
-          # flags=(--git-token=env:GH_TOKEN --forge-token=env:GH_TOKEN)
-          # shellcheck disable=SC2086
-          dagger call -q -m "$MODULE" prepare-release --source=. $RELEASE_ARGS \
-            --forge-release "${flags[@]}" > result.json
+          dagger call -q -m "$MODULE" prepare-release --source=. --tag-only --lowest-version=1.0.0 --dry-run > result.json
+          # dagger call -q -m "$MODULE" prepare-release --source=. --tag-only --lowest-version=1.0.0 --git-token=env:GH_TOKEN --forge-token=env:GH_TOKEN > result.json
           jq -r .summary result.json | tee -a "$GITHUB_STEP_SUMMARY"
