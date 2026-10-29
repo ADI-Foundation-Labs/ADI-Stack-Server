@@ -1,7 +1,3 @@
-# Each push to main releases the next version from the conventional commits since
-# the last release: a v1.x.y tag (which docker.yml builds) and its GitHub Release.
-# Nothing is committed to main. Each PR gets a comment saying what merging it releases.
-#
 # Dry run for now. To switch releases on, in one PR:
 #   1. uncomment the lines under the "release:" markers below;
 #   2. give one of its commits the footer `Release-As: 1.0.0`. Merging the PR then
@@ -21,7 +17,7 @@ permissions: {}
 env:
   DAGGER_VERSION: "0.19.11"
   # feat/upstream-aware-planner (dagger-modules MR !21); switch to its release tag once merged.
-  MODULE: gitlab.sre.ideasoft.io/adi-foundation/adi-chain/tools/dagger-modules.git/release@f312c4c93095ef5ce4afcbfe18d7931235fafd37
+  MODULE: gitlab.sre.ideasoft.io/adi-foundation/adi-chain/tools/dagger-modules.git/release@67959dbd282b270da14bd19836b5e73de8f45ee5
   RELEASE_ARGS: --tag-only --lowest-version=1.0.0
 
 jobs:
@@ -53,8 +49,7 @@ jobs:
           DM_TOKEN: ${{ secrets.DAGGER_MODULES_GITLAB_TOKEN }}
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
-          # Dagger fetches the private module with the host's git credentials; the helper
-          # reads the token from this step's env when asked, so it is never written to disk.
+          # Dagger asks this helper for GitLab credentials; the token stays in the step's env, never on disk.
           # shellcheck disable=SC2016
           git config --global credential.https://gitlab.sre.ideasoft.io.helper \
             '!f() { test "$1" = get && printf "username=%s\npassword=%s\n" "$DM_USER" "$DM_TOKEN"; }; f'
@@ -105,8 +100,7 @@ jobs:
           # release:
           # GH_TOKEN: ${{ steps.app.outputs.token }}
         run: |
-          # Dagger fetches the private module with the host's git credentials; the helper
-          # reads the token from this step's env when asked, so it is never written to disk.
+          # Dagger asks this helper for GitLab credentials; the token stays in the step's env, never on disk.
           # shellcheck disable=SC2016
           git config --global credential.https://gitlab.sre.ideasoft.io.helper \
             '!f() { test "$1" = get && printf "username=%s\npassword=%s\n" "$DM_USER" "$DM_TOKEN"; }; f'
