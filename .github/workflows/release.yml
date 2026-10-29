@@ -22,8 +22,10 @@ env:
 jobs:
   preview:
     name: Release preview
-    # Fork PRs get no secrets, so they cannot load the release tooling.
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    # Fork PRs get no secrets, so they cannot load the release tooling. Of the edits, only a new title changes the preview.
+    if: >-
+      github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository &&
+      (github.event.action != 'edited' || github.event.changes.title != null)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     concurrency:
