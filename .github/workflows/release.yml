@@ -18,7 +18,7 @@ permissions: {}
 env:
   DAGGER_VERSION: "0.19.11"
   # feat/upstream-aware-planner (dagger-modules MR !21); switch to its release tag once merged.
-  MODULE: gitlab.sre.ideasoft.io/adi-foundation/adi-chain/tools/dagger-modules.git/release@28ea8c559478b9872d36ea7055e435e488e8df6a
+  MODULE: gitlab.sre.ideasoft.io/adi-foundation/adi-chain/tools/dagger-modules.git/release@5dd1339f405b868b8c72103ac895407416d5a7ee
 
 jobs:
   preview:
