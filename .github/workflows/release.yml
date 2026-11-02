@@ -17,7 +17,7 @@ permissions: {}
 
 env:
   DAGGER_VERSION: "0.19.11"
-  MODULE: gitlab.sre.ideasoft.io/adi-foundation/shared/ci/dagger-modules.git/release@v2.0.0
+  MODULE: gitlab.sre.ideasoft.io/adi-foundation/shared/ci/dagger-modules.git/release@v2.1.0
 
 jobs:
   preview:
@@ -52,19 +52,16 @@ jobs:
           git config --global credential.https://gitlab.sre.ideasoft.io.helper \
             '!f() { test "$1" = get && printf "username=%s\npassword=%s\n" "$DM_USER" "$DM_TOKEN"; }; f'
 
-      - name: Plan
+      - name: Plan and comment
         env:
           DM_USER: ${{ vars.DAGGER_MODULES_GITLAB_USER }}
           DM_TOKEN: ${{ secrets.DAGGER_MODULES_GITLAB_TOKEN }}
           PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          dagger call -q -m "$MODULE" prepare-release --source=. --tag-only --lowest-version=1.0.0 --dry-run --pr-title="$PR_TITLE" > result.json
-          jq -r .summary result.json | tee -a "$GITHUB_STEP_SUMMARY" > comment.md
-
-      - uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88 # v3.0.5
-        with:
-          header: release-preview
-          path: comment.md
+          dagger call -q -m "$MODULE" prepare-release --source=. --tag-only --lowest-version=1.0.0 --dry-run --pr-title="$PR_TITLE" --comment-on="$PR_NUMBER" --forge-token=env:GITHUB_TOKEN > result.json
+          jq -r .summary result.json >> "$GITHUB_STEP_SUMMARY"
 
   release:
     name: Release
