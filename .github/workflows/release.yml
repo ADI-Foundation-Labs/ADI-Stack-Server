@@ -17,7 +17,7 @@ permissions: {}
 
 env:
   DAGGER_VERSION: "0.19.11"
-  MODULE: gitlab.sre.ideasoft.io/adi-foundation/adi-chain/tools/dagger-modules.git/release@v2.0.0
+  MODULE: gitlab.sre.ideasoft.io/adi-foundation/shared/ci/dagger-modules.git/release@v2.0.0
 
 jobs:
   preview:
